@@ -1,0 +1,431 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>貨櫃管理 (v4.1 介面微調)</title>
+    
+    <!-- 1. 載入核心庫 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 2. 載入 Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+    <style>
+        body { background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1c1c1e; -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 2px; }
+        
+        /* Apple 風格卡片與按鈕 */
+        .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 16px; overflow: hidden; }
+        .ios-btn { transition: opacity 0.2s; }
+        .ios-btn:active { opacity: 0.6; }
+        
+        /* 標籤樣式調整：字體設為 10px，確保不搶戲 */
+        .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+        
+        /* 動畫 */
+        .bell-shake { animation: shake 0.5s ease-in-out infinite; }
+        @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+        
+        .mobile-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding-top: 60px; backdrop-filter: blur(4px); }
+        .mobile-modal-content { background: white; width: 90%; max-width: 400px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); overflow: hidden; animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- 圖示 ---
+        const Icons = {
+            Ship: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
+            Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
+            Plus: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
+            Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            Trash2: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            Edit: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>,
+            Copy: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
+            FileCheck: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>,
+            Globe: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+            Factory: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>,
+            Paperclip: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,
+            ArrowRight: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
+            Download: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            LogOut: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
+            Google: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>,
+            X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>,
+            Check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            Bell: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>,
+            MessageCircle: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>,
+            User: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            Briefcase: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+            Barcode: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>,
+            AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        };
+
+        const { useState, useEffect, useMemo } = React;
+
+        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
+        const IMPORT_COMPANIES = ['崇文冷凍', '八方環球'];
+        const CUSTOMS_BROKERS = ['原碩', '尚鴻'];
+        const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
+            authDomain: "containersystem-6342f.firebaseapp.com",
+            projectId: "containersystem-6342f",
+            storageBucket: "containersystem-6342f.firebasestorage.app",
+            messagingSenderId: "27658303054",
+            appId: "1:27658303054:web:d7a3710054ede268cdf51f"
+        };
+
+        let db = null, auth = null, storage = null;
+        try {
+            if (firebaseConfig.apiKey !== "請在此填入您的API_KEY") {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                auth = firebase.auth();
+                storage = firebase.storage();
+            }
+        } catch (e) { console.error(e); }
+
+        const getUrgentStatus = (date) => {
+            const today = new Date(); today.setHours(0,0,0,0);
+            const arrival = new Date(date);
+            const diff = Math.ceil((arrival - today) / (1000 * 60 * 60 * 24));
+            if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
+            if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
+            if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
+            return { text: `${diff} 天後`, color: 'bg-blue-100 text-blue-600' };
+        };
+
+        function ContainerApp() {
+            const [user, setUser] = useState(null);
+            const [shipments, setShipments] = useState([]);
+            const [view, setView] = useState('list');
+            const [editingId, setEditingId] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [uploading, setUploading] = useState(false);
+            const [showNotifications, setShowNotifications] = useState(false);
+
+            const isAdmin = user && !user.isAnonymous && ADMIN_EMAILS.includes(user.email);
+
+            useEffect(() => {
+                if (!auth) { setError("CONFIG_MISSING"); setLoading(false); return; }
+                const authUnsub = auth.onAuthStateChanged((u) => { setUser(u); if (!u) setLoading(false); });
+                let unsubscribeDB = () => {};
+                if (auth.currentUser || user) {
+                     unsubscribeDB = db.collection('shipments').onSnapshot(
+                        (snapshot) => {
+                            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                            data.sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+                            setShipments(data);
+                            setLoading(false);
+                            setError(null);
+                        },
+                        (err) => {
+                            if (err.code === 'permission-denied') setError("PERMISSION_DENIED");
+                            else setError("CONNECTION_ERROR");
+                            setLoading(false);
+                        }
+                    );
+                }
+                return () => { authUnsub(); unsubscribeDB(); };
+            }, [user]);
+
+            const handleAdminLogin = async () => { try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch (e) { alert("登入失敗: " + e.message); } };
+            const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (e) { alert("訪客登入失敗: 請確認 Firebase 後台已開啟「匿名登入」。\n" + e.message); } };
+            const handleLogout = () => auth.signOut();
+
+            const initialFormState = { importCompany: IMPORT_COMPANIES[0], customsBroker: CUSTOMS_BROKERS[0], origin: '', supplier: '', arrivalDate: new Date().toISOString().split('T')[0], containerNumber: '', shippingCompany: '', products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0 }], totalQuantity: 0, docUrl: '', docName: '' };
+            const [formData, setFormData] = useState(initialFormState);
+
+            const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: name === 'containerNumber' ? value.toUpperCase() : value })); };
+            const handleProductChange = (idx, field, value) => { const np = [...formData.products]; np[idx] = { ...np[idx], [field]: value }; setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, p) => s + Number(p.quantity||0), 0) })); };
+            const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0 }] }));
+            const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
+            const removeProductRow = (idx) => { const np = formData.products.filter((_, i) => i !== idx); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
+
+            const handleFileUpload = async (e) => {
+                const file = e.target.files[0]; if (!file) return; setUploading(true);
+                try { const ref = storage.ref().child(`docs/${Date.now()}_${file.name}`); await ref.put(file); const url = await ref.getDownloadURL(); setFormData(prev => ({ ...prev, docUrl: url, docName: file.name })); } catch (e) { alert("上傳失敗: " + e.message); } finally { setUploading(false); }
+            };
+            const handleDeleteFile = () => { if(confirm("移除連結？")) setFormData(prev => ({ ...prev, docUrl: '', docName: '' })); };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!isAdmin) return alert("權限不足");
+                if (!formData.containerNumber) return alert('請輸入櫃號');
+                setIsSubmitting(true);
+                const timeout = new Promise((_, r) => setTimeout(() => r(new Error("連線逾時")), 10000));
+                try {
+                    const payload = { ...formData, updatedAt: new Date().toISOString() };
+                    if (editingId) await db.collection('shipments').doc(editingId).update(payload);
+                    else await db.collection('shipments').add({ ...payload, createdAt: new Date().toISOString() });
+                    setFormData(initialFormState); setEditingId(null); setView('list'); window.scrollTo(0,0);
+                } catch (e) { alert("錯誤：" + e.message); } finally { setIsSubmitting(false); }
+            };
+
+            const handleDuplicateShipment = (s) => { if(!isAdmin)return; const {id,...d}=s; const np=d.products.map(p=>({...p,id:Date.now()+Math.random()})); setFormData({...d, containerNumber:'', products:np}); setEditingId(null); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); };
+            const handleEdit = (s) => { if(!isAdmin)return; setFormData(s); setEditingId(s.id); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); };
+            const handleDelete = async (id) => { if(!isAdmin || !confirm('刪除？'))return; await db.collection('shipments').doc(id).delete(); };
+            const handleExport = () => { if (!isAdmin && user.isAnonymous) return alert("訪客無法匯出"); const header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件\n"; const rows = filteredShipments.flatMap(s => s.products.map(p => [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl].map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(","))).join("\n"); const link = document.createElement("a"); link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; link.click(); };
+            const handleShareToLine = (s) => {
+                const productDetails = s.products.map((p, i) => `${i+1}. ${p.name} ${p.spec ? `(${p.spec})` : ''} - ${p.quantity.toLocaleString()}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`).join('\n');
+                const text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}`;
+                window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`, '_blank');
+            };
+
+            const urgentShipments = useMemo(() => { const today=new Date(); today.setHours(0,0,0,0); return shipments.filter(s => { const d = Math.ceil((new Date(s.arrivalDate)-today)/86400000); return d>=0 && d<=3; }); }, [shipments]);
+            const urgentCount = urgentShipments.length;
+            const filteredShipments = useMemo(() => { const t=searchTerm.toLowerCase(); return shipments.filter(s => s.containerNumber.toLowerCase().includes(t) || s.importCompany.includes(t) || (s.supplier||"").toLowerCase().includes(t)); }, [shipments, searchTerm]);
+            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean)])).sort(), [shipments]);
+            const getStatusStyle = (date) => { const d = Math.ceil((new Date(date) - new Date().setHours(0,0,0,0)) / 86400000); if (d < 0) return { bg: 'bg-gray-100', text: '已到港', color: 'text-gray-400' }; if (d === 0) return { bg: 'bg-red-50', text: '今日到港', color: 'text-red-500' }; if (d <= 3) return { bg: 'bg-red-50', text: `倒數 ${d} 天`, color: 'text-red-500' }; return { bg: 'bg-blue-50', text: '預計到港', color: 'text-blue-500' }; };
+            const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
+
+            if (error === "CONFIG_MISSING") return <div className="flex h-screen items-center justify-center text-red-600 font-bold p-4 text-center">系統未設定</div>;
+            if (error === "PERMISSION_DENIED") return <div className="flex h-screen items-center justify-center flex-col p-4"><div className="text-red-500 mb-4"><Icons.AlertCircle size={40} /></div><h2 className="text-xl font-bold mb-2">權限不足</h2><p className="text-gray-500">請檢查 Firebase 資料庫規則設定。</p><button onClick={()=>location.reload()} className="mt-4 text-blue-500">重新整理</button></div>;
+            if (loading && !user) return <div className="flex h-screen items-center justify-center text-gray-400">Loading...</div>;
+
+            if (!user) {
+                return (
+                    <div className="login-screen">
+                        <div className="bg-white p-8 rounded-2xl shadow-xl text-center w-full max-w-sm mx-4">
+                            <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200"><Icons.Ship /></div>
+                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理</h1>
+                            <p className="text-gray-500 mb-8 text-sm">請選擇登入身分</p>
+                            <div className="space-y-3">
+                                <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 管理員登入</button>
+                                <div className="relative py-2"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div><div className="relative flex justify-center text-xs text-gray-500"><span className="bg-white px-2">或</span></div></div>
+                                <button onClick={handleGuestLogin} className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-200 transition-all font-bold ios-btn"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-10">
+                    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/60">
+                        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+                            <div className="flex items-center gap-2 font-bold text-gray-900 text-lg">
+                                <div className="w-6 h-6 text-blue-600"><Icons.Ship /></div> 
+                                <span>貨櫃管理</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showNotifications)}>
+                                    <div className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 ${urgentCount>0?'text-red-500 bell-shake':''}`}><Icons.Bell /></div>
+                                    {urgentCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                                </div>
+                                {view === 'list' && (
+                                    <>
+                                        <button onClick={handleExport} className="p-2 rounded-full hover:bg-gray-100 text-gray-500" title="匯出"><Icons.Download /></button>
+                                        {isAdmin && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); setIsSubmitting(false); }} className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"><Icons.Plus /></button>}
+                                    </>
+                                )}
+                                <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 text-gray-400"><Icons.LogOut /></button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Mobile Notification Modal */}
+                    {showNotifications && (
+                        <div className="mobile-modal-overlay" onClick={() => setShowNotifications(false)}>
+                            <div className="mobile-modal-content" onClick={e => e.stopPropagation()}>
+                                <div className="bg-gray-50 px-5 py-4 border-b border-gray-100 flex justify-between items-center">
+                                    <span className="font-bold text-gray-700">近期到港急件 ({urgentCount})</span>
+                                    <button onClick={() => setShowNotifications(false)} className="text-gray-400"><Icons.X /></button>
+                                </div>
+                                <div className="max-h-[60vh] overflow-y-auto p-2">
+                                    {urgentShipments.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">無急件</div> : urgentShipments.map(s => (
+                                        <div key={s.id} className="p-3 mb-2 bg-white rounded-xl border border-gray-100 shadow-sm">
+                                            <div className="flex justify-between mb-1"><span className="font-bold text-blue-600">{s.containerNumber}</span><span className="text-xs font-bold text-red-500">{Math.ceil((new Date(s.arrivalDate)-new Date().setHours(0,0,0,0))/86400000)}天後</span></div>
+                                            <div className="text-xs text-gray-500 mb-3">{s.importCompany} / {s.supplier}</div>
+                                            <button onClick={() => handleShareToLine(s)} className="w-full py-2 bg-[#06C755] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 ios-btn"><Icons.MessageCircle /> 通知 LINE 群組</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <main className="max-w-3xl mx-auto px-4 mt-4">
+                        {view === 'list' ? (
+                            <div className="space-y-4">
+                                {/* Search */}
+                                <div className="relative">
+                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
+                                    <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
+                                </div>
+
+                                <div className="grid gap-4">
+                                    {filteredShipments.length === 0 ? <div className="text-center py-12 text-gray-400 text-sm">尚無資料</div> : filteredShipments.map(item => {
+                                        const status = getStatusStyle(item.arrivalDate);
+                                        return (
+                                            <div key={item.id} className="ios-card">
+                                                {/* Header */}
+                                                <div className="p-4 border-b border-gray-50 flex gap-4">
+                                                    {/* Date Box (Left) */}
+                                                    <div className={`flex-shrink-0 w-14 flex flex-col items-center justify-center rounded-xl border ${status.bg} h-16`}>
+                                                        <span className="text-[10px] font-bold uppercase text-gray-500">{new Date(item.arrivalDate).toLocaleString('default', { month: 'short' })}</span>
+                                                        <span className="text-xl font-bold text-gray-800 leading-none my-0.5">{new Date(item.arrivalDate).getDate()}</span>
+                                                        <span className={`text-[9px] font-bold ${status.color}`}>{status.text}</span>
+                                                    </div>
+
+                                                    {/* Info (Right) */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <div>
+                                                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
+                                                                <div className="flex items-center flex-wrap gap-2">
+                                                                    <span className="text-lg font-bold text-gray-900 font-mono tracking-tight">{item.containerNumber}</span>
+                                                                    {item.shippingCompany && (
+                                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                                                                            <div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-1 ml-2">
+                                                                {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 bg-blue-50 w-8 h-8"><Icons.Paperclip /></a>}
+                                                                <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 bg-green-50 w-8 h-8"><Icons.MessageCircle /></button>
+                                                                {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Tags Row */}
+                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                            <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker || '未指定'}</div>
+                                                            {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
+                                                            <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-purple-500"><Icons.Factory /></div><span className="truncate max-w-[80px]">{item.supplier || '未填'}</span></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Product List */}
+                                                <div className="p-4">
+                                                    <div className="space-y-3">
+                                                        {item.products.map((p, idx) => (
+                                                            <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
+                                                                <div className="flex-1 mr-2">
+                                                                    <div className="flex items-baseline gap-2 flex-wrap">
+                                                                        <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
+                                                                        {p.spec && (
+                                                                            <span className="text-xs text-slate-500 font-medium"> {/* Increased to text-xs (12px) */}
+                                                                                ({p.spec})
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex gap-2 mt-1">
+                                                                        {p.batchNumber && <span className="text-[10px] font-mono bg-gray-100 px-1.5 rounded text-gray-600">批:{p.batchNumber}</span>}
+                                                                        {p.expiryDate && <span className="text-[10px] font-mono bg-gray-100 px-1.5 rounded text-gray-600">效:{p.expiryDate}</span>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right font-mono font-bold text-sm text-gray-700">{p.quantity.toLocaleString()}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
+                                                        {isAdmin && (
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => handleDuplicateShipment(item)} className="text-xs text-gray-400 hover:text-blue-500 flex items-center gap-1"><Icons.Copy /> 複製</button>
+                                                                <button onClick={() => handleDelete(item.id)} className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"><Icons.Trash2 /> 刪除</button>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex items-baseline gap-2 ml-auto">
+                                                            <span className="text-[10px] font-bold text-gray-400 uppercase">總數</span>
+                                                            <span className="text-xl font-black text-blue-600">{item.totalQuantity.toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ) : (
+                            // Form View
+                            <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
+                                <div className="flex justify-between items-center mb-5 pb-3 border-b border-gray-100">
+                                    <h2 className="text-lg font-bold text-gray-900">{editingId ? '編輯' : '新增'}貨櫃</h2>
+                                    <button onClick={() => setView('list')} className="text-gray-400 p-1"><Icons.X /></button>
+                                </div>
+                                <form onSubmit={handleSubmit} className="space-y-5">
+                                    {/* Fields ... same logic, compact style */}
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500 outline-none" placeholder="TEMU..." required /></div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
+                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                        </div>
+                                        <div><label className="block text-xs font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="例如: 長榮" /></div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="產地" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist></div>
+                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="廠商" /></div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 mb-1">附件</label>
+                                            <div className="relative w-full bg-gray-50 rounded-lg px-3 py-2.5 flex items-center justify-between">
+                                                <input type="file" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled={uploading} />
+                                                <span className="text-sm text-gray-500 truncate">{formData.docName || (uploading ? '上傳中...' : '上傳文件')}</span>
+                                                <div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-3 border-t border-gray-100">
+                                        <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-sm">產品明細</h3><button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button></div>
+                                        <div className="space-y-3">
+                                            {formData.products.map((p, idx) => (
+                                                <div key={idx} className="bg-gray-50 rounded-xl p-3 relative">
+                                                    <div className="grid grid-cols-12 gap-2 mb-2">
+                                                        <div className="col-span-8"><input placeholder="品名" value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} className="w-full bg-transparent border-b border-gray-200 outline-none text-sm font-bold py-1" required /></div>
+                                                        <div className="col-span-4"><input placeholder="規格" value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} className="w-full bg-transparent border-b border-gray-200 outline-none text-sm py-1" /></div>
+                                                    </div>
+                                                    <div className="grid grid-cols-12 gap-2">
+                                                        <div className="col-span-4"><input placeholder="批號" value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} className="w-full bg-white rounded px-2 py-1 text-xs outline-none" /></div>
+                                                        <div className="col-span-4"><input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} className="w-full bg-white rounded px-2 py-1 text-xs outline-none" /></div>
+                                                        <div className="col-span-4"><input type="number" placeholder="數量" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} className="w-full bg-white rounded px-2 py-1 text-sm font-bold text-right outline-none text-blue-600" /></div>
+                                                    </div>
+                                                    <div className="absolute top-2 right-2 flex gap-1">
+                                                        <button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-500 p-1"><Icons.Copy /></button>
+                                                        {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 hover:text-red-500 p-1"><Icons.X /></button>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="text-right mt-3 text-sm"><span className="text-gray-500 mr-2">Total</span><span className="text-xl font-bold text-blue-600">{formData.totalQuantity.toLocaleString()}</span></div>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-2">
+                                        <button type="button" onClick={() => setView('list')} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold ios-btn">取消</button>
+                                        <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold ios-btn shadow-lg shadow-blue-200">{isSubmitting ? '...' : '儲存'}</button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ContainerApp />);
+    </script>
+</body>
+</html>
