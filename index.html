@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v4.1 介面微調)</title>
+    <title>貨櫃管理 (v4.5 最終定案)</title>
     
     <!-- 1. 載入核心庫 -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,7 +28,7 @@
         .ios-btn { transition: opacity 0.2s; }
         .ios-btn:active { opacity: 0.6; }
         
-        /* 標籤樣式調整：字體設為 10px，確保不搶戲 */
+        /* 標籤樣式調整 */
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
         
         /* 動畫 */
@@ -79,6 +79,7 @@
         const CUSTOMS_BROKERS = ['原碩', '尚鴻'];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
 
+        // ⚠️ 已預填您的 Firebase 設定，解決手機登入問題
         const firebaseConfig = {
             apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
             authDomain: "containersystem-6342f.firebaseapp.com",
@@ -90,7 +91,7 @@
 
         let db = null, auth = null, storage = null;
         try {
-            if (firebaseConfig.apiKey !== "請在此填入您的API_KEY") {
+            if (firebaseConfig.apiKey) {
                 firebase.initializeApp(firebaseConfig);
                 db = firebase.firestore();
                 auth = firebase.auth();
@@ -204,7 +205,7 @@
                     <div className="login-screen">
                         <div className="bg-white p-8 rounded-2xl shadow-xl text-center w-full max-w-sm mx-4">
                             <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200"><Icons.Ship /></div>
-                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理</h1>
+                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理系統</h1>
                             <p className="text-gray-500 mb-8 text-sm">請選擇登入身分</p>
                             <div className="space-y-3">
                                 <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 管理員登入</button>
@@ -228,6 +229,25 @@
                                 <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showNotifications)}>
                                     <div className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 ${urgentCount>0?'text-red-500 bell-shake':''}`}><Icons.Bell /></div>
                                     {urgentCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                                    {showNotifications && (
+                                        <div className="mobile-modal-overlay" onClick={() => setShowNotifications(false)}>
+                                            <div className="mobile-modal-content" onClick={e => e.stopPropagation()}>
+                                                <div className="bg-gray-50 px-5 py-4 border-b border-gray-100 flex justify-between items-center">
+                                                    <span className="font-bold text-gray-700">近期到港急件 ({urgentCount})</span>
+                                                    <button onClick={() => setShowNotifications(false)} className="text-gray-400"><Icons.X /></button>
+                                                </div>
+                                                <div className="max-h-[60vh] overflow-y-auto p-2">
+                                                    {urgentShipments.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">無急件</div> : urgentShipments.map(s => (
+                                                        <div key={s.id} className="p-3 mb-2 bg-white rounded-xl border border-gray-100 shadow-sm">
+                                                            <div className="flex justify-between mb-1"><span className="font-bold text-blue-600">{s.containerNumber}</span><span className="text-xs font-bold text-red-500">{Math.ceil((new Date(s.arrivalDate)-new Date().setHours(0,0,0,0))/86400000)}天後</span></div>
+                                                            <div className="text-xs text-gray-500 mb-3">{s.importCompany} / {s.supplier}</div>
+                                                            <button onClick={() => handleShareToLine(s)} className="w-full py-2 bg-[#06C755] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 ios-btn"><Icons.MessageCircle /> 通知 LINE 群組</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 {view === 'list' && (
                                     <>
@@ -240,31 +260,9 @@
                         </div>
                     </header>
 
-                    {/* Mobile Notification Modal */}
-                    {showNotifications && (
-                        <div className="mobile-modal-overlay" onClick={() => setShowNotifications(false)}>
-                            <div className="mobile-modal-content" onClick={e => e.stopPropagation()}>
-                                <div className="bg-gray-50 px-5 py-4 border-b border-gray-100 flex justify-between items-center">
-                                    <span className="font-bold text-gray-700">近期到港急件 ({urgentCount})</span>
-                                    <button onClick={() => setShowNotifications(false)} className="text-gray-400"><Icons.X /></button>
-                                </div>
-                                <div className="max-h-[60vh] overflow-y-auto p-2">
-                                    {urgentShipments.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">無急件</div> : urgentShipments.map(s => (
-                                        <div key={s.id} className="p-3 mb-2 bg-white rounded-xl border border-gray-100 shadow-sm">
-                                            <div className="flex justify-between mb-1"><span className="font-bold text-blue-600">{s.containerNumber}</span><span className="text-xs font-bold text-red-500">{Math.ceil((new Date(s.arrivalDate)-new Date().setHours(0,0,0,0))/86400000)}天後</span></div>
-                                            <div className="text-xs text-gray-500 mb-3">{s.importCompany} / {s.supplier}</div>
-                                            <button onClick={() => handleShareToLine(s)} className="w-full py-2 bg-[#06C755] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 ios-btn"><Icons.MessageCircle /> 通知 LINE 群組</button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     <main className="max-w-3xl mx-auto px-4 mt-4">
                         {view === 'list' ? (
                             <div className="space-y-4">
-                                {/* Search */}
                                 <div className="relative">
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
                                     <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
@@ -275,24 +273,22 @@
                                         const status = getStatusStyle(item.arrivalDate);
                                         return (
                                             <div key={item.id} className="ios-card">
-                                                {/* Header */}
                                                 <div className="p-4 border-b border-gray-50 flex gap-4">
-                                                    {/* Date Box (Left) */}
                                                     <div className={`flex-shrink-0 w-14 flex flex-col items-center justify-center rounded-xl border ${status.bg} h-16`}>
                                                         <span className="text-[10px] font-bold uppercase text-gray-500">{new Date(item.arrivalDate).toLocaleString('default', { month: 'short' })}</span>
                                                         <span className="text-xl font-bold text-gray-800 leading-none my-0.5">{new Date(item.arrivalDate).getDate()}</span>
                                                         <span className={`text-[9px] font-bold ${status.color}`}>{status.text}</span>
                                                     </div>
-
-                                                    {/* Info (Right) */}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex justify-between items-start mb-1">
                                                             <div>
                                                                 <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
-                                                                <div className="flex items-center flex-wrap gap-2">
-                                                                    <span className="text-lg font-bold text-gray-900 font-mono tracking-tight">{item.containerNumber}</span>
+                                                                
+                                                                {/* ⭐️ 修正重點：船公司與櫃號同行 ⭐️ */}
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>
                                                                     {item.shippingCompany && (
-                                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium whitespace-nowrap">
                                                                             <div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}
                                                                         </span>
                                                                     )}
@@ -305,7 +301,6 @@
                                                             </div>
                                                         </div>
                                                         
-                                                        {/* Tags Row */}
                                                         <div className="flex flex-wrap gap-2 mt-2">
                                                             <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker || '未指定'}</div>
                                                             {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
@@ -314,23 +309,26 @@
                                                     </div>
                                                 </div>
 
-                                                {/* Product List */}
                                                 <div className="p-4">
                                                     <div className="space-y-3">
                                                         {item.products.map((p, idx) => (
                                                             <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
                                                                 <div className="flex-1 mr-2">
                                                                     <div className="flex items-baseline gap-2 flex-wrap">
-                                                                        <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
+                                                                        {/* ⭐️ 修正重點：字體 12px ⭐️ */}
+                                                                        <span className="text-[12px] font-bold text-slate-800 leading-tight break-words">{p.name}</span>
+                                                                        {/* ⭐️ 修正重點：字體 12px ⭐️ */}
                                                                         {p.spec && (
-                                                                            <span className="text-xs text-slate-500 font-medium"> {/* Increased to text-xs (12px) */}
+                                                                            <span className="text-[12px] text-slate-500 font-medium">
                                                                                 ({p.spec})
                                                                             </span>
                                                                         )}
                                                                     </div>
                                                                     <div className="flex gap-2 mt-1">
-                                                                        {p.batchNumber && <span className="text-[10px] font-mono bg-gray-100 px-1.5 rounded text-gray-600">批:{p.batchNumber}</span>}
-                                                                        {p.expiryDate && <span className="text-[10px] font-mono bg-gray-100 px-1.5 rounded text-gray-600">效:{p.expiryDate}</span>}
+                                                                        {/* ⭐️ 修正重點：字體 11px ⭐️ */}
+                                                                        {p.batchNumber && <span className="text-[11px] font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
+                                                                        {/* ⭐️ 修正重點：字體 11px ⭐️ */}
+                                                                        {p.expiryDate && <span className="text-[11px] font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                                                     </div>
                                                                 </div>
                                                                 <div className="text-right font-mono font-bold text-sm text-gray-700">{p.quantity.toLocaleString()}</div>
@@ -356,14 +354,12 @@
                                 </div>
                             </div>
                         ) : (
-                            // Form View
                             <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
                                 <div className="flex justify-between items-center mb-5 pb-3 border-b border-gray-100">
                                     <h2 className="text-lg font-bold text-gray-900">{editingId ? '編輯' : '新增'}貨櫃</h2>
                                     <button onClick={() => setView('list')} className="text-gray-400 p-1"><Icons.X /></button>
                                 </div>
                                 <form onSubmit={handleSubmit} className="space-y-5">
-                                    {/* Fields ... same logic, compact style */}
                                     <div className="grid grid-cols-1 gap-4">
                                         <div className="grid grid-cols-2 gap-3">
                                             <div><label className="block text-xs font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
