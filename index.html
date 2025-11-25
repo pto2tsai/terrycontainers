@@ -296,7 +296,8 @@
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">
                                     <div>
-                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
+                                        {/* ⭐️ 優化: 進口公司字體改為 text-base (16px) 並調整 padding ⭐️ */}
+                                        <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
                                         
                                         <div className="flex items-center gap-2">
                                             <span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>
@@ -308,8 +309,10 @@
                                         </div>
                                     </div>
                                     <div className="flex gap-1 ml-2">
-                                        {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 bg-blue-50 w-8 h-8"><Icons.Paperclip /></a>}
-                                        <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 bg-green-50 w-8 h-8"><Icons.MessageCircle /></button>
+                                        {/* ⭐️ 優化: 移除附檔背景色 ⭐️ */}
+                                        {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
+                                        {/* ⭐️ 優化: 移除 Line 轉傳背景色 ⭐️ */}
+                                        <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
                                         {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
                                     </div>
                                 </div>
