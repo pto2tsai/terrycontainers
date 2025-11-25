@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v4.8 雲端刪除整合版)</title>
+    <title>貨櫃管理 (v5.0 圖示整合)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -305,10 +305,10 @@
                 const arrival = parseLocalMidnightDate(date);
                 const diff = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-                if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
-                if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
-                if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
-                return { text: `${diff} 天後`, color: 'bg-blue-100 text-blue-600' };
+                if (diff < 0) return { text: '已到港', color: 'bg-gray-100', color: 'text-gray-400' };
+                if (diff === 0) return { text: '今日到港', color: 'bg-red-100', color: 'text-red-600' };
+                if (diff === 1) return { text: '明天到港', color: 'bg-orange-100', color: 'text-orange-600' };
+                return { text: `${diff} 天後`, color: 'bg-blue-100', color: 'text-blue-600' };
             };
 
             const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
@@ -341,12 +341,14 @@
                                             )}
                                         </div>
                                     </div>
-                                    <div className="flex gap-1 ml-2">
-                                        {/* ⭐️ 優化: 移除附檔背景色 ⭐️ */}
-                                        {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
-                                        {/* ⭐️ 優化: 移除 Line 轉傳背景色 ⭐️ */}
-                                        <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
-                                        {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
+                                    {/* ⭐️ 優化: 增加圖示間隔到 gap-3 ⭐️ */}
+                                    <div className="flex gap-3 ml-2">
+                                        {/* ⭐️ 優化: 移除附檔背景色，新增置中對齊 ⭐️ */}
+                                        {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon flex items-center justify-center text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
+                                        {/* ⭐️ 優化: 移除 Line 轉傳背景色，新增置中對齊 ⭐️ */}
+                                        <button onClick={() => handleShareToLine(item)} className="btn-icon flex items-center justify-center text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
+                                        {/* ⭐️ 新增置中對齊 ⭐️ */}
+                                        {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon flex items-center justify-center text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
                                     </div>
                                 </div>
                                 
