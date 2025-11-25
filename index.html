@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v4.8 到港日固定版)</title>
+    <title>貨櫃管理 (v4.8 雲端刪除整合版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -149,6 +149,7 @@
             const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (e) { alert("訪客登入失敗: 請確認 Firebase 後台已開啟「匿名登入」。\n" + e.message); } };
             const handleLogout = () => auth.signOut();
 
+            // ⭐️ 雲端刪除功能：新增 docRefPath 欄位 ⭐️
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
                 customsBroker: CUSTOMS_BROKERS[0], 
@@ -161,6 +162,7 @@
                 totalQuantity: 0, 
                 docUrl: '', 
                 docName: '',
+                docRefPath: '', // 儲存 Storage 檔案路徑
                 devanningLocation: '', 
                 devanningDate: '' 
             };
@@ -172,11 +174,43 @@
             const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
             const removeProductRow = (idx) => { const np = formData.products.filter((_, i) => i !== idx); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
 
+            // ⭐️ 雲端刪除功能：修改上傳邏輯，保存檔案路徑 ⭐️
             const handleFileUpload = async (e) => {
                 const file = e.target.files[0]; if (!file) return; setUploading(true);
-                try { const ref = storage.ref().child(`docs/${Date.now()}_${file.name}`); await ref.put(file); const url = await ref.getDownloadURL(); setFormData(prev => ({ ...prev, docUrl: url, docName: file.name })); } catch (e) { alert("上傳失敗: " + e.message); } finally { setUploading(false); }
+                try { 
+                    const filePath = `docs/${Date.now()}_${file.name}`; // 定義路徑
+                    const ref = storage.ref().child(filePath); 
+                    await ref.put(file); 
+                    const url = await ref.getDownloadURL(); 
+                    // 儲存 URL, Name, 和 Path
+                    setFormData(prev => ({ ...prev, docUrl: url, docName: file.name, docRefPath: filePath })); 
+                } catch (e) { alert("上傳失敗: " + e.message); } finally { setUploading(false); }
             };
-            const handleDeleteFile = () => { if(confirm("移除連結？")) setFormData(prev => ({ ...prev, docUrl: '', docName: '' })); };
+            
+            // ⭐️ 雲端刪除功能：實現 Storage 檔案永久刪除 ⭐️
+            const handleDeleteFile = async () => { 
+                if(!formData.docUrl || !confirm("確定要永久移除此附件嗎？檔案將從雲端儲存空間刪除。")) return;
+
+                if (formData.docRefPath && storage) {
+                    try {
+                        const fileRef = storage.ref().child(formData.docRefPath);
+                        await fileRef.delete();
+                        alert("檔案已從雲端儲存空間移除。");
+                    } catch (e) {
+                        if (e.code === 'storage/object-not-found') {
+                            console.warn("Cloud file not found, proceeding to clear link.");
+                        } else {
+                            alert("移除雲端檔案失敗: " + e.message + "，將僅移除資料庫中的連結。");
+                        }
+                    }
+                } else if (formData.docUrl) {
+                    // 針對沒有 docRefPath 的舊紀錄提示
+                    alert("警告：此紀錄無路徑資訊，無法刪除雲端檔案，將僅清除連結。請手動檢查 Firebase Storage。");
+                }
+                
+                // 清除 local state 和 Firestore 欄位
+                setFormData(prev => ({ ...prev, docUrl: '', docName: '', docRefPath: '' }));
+            };
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
@@ -196,26 +230,32 @@
             const handleEdit = (s) => { if(!isAdmin)return; setFormData(s); setEditingId(s.id); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); };
             const handleDelete = async (id) => { if(!isAdmin || !confirm('刪除？'))return; await db.collection('shipments').doc(id).delete(); };
             const handleExport = () => { if (!isAdmin && user.isAnonymous) return alert("訪客無法匯出"); const header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期\n"; const rows = filteredShipments.flatMap(s => s.products.map(p => [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate].map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(","))).join("\n"); const link = document.createElement("a"); link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; link.click(); };
+            
+            // ⭐️ 優化：Line 訊息中新增產地 ⭐️
             const handleShareToLine = (s) => {
-                const productDetails = s.products.map((p, i) => `${i+1}. ${p.name} ${p.spec ? `${p.spec}` : ''} - ${p.quantity.toLocaleString()}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`).join('\n');
+                const productDetails = s.products.map((p, i) => `${i+1}. ${p.name}${p.spec ? ` ${p.spec}` : ''} - ${p.quantity.toLocaleString()}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`).join('\n');
                 const devanningInfo = (s.devanningDate || s.devanningLocation) ? `\n\n🚛 拆櫃: ${s.devanningDate || '未定'}${s.devanningLocation ? ` @ ${s.devanningLocation}` : ''}` : '';
-                const text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${devanningInfo}`;
+                const text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${devanningInfo}`;
                 window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`, '_blank');
             };
 
             const urgentShipments = useMemo(() => { const today=new Date(); today.setHours(0,0,0,0); return shipments.filter(s => { const d = Math.ceil((new Date(s.arrivalDate)-today)/86400000); return d>=0 && d<=3; }); }, [shipments]);
             const urgentCount = urgentShipments.length;
 
+            // ⭐️ 優化：增強搜尋功能 ⭐️
             const filteredShipments = useMemo(() => { 
                 const t=searchTerm.toLowerCase(); 
                 return shipments.filter(s => (
-                    s.containerNumber.toLowerCase().includes(t) || 
-                    (s.importCompany||"").toLowerCase().includes(t) || 
-                    (s.supplier||"").toLowerCase().includes(t) || 
-                    (s.shippingCompany||"").toLowerCase().includes(t) || 
-                    (s.origin||"").toLowerCase().includes(t) || 
-                    (s.devanningLocation||"").toLowerCase().includes(t) || 
-                    s.products.some(p => (p.name||"").toLowerCase().includes(t) || (p.spec||"").toLowerCase().includes(t))
+                    s.containerNumber.toLowerCase().includes(t) || // 櫃號
+                    (s.importCompany||"").toLowerCase().includes(t) || // 進口公司
+                    (s.supplier||"").toLowerCase().includes(t) || // 廠商
+                    (s.shippingCompany||"").toLowerCase().includes(t) || // 船公司
+                    (s.origin||"").toLowerCase().includes(t) || // 產地
+                    (s.devanningLocation||"").toLowerCase().includes(t) || // 拆櫃地點 
+                    s.products.some(p => // 產品明細 (品名, 規格)
+                        (p.name||"").toLowerCase().includes(t) || 
+                        (p.spec||"").toLowerCase().includes(t)
+                    )
                 )); 
             }, [shipments, searchTerm]);
             
@@ -241,9 +281,7 @@
             const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
 
             const renderShipmentCard = (item) => {
-                // ⭐️ 狀態顯示邏輯：只有當日期 <= 今天才算「已拆櫃」，但顯示日期永遠是到港日
                 const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
-                // ⭐️ 修改：主要日期固定顯示到港日，不隨拆櫃狀態改變
                 const mainDate = new Date(item.arrivalDate); 
                 const mainDateStatus = isDevanned ? { text: '已拆櫃', color: 'text-green-600', bg: 'bg-green-100' } : getStatusStyle(item.arrivalDate);
 
@@ -293,19 +331,23 @@
                                     <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
                                         <div className="flex-1 mr-2">
                                             <div className="flex items-baseline gap-2 flex-wrap">
+                                                {/* ⭐️ 優化: 品名字體放大至 text-sm ⭐️ */}
                                                 <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
                                                 {p.spec && (
                                                     <span className="text-sm text-slate-500 font-medium">
-                                                        {p.spec}
+                                                        {p.spec} {/* ⭐️ 優化: 移除括號 ⭐️ */}
                                                     </span>
                                                 )}
                                             </div>
                                             <div className="flex gap-2 mt-1">
+                                                {/* ⭐️ 優化: 批號字體放大至 text-xs ⭐️ */}
                                                 {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
+                                                {/* ⭐️ 優化: 效期字體放大至 text-xs ⭐️ */}
                                                 {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                             </div>
                                         </div>
-                                        <div className="text-right font-mono font-bold text-sm text-gray-700">{p.quantity.toLocaleString()}</div>
+                                        {/* ⭐️ 優化: 數量字體加大至 text-base ⭐️ */}
+                                        <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()}</div>
                                     </div>
                                 ))}
                             </div>
@@ -350,7 +392,6 @@
             return (
                 <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-10">
                     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/60">
-                        {/* ⭐️ 優化: 最大寬度設為 7xl 讓 Grid 可以左右並排 ⭐️ */}
                         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-gray-900 text-lg">
                                 <div className="w-6 h-6 text-blue-600"><Icons.Ship /></div> 
@@ -391,7 +432,6 @@
                         </div>
                     </header>
 
-                    {/* ⭐️ 優化: 最大寬度設為 7xl ⭐️ */}
                     <main className="max-w-7xl mx-auto px-4 mt-4">
                         {view === 'list' ? (
                             <div className="space-y-4">
@@ -400,7 +440,7 @@
                                     <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                 </div>
 
-                                {/* ⭐️ 列表分區顯示 Grid ⭐️ */}
+                                {/* 列表分區顯示 Grid */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 items-start">
                                     {/* 1. 未拆櫃 (Not Devanned) Column */}
                                     <div className="space-y-4">
@@ -459,7 +499,6 @@
                                             <div><label className="block text-xs font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="廠商" /></div>
                                         </div>
                                         
-                                        {/* ⭐️ 新增拆櫃資訊輸入 ⭐️ */}
                                         <div className="pt-3 border-t border-gray-100">
                                             <h3 className="font-bold text-gray-900 text-sm mb-3">拆櫃資訊 (選填)</h3>
                                             <div className="grid grid-cols-2 gap-3">
@@ -467,14 +506,39 @@
                                                 <div><label className="block text-xs font-bold text-gray-400 mb-1">拆櫃日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                             </div>
                                         </div>
-                                        {/* ------------------------- */}
-
+                                        
+                                        {/* ⭐️ 雲端刪除功能：附件 UI/UX 處理 ⭐️ */}
                                         <div>
                                             <label className="block text-xs font-bold text-gray-400 mb-1">附件</label>
                                             <div className="relative w-full bg-gray-50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-                                                <input type="file" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled={uploading} />
-                                                <span className="text-sm text-gray-500 truncate">{formData.docName || (uploading ? '上傳中...' : '上傳文件')}</span>
-                                                <div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div>
+                                                {formData.docUrl ? (
+                                                    <>
+                                                        <span className="text-sm text-gray-900 truncate">
+                                                            <a href={formData.docUrl} target="_blank" className="text-blue-600 underline">
+                                                                {formData.docName}
+                                                            </a>
+                                                        </span>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={handleDeleteFile} 
+                                                            className="ml-2 text-red-500 hover:text-red-700 w-5 h-5 p-0 flex-shrink-0 ios-btn" 
+                                                            title="永久刪除雲端檔案"
+                                                        >
+                                                            <Icons.Trash2 />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <input 
+                                                            type="file" 
+                                                            onChange={handleFileUpload} 
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                                                            disabled={uploading} 
+                                                        />
+                                                        <span className="text-sm text-gray-500 truncate">{uploading ? '上傳中...' : '上傳文件'}</span>
+                                                        <div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
