@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v4.7 自動流轉版)</title>
+    <title>貨櫃管理 (v4.8 到港日固定版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -219,7 +219,6 @@
                 )); 
             }, [shipments, searchTerm]);
             
-            // ⭐️ 關鍵修改: 定義「今天」與分類邏輯 ⭐️
             const today = new Date();
             const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
@@ -242,9 +241,10 @@
             const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
 
             const renderShipmentCard = (item) => {
-                // ⭐️ 狀態顯示邏輯更新：只有當日期 <= 今天才算「已拆櫃」
+                // ⭐️ 狀態顯示邏輯：只有當日期 <= 今天才算「已拆櫃」，但顯示日期永遠是到港日
                 const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
-                const mainDate = isDevanned ? new Date(item.devanningDate) : new Date(item.arrivalDate);
+                // ⭐️ 修改：主要日期固定顯示到港日，不隨拆櫃狀態改變
+                const mainDate = new Date(item.arrivalDate); 
                 const mainDateStatus = isDevanned ? { text: '已拆櫃', color: 'text-green-600', bg: 'bg-green-100' } : getStatusStyle(item.arrivalDate);
 
                 return (
@@ -350,6 +350,7 @@
             return (
                 <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-10">
                     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/60">
+                        {/* ⭐️ 優化: 最大寬度設為 7xl 讓 Grid 可以左右並排 ⭐️ */}
                         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-gray-900 text-lg">
                                 <div className="w-6 h-6 text-blue-600"><Icons.Ship /></div> 
@@ -390,6 +391,7 @@
                         </div>
                     </header>
 
+                    {/* ⭐️ 優化: 最大寬度設為 7xl ⭐️ */}
                     <main className="max-w-7xl mx-auto px-4 mt-4">
                         {view === 'list' ? (
                             <div className="space-y-4">
@@ -398,7 +400,9 @@
                                     <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                 </div>
 
+                                {/* ⭐️ 列表分區顯示 Grid ⭐️ */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 items-start">
+                                    {/* 1. 未拆櫃 (Not Devanned) Column */}
                                     <div className="space-y-4">
                                         <div className="sticky top-16 z-10 bg-slate-100/95 backdrop-blur py-2 border-b border-gray-200">
                                             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -415,6 +419,7 @@
                                         </div>
                                     </div>
 
+                                    {/* 2. 已拆櫃 (Devanned) Column */}
                                     <div className="space-y-4">
                                         <div className="sticky top-16 z-10 bg-slate-100/95 backdrop-blur py-2 border-b border-gray-200">
                                             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -454,6 +459,7 @@
                                             <div><label className="block text-xs font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="廠商" /></div>
                                         </div>
                                         
+                                        {/* ⭐️ 新增拆櫃資訊輸入 ⭐️ */}
                                         <div className="pt-3 border-t border-gray-100">
                                             <h3 className="font-bold text-gray-900 text-sm mb-3">拆櫃資訊 (選填)</h3>
                                             <div className="grid grid-cols-2 gap-3">
@@ -461,6 +467,7 @@
                                                 <div><label className="block text-xs font-bold text-gray-400 mb-1">拆櫃日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                             </div>
                                         </div>
+                                        {/* ------------------------- */}
 
                                         <div>
                                             <label className="block text-xs font-bold text-gray-400 mb-1">附件</label>
