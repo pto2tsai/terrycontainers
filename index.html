@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃&採購管理 (v8.1 未確認計數版)</title>
+    <title>貨櫃管理 (v8.0 雙單位計價版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -40,6 +40,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // --- 圖示 ---
         const Icons = {
             Ship: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
             Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
@@ -65,7 +66,8 @@
             Barcode: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>,
             AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
             Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
-            BoxCheck: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+            BoxCheck: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>,
+            Scale: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>
         };
 
         const { useState, useEffect, useMemo } = React;
@@ -75,7 +77,7 @@
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', '國內採購'];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
 
-        // ⚠️ 已預填您的 Firebase 設定，解決手機登入問題
+        // ⚠️ 請確認此處為您的 Firebase Config
         const firebaseConfig = {
             apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
             authDomain: "containersystem-6342f.firebaseapp.com",
@@ -129,8 +131,6 @@
             const [showNotifications, setShowNotifications] = useState(false);
             
             const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); 
-            
-            // 角色狀態: GUEST, PURCHASING, SALES, WAREHOUSE, QC, ACCOUNTING
             const [userRole, setUserRole] = useState('GUEST');
             const [adminList, setAdminList] = useState([]);
 
@@ -206,9 +206,10 @@
                 arrivalDate: new Date().toISOString().split('T')[0], 
                 containerNumber: '', 
                 shippingCompany: '', 
+                // ⭐️ V8.0: 新增 pricingMode, weight, boxCapacity ⭐️
                 products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }], 
                 totalQuantity: 0, 
-                totalWeight: 0, 
+                totalWeight: 0, // 新增總重量
                 docUrl: '', 
                 docName: '',
                 docRefPath: '', 
@@ -234,17 +235,18 @@
                 const w = Number(p.weight) || 0;
                 const u = Number(p.unitPrice) || 0;
                 
+                // ⭐️ V8.0: 根據計價模式計算金額 ⭐️
                 if (p.pricingMode === 'weight') {
-                    p.amount = Math.round(w * u); 
+                    p.amount = Math.round(w * u); // 重量計價: 重量 * 單價
                 } else {
-                    p.amount = Math.round(q * b * u); 
+                    p.amount = Math.round(q * b * u); // 數量計價: 件數 * 箱容 * 單價
                 }
 
                 setFormData(prev => ({ 
                     ...prev, 
                     products: np, 
                     totalQuantity: np.reduce((s, i) => s + (Number(i.quantity)||0), 0),
-                    totalWeight: np.reduce((s, i) => s + (Number(i.weight)||0), 0)
+                    totalWeight: np.reduce((s, i) => s + (Number(i.weight)||0), 0) // 計算總重量
                 })); 
             };
 
@@ -323,7 +325,7 @@
             const handleShareToLine = (s) => {
                 const isDomestic = s.customsBroker === '國內採購';
                 const quantityUnit = ' 件'; 
-
+                // ⭐️ Line 訊息顯示雙單位與計價模式 ⭐️
                 const productDetails = s.products.map((p, i) => {
                     const priceModeStr = p.pricingMode === 'weight' ? '(重)' : '(數)';
                     const weightStr = p.weight ? ` / ${p.weight}kg` : '';
@@ -374,11 +376,7 @@
                     (s.shippingCompany||"").toLowerCase().includes(t) || 
                     (s.origin||"").toLowerCase().includes(t) || 
                     (s.devanningLocation||"").toLowerCase().includes(t) || 
-                    s.products.some(p => 
-                        (p.name||"").toLowerCase().includes(t) || 
-                        (p.spec||"").toLowerCase().includes(t) ||
-                        (p.batchNumber||"").toLowerCase().includes(t) 
-                    )
+                    s.products.some(p => (p.name||"").toLowerCase().includes(t) || (p.spec||"").toLowerCase().includes(t) || (p.batchNumber||"").toLowerCase().includes(t))
                 )); 
             }, [shipments, searchTerm]);
             
@@ -429,21 +427,6 @@
 
             const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
 
-            // Helper to render tab label
-            const renderTabLabel = (title, list, isActive) => {
-                const unconfirmedCount = list.filter(i => !i.warehouseConfirmed).length;
-                return (
-                    <div className="flex items-center justify-center gap-1">
-                        <span>{title} ({list.length})</span>
-                        {unconfirmedCount > 0 && (
-                            <span className={`text-xs ${isActive ? 'text-yellow-200' : 'text-red-500'} font-bold`}>
-                                (未確:{unconfirmedCount})
-                            </span>
-                        )}
-                    </div>
-                );
-            };
-
             const renderShipmentCard = (item) => {
                 const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
                 const mainDate = item.arrivalDate ? new Date(item.arrivalDate) : null; 
@@ -461,46 +444,26 @@
                                 <div className="flex justify-between items-start mb-1">
                                     <div className="flex-1 min-w-0">
                                         <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
-                                        
                                         <div className="flex items-center gap-2">
                                             <span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>
-                                            {item.shippingCompany && (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium whitespace-nowrap">
-                                                    <div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}
-                                                </span>
-                                            )}
+                                            {item.shippingCompany && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium whitespace-nowrap"><div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}</span>}
                                         </div>
                                     </div>
                                     <div className="flex gap-3 ml-2 flex-shrink-0">
                                         {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
                                         <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
-                                        {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
+                                        {canEdit() && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
                                     </div>
                                 </div>
-                                
                                 <div className="flex flex-wrap gap-2 mt-2 items-center">
                                     <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker || '未指定'}</div>
                                     {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
-                                    <label 
-                                        className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
-                                        onClick={e => e.stopPropagation()}
-                                    >
-                                        <input 
-                                            type="checkbox"
-                                            className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer"
-                                            checked={item.warehouseConfirmed || false}
-                                            onChange={(e) => handleWarehouseConfirm(e, item)}
-                                            disabled={!canEdit()}
-                                        />
-                                        <span className={item.warehouseConfirmed ? 'font-bold' : ''}>
-                                            {item.warehouseConfirmed ? '已收貨' : '確認收貨'}
-                                        </span>
+                                    <label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`} onClick={e => e.stopPropagation()}>
+                                        <input type="checkbox" className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer" checked={item.warehouseConfirmed || false} onChange={(e) => handleWarehouseConfirm(e, item)} disabled={!canEdit()} />
+                                        <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
                                     </label>
-
                                     {isDomestic(item) ? (
-                                        <>
-                                            {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨地: {item.devanningLocation}</div>}
-                                        </>
+                                        <> {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨地: {item.devanningLocation}</div>} </>
                                     ) : (
                                         <>
                                             {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>{item.devanningLocation}</div>}
@@ -510,7 +473,6 @@
                                 </div>
                             </div>
                         </div>
-
                         <div className="p-4">
                             <div className="space-y-3">
                                 {item.products.map((p, idx) => (
@@ -518,30 +480,30 @@
                                         <div className="flex-1 mr-2">
                                             <div className="flex items-baseline gap-2 flex-wrap">
                                                 <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
-                                                {p.spec && (
-                                                    <span className="text-sm text-slate-500 font-medium">
-                                                        {p.spec}
-                                                    </span>
-                                                )}
+                                                {p.spec && <span className="text-sm text-slate-500 font-medium">{p.spec}</span>}
                                             </div>
                                             <div className="flex gap-2 mt-1">
                                                 {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
                                                 {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                             </div>
+                                            {/* ⭐️ 列表顯示雙單位與計價模式提示 ⭐️ */}
                                             <div className="mt-1 text-xs text-gray-400">
                                                 {p.pricingMode === 'weight' ? <span className="text-orange-500 font-bold">[重]</span> : <span className="text-blue-500 font-bold">[數]</span>}
                                                 {p.weight > 0 && <span className="ml-1">重:{p.weight}kg</span>}
                                                 {canSeePrice() && <span className="ml-2">單價:${(p.unitPrice||0).toLocaleString()} / 金額:${(p.amount||0).toLocaleString()}</span>}
                                             </div>
                                         </div>
-                                        <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()} 件</div>
+                                        <div className="text-right font-mono font-bold text-base text-gray-700">
+                                            {p.quantity.toLocaleString()} 件
+                                        </div>
                                     </div>
                                 ))}
                             </div>
+                            {/* ⭐️ 列表底部總計增加總重量 ⭐️ */}
                             <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
                                 {item.totalWeight > 0 && <span>總重: {item.totalWeight.toLocaleString()} kg</span>}
                                 <div className="flex items-baseline gap-2 ml-auto">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">總數</span>
+                                    <span className="font-bold uppercase">總數</span>
                                     <span className="text-xl font-black text-blue-600">{item.totalQuantity.toLocaleString()} 件</span>
                                 </div>
                             </div>
@@ -559,10 +521,12 @@
                     <div className="login-screen">
                         <div className="bg-white p-8 rounded-2xl shadow-xl text-center w-full max-w-sm mx-4">
                             <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200"><Icons.Ship /></div>
-                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理系統</h1>
+                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理</h1>
                             <p className="text-gray-500 mb-8 text-sm">請選擇登入身分</p>
                             <div className="space-y-3">
                                 <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 員工登入</button>
+                                <div className="relative py-2"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div><div className="relative flex justify-center text-xs text-gray-500"><span className="bg-white px-2">或</span></div></div>
+                                <button onClick={handleGuestLogin} className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-200 transition-all font-bold ios-btn"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button>
                             </div>
                         </div>
                     </div>
@@ -578,35 +542,8 @@
                                 <span>貨櫃管理 ({userRole === 'GUEST' ? '訪客' : userRole})</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showNotifications)}>
-                                    <div className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 ${urgentCount>0?'text-red-500 bell-shake':''}`}><Icons.Bell /></div>
-                                    {urgentCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
-                                    {showNotifications && (
-                                        <div className="mobile-modal-overlay" onClick={() => setShowNotifications(false)}>
-                                            <div className="mobile-modal-content" onClick={e => e.stopPropagation()}>
-                                                <div className="bg-gray-50 px-5 py-4 border-b border-gray-100 flex justify-between items-center">
-                                                    <span className="font-bold text-gray-700">近期到港急件 ({urgentCount})</span>
-                                                    <button onClick={() => setShowNotifications(false)} className="text-gray-400"><Icons.X /></button>
-                                                </div>
-                                                <div className="max-h-[60vh] overflow-y-auto p-2">
-                                                    {urgentShipments.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">無急件</div> : urgentShipments.map(s => (
-                                                        <div key={s.id} className="p-3 mb-2 bg-white rounded-xl border border-gray-100 shadow-sm">
-                                                            <div className="flex justify-between mb-1"><span className="font-bold text-blue-600">{s.containerNumber}</span><span className="text-xs font-bold text-red-500">{Math.ceil((new Date(s.arrivalDate)-new Date().setHours(0,0,0,0))/86400000)}天後</span></div>
-                                                            <div className="text-xs text-gray-500 mb-3">{s.importCompany} / {s.supplier}</div>
-                                                            <button onClick={() => handleShareToLine(s)} className="w-full py-2 bg-[#06C755] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 ios-btn"><Icons.MessageCircle /> 通知 LINE 群組</button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                {view === 'list' && (
-                                    <>
-                                        <button onClick={handleExport} className="p-2 rounded-full hover:bg-gray-100 text-gray-500" title="匯出"><Icons.Download /></button>
-                                        {isAdmin && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); setIsSubmitting(false); }} className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"><Icons.Plus /></button>}
-                                    </>
-                                )}
+                                {canCreate() && view === 'list' && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); setIsSubmitting(false); }} className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"><Icons.Plus /></button>}
+                                {view === 'list' && <button onClick={handleExport} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><Icons.Download /></button>}
                                 <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 text-gray-400"><Icons.LogOut /></button>
                             </div>
                         </div>
@@ -618,9 +555,7 @@
                                 <div className="flex justify-between bg-white rounded-xl p-1 shadow-sm border border-gray-200 overflow-x-auto">
                                     {['NOT_DEVANED', 'DEVANED', 'DOMESTIC'].map(tab => (
                                         <button key={tab} onClick={() => setCurrentTab(tab)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === tab ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
-                                            {renderTabLabel(tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : '國內採購', 
-                                                tab === 'DOMESTIC' ? domesticShipments : (tab === 'DEVANED' ? devannedForeign : notDevannedForeign), 
-                                                currentTab === tab)}
+                                            {tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : '國內採購'}
                                         </button>
                                     ))}
                                 </div>
@@ -655,7 +590,6 @@
                                             <div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                         </div>
 
-                                        {/* 倉管可編輯區域 */}
                                         <div className="pt-3 border-t border-gray-100 relative">
                                             <h3 className="font-bold text-gray-900 text-base mb-3">{formData.customsBroker === '國內採購' ? '交貨資訊' : '拆櫃資訊'}</h3>
                                             <div className="absolute top-3 right-0 flex items-center gap-2">
@@ -690,6 +624,7 @@
                                                     <div className="space-y-3">
                                                         <div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none" required /></div>
                                                         
+                                                        {/* ⭐️ V8.0: 產品明細 UI 優化：加入計價模式切換 ⭐️ */}
                                                         <div className="flex items-center justify-end gap-2 mb-1">
                                                             <label className="text-xs text-gray-400 font-bold">計價模式:</label>
                                                             <select value={p.pricingMode} onChange={e => handleProductChange(idx, 'pricingMode', e.target.value)} disabled={isWarehouse()} className="text-xs bg-gray-100 rounded px-2 py-1 outline-none text-blue-600 font-bold">
@@ -700,6 +635,7 @@
 
                                                         <div className="grid grid-cols-12 gap-2">
                                                             <div className="col-span-4"><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
+                                                            {/* 根據模式顯示/隱藏箱容，但重量永遠顯示 */}
                                                             {p.pricingMode === 'quantity' && <div className="col-span-2"><label className="block text-xs font-bold text-gray-400 mb-1">箱容</label><input type="number" value={p.boxCapacity} onChange={e => handleProductChange(idx, 'boxCapacity', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-2 py-2 text-sm outline-none text-center" /></div>}
                                                             <div className={p.pricingMode === 'quantity' ? "col-span-3" : "col-span-4"}><label className="block text-xs font-bold text-gray-400 mb-1">件數</label><input type="number" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600" /></div>
                                                             <div className={p.pricingMode === 'quantity' ? "col-span-3" : "col-span-4"}><label className="block text-xs font-bold text-gray-400 mb-1">重量(kg)</label><input type="number" value={p.weight} onChange={e => handleProductChange(idx, 'weight', Number(e.target.value))} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-orange-500" /></div>
