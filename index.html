@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v6.5 Line訊息完整版)</title>
+    <title>貨櫃管理 (v7.2 角色權限旗艦版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -21,30 +21,19 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 3px; }
         
-        /* Apple 風格卡片與按鈕 */
         .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 16px; overflow: hidden; transition: all 0.3s ease; }
         .ios-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
         .ios-btn { transition: opacity 0.2s; }
         .ios-btn:active { opacity: 0.6; }
-        
-        /* 標籤樣式調整 */
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
-        
-        /* 按鈕圖示樣式 */
         .btn-icon { display: flex; align-items: center; justify-content: center; border-radius: 9999px; transition: background-color 0.2s; }
-
-        /* 動畫 */
-        .bell-shake { animation: shake 0.5s ease-in-out infinite; }
-        @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
-        
         .mobile-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding-top: 60px; backdrop-filter: blur(4px); }
         .mobile-modal-content { background: white; width: 90%; max-width: 400px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); overflow: hidden; animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        
-        /* 輸入框專注效果 */
         input:focus, select:focus { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
         
-        /* Checkbox 自訂樣式 */
+        /* 鎖定輸入框樣式 */
+        input:disabled, select:disabled { background-color: #f9fafb; color: #9ca3af; cursor: not-allowed; border-color: #e5e7eb; }
         .custom-checkbox { width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; border: 2px solid #d1d5db; cursor: pointer; }
         .custom-checkbox:checked { background-color: #2563eb; border-color: #2563eb; }
     </style>
@@ -53,7 +42,6 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- 圖示 ---
         const Icons = {
             Ship: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
             Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
@@ -89,7 +77,7 @@
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', '國內採購'];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
 
-        // ⚠️ 已預填您的 Firebase 設定，解決手機登入問題
+        // ⚠️ 已預填您的 Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
             authDomain: "containersystem-6342f.firebaseapp.com",
@@ -142,14 +130,11 @@
             const [uploading, setUploading] = useState(false);
             const [showNotifications, setShowNotifications] = useState(false);
             
-            const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); // NOT_DEVANED | DEVANED | DOMESTIC
+            const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); 
             
-            // ⭐️ 雲端名單狀態 ⭐️
-            const [adminList, setAdminList] = useState([]);
-
-            // 判斷是否為管理員 (優先使用 DB 名單，若無則使用預設)
-            const isAdmin = user && !user.isAnonymous && (adminList.length > 0 ? adminList.includes(user.email) : ADMIN_EMAILS.includes(user.email));
-
+            // 角色狀態: GUEST, PURCHASING, SALES, WAREHOUSE, QC, ACCOUNTING
+            const [userRole, setUserRole] = useState('GUEST');
+            
             useEffect(() => {
                 if (!auth) { setError("CONFIG_MISSING"); setLoading(false); return; }
                 const authUnsub = auth.onAuthStateChanged((u) => { setUser(u); if (!u) setLoading(false); });
@@ -172,29 +157,47 @@
                         setError(null);
                     },
                     (err) => {
-                        if (err.code === 'permission-denied') setError("PERMISSION_DENIED");
-                        else setError("CONNECTION_ERROR");
+                        console.error(err);
                         setLoading(false);
                     }
                 );
 
-                const unsubscribeAdmins = db.collection('settings').doc('config').onSnapshot(
+                // 讀取角色設定
+                const unsubscribeSettings = db.collection('settings').doc('config').onSnapshot(
                     (doc) => {
-                        if (doc.exists && doc.data().admin_emails) {
-                            setAdminList(doc.data().admin_emails);
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.user_roles && data.user_roles[user.email]) {
+                                setUserRole(data.user_roles[user.email]);
+                            } else if (data.admin_emails && data.admin_emails.includes(user.email)) {
+                                setUserRole('PURCHASING'); 
+                            } else {
+                                setUserRole('GUEST');
+                            }
                         } else {
-                            setAdminList(ADMIN_EMAILS); // 使用預設名單作為備案
+                             // 預設後門
+                             if (ADMIN_EMAILS.includes(user.email)) {
+                                 setUserRole('PURCHASING');
+                             }
                         }
                     },
-                    (err) => console.log("Admin list fetch error:", err) 
+                    (err) => console.log("Settings fetch error:", err)
                 );
 
-                return () => { unsubscribeDB(); unsubscribeAdmins(); };
+                return () => { unsubscribeDB(); unsubscribeSettings(); };
             }, [user]);
 
             const handleAdminLogin = async () => { try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch (e) { alert("登入失敗: " + e.message); } };
-            const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (e) { alert("訪客登入失敗: 請確認 Firebase 後台已開啟「匿名登入」。\n" + e.message); } };
+            const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (e) { alert("訪客登入失敗"); } };
             const handleLogout = () => auth.signOut();
+
+            // 權限判斷
+            const canEdit = () => ['PURCHASING', 'WAREHOUSE'].includes(userRole);
+            const canCreate = () => ['PURCHASING'].includes(userRole);
+            const canDelete = () => ['PURCHASING'].includes(userRole);
+            const canUpload = () => ['PURCHASING', 'QC'].includes(userRole);
+            const canSeePrice = () => ['PURCHASING', 'ACCOUNTING'].includes(userRole);
+            const isWarehouse = () => userRole === 'WAREHOUSE';
 
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
@@ -204,7 +207,7 @@
                 arrivalDate: new Date().toISOString().split('T')[0], 
                 containerNumber: '', 
                 shippingCompany: '', 
-                products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0 }], 
+                products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0, unitPrice: 0, amount: 0 }], 
                 totalQuantity: 0, 
                 docUrl: '', 
                 docName: '',
@@ -221,8 +224,16 @@
                 setFormData(prev => ({ ...prev, [name]: name === 'containerNumber' ? val.toUpperCase() : val })); 
             };
 
-            const handleProductChange = (idx, field, value) => { const np = [...formData.products]; np[idx] = { ...np[idx], [field]: value }; setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, p) => s + Number(p.quantity||0), 0) })); };
-            const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0 }] }));
+            const handleProductChange = (idx, field, value) => { 
+                const np = [...formData.products]; 
+                np[idx] = { ...np[idx], [field]: value }; 
+                if (field === 'quantity' || field === 'unitPrice') {
+                    np[idx].amount = (Number(np[idx].quantity) || 0) * (Number(np[idx].unitPrice) || 0);
+                }
+                setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, p) => s + Number(p.quantity||0), 0) })); 
+            };
+
+            const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0, unitPrice: 0, amount: 0 }] }));
             const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
             const removeProductRow = (idx) => { const np = formData.products.filter((_, i) => i !== idx); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
 
@@ -238,36 +249,19 @@
             };
             
             const handleDeleteFile = async () => { 
-                if(!formData.docUrl || !confirm("確定要永久移除此附件嗎？檔案將從雲端儲存空間刪除。")) return;
-
+                if(!formData.docUrl || !confirm("確定要永久移除此附件嗎？")) return;
                 if (formData.docRefPath && storage) {
-                    try {
-                        const fileRef = storage.ref().child(formData.docRefPath);
-                        await fileRef.delete();
-                        alert("檔案已從雲端儲存空間移除。");
-                    } catch (e) {
-                        if (e.code === 'storage/object-not-found') {
-                            console.warn("Cloud file not found, proceeding to clear link.");
-                        } else {
-                            alert("移除雲端檔案失敗: " + e.message + "，將僅移除資料庫中的連結。");
-                        }
-                    }
-                } else if (formData.docUrl) {
-                    alert("警告：此紀錄無路徑資訊，無法刪除雲端檔案，將僅清除連結。請手動檢查 Firebase Storage。");
+                    try { await storage.ref().child(formData.docRefPath).delete(); alert("檔案已從雲端移除。"); } catch (e) { console.warn(e); }
                 }
                 setFormData(prev => ({ ...prev, docUrl: '', docName: '', docRefPath: '' }));
             };
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
-                if (!isAdmin) return alert("權限不足");
-                
-                if (formData.customsBroker !== '國內採購' && !formData.containerNumber) {
-                    return alert('請輸入櫃號');
-                }
+                if (!canEdit()) return alert("權限不足");
+                if (formData.customsBroker !== '國內採購' && !formData.containerNumber) return alert('請輸入櫃號');
                 
                 setIsSubmitting(true);
-                const timeout = new Promise((_, r) => setTimeout(() => r(new Error("連線逾時")), 10000));
                 try {
                     const payload = { ...formData, updatedAt: new Date().toISOString() };
                     if (editingId) await db.collection('shipments').doc(editingId).update(payload);
@@ -276,64 +270,66 @@
                 } catch (e) { alert("錯誤：" + e.message); } finally { setIsSubmitting(false); }
             };
 
-            const handleDuplicateShipment = (s) => { if(!isAdmin)return; const {id,...d}=s; const np=d.products.map(p=>({...p,id:Date.now()+Math.random()})); setFormData({...d, containerNumber:'', products:np}); setEditingId(null); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); };
-            const handleEdit = (s) => { if(!isAdmin)return; setFormData(s); setEditingId(s.id); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); };
-            const handleDelete = async (id) => { if(!isAdmin || !confirm('刪除？'))return; await db.collection('shipments').doc(id).delete(); };
-            const handleExport = () => { if (!isAdmin && user.isAnonymous) return alert("訪客無法匯出"); const header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期\n"; const rows = filteredShipments.flatMap(s => s.products.map(p => [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate].map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(","))).join("\n"); const link = document.createElement("a"); link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; link.click(); };
+            const handleDuplicateShipment = (s) => { 
+                if(!canCreate()) return; 
+                const {id,...d}=s; 
+                const np=d.products.map(p=>({...p,id:Date.now()+Math.random()})); 
+                setFormData({...d, containerNumber:'', products:np}); 
+                setEditingId(null); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); 
+            };
+            const handleEdit = (s) => { 
+                if(!canEdit()) return; 
+                setFormData(s); setEditingId(s.id); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); 
+            };
+            const handleDelete = async (id) => { 
+                if(!canDelete() || !confirm('確定刪除此貨櫃資料？')) return; 
+                await db.collection('shipments').doc(id).delete(); 
+            };
+
+            const handleExport = () => { 
+                if (userRole === 'GUEST') return alert("權限不足"); 
+                const showPrice = canSeePrice();
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期";
+                if (showPrice) header += ",單價,金額";
+                header += "\n";
+
+                const rows = filteredShipments.flatMap(s => s.products.map(p => {
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate];
+                    if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
+                    return row.map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(",");
+                })).join("\n");
+                
+                const link = document.createElement("a"); 
+                link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); 
+                link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; 
+                link.click(); 
+            };
             
-            // ⭐️ Line 分享功能：國內採購/國外進口區分 & 單位統一為「件」 ⭐️
             const handleShareToLine = (s) => {
                 const isDomestic = s.customsBroker === '國內採購';
-                const quantityUnit = ' 件'; // 統一單位
+                const quantityUnit = ' 件'; 
 
                 const productDetails = s.products.map((p, i) => 
                     `${i+1}. ${p.name}${p.spec ? ` ${p.spec}` : ''} - ${p.quantity.toLocaleString()}${quantityUnit}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`
                 ).join('\n');
 
                 let text = '';
-                
-                // 取得地點資訊 (如果有的話)
-                const locationInfo = s.devanningLocation ? `\n📍 ${isDomestic ? '交貨地' : '拆櫃地'}：${s.devanningLocation}` : '';
-                // 取得拆櫃日資訊 (僅國外進口顯示)
-                const devanningDateInfo = (!isDomestic && s.devanningDate) ? `\n🕒 拆櫃日：${s.devanningDate}` : '';
-
                 if (isDomestic) {
-                    text = `🚚 到貨通知(國內採購)\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}${locationInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
+                    text = `🚚 到貨通知(國內採購)\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
                 } else {
-                    text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}${locationInfo}${devanningDateInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
+                    const devanningInfo = (s.devanningDate || s.devanningLocation) ? `\n\n🚛 拆櫃: ${s.devanningDate || '未定'}${s.devanningLocation ? ` @ ${s.devanningLocation}` : ''}` : '';
+                    text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}${devanningInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
                 }
-
                 window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`, '_blank');
             };
 
-            // ⭐️ 新增功能：主列表直接勾選確認收貨 ⭐️
             const handleWarehouseConfirm = async (e, item) => {
-                e.stopPropagation(); // 防止觸發卡片點擊
-                if (!isAdmin) return alert("權限不足");
-                
+                e.stopPropagation(); 
+                if (!canEdit()) return alert("權限不足"); 
                 try {
-                    await db.collection('shipments').doc(item.id).update({
-                        warehouseConfirmed: !item.warehouseConfirmed
-                    });
-                } catch (error) {
-                    console.error("Update failed", error);
-                    alert("更新狀態失敗，請稍後再試");
-                }
+                    await db.collection('shipments').doc(item.id).update({ warehouseConfirmed: !item.warehouseConfirmed });
+                } catch (error) { alert("更新狀態失敗"); }
             };
-
-            const urgentShipments = useMemo(() => { 
-                const todayStr = new Date().toISOString().split('T')[0];
-                const today = parseLocalMidnightDate(todayStr);
-
-                return shipments.filter(s => { 
-                    if (!s.arrivalDate) return false;
-                    const arrival = parseLocalMidnightDate(s.arrivalDate);
-                    const diffDays = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                    return diffDays >= 0 && diffDays <= 3;
-                }); 
-            }, [shipments]);
-            
-            const urgentCount = urgentShipments.length;
 
             const filteredShipments = useMemo(() => { 
                 const t=searchTerm.toLowerCase(); 
@@ -344,53 +340,30 @@
                     (s.shippingCompany||"").toLowerCase().includes(t) || 
                     (s.origin||"").toLowerCase().includes(t) || 
                     (s.devanningLocation||"").toLowerCase().includes(t) || 
-                    s.products.some(p => 
-                        (p.name||"").toLowerCase().includes(t) || 
-                        (p.spec||"").toLowerCase().includes(t) ||
-                        (p.batchNumber||"").toLowerCase().includes(t) // 批號搜尋
-                    )
+                    s.products.some(p => (p.name||"").toLowerCase().includes(t) || (p.spec||"").toLowerCase().includes(t) || (p.batchNumber||"").toLowerCase().includes(t))
                 )); 
             }, [shipments, searchTerm]);
             
-            const today = new Date();
-            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
+            const todayStr = new Date().toISOString().split('T')[0];
             const DOMESTIC_FLAG = '國內採購';
             const isDomestic = (s) => (s.customsBroker || '').includes(DOMESTIC_FLAG);
             const isForeign = (s) => !isDomestic(s);
 
-            const domesticShipments = useMemo(() => 
-                filteredShipments.filter(s => isDomestic(s))
-                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
-                [filteredShipments]
-            );
-
-            const notDevannedForeign = useMemo(() => 
-                filteredShipments.filter(s => isForeign(s) && (!s.devanningDate || s.devanningDate > todayStr))
-                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
-                [filteredShipments, todayStr]
-            );
-
-            const devannedForeign = useMemo(() => 
-                filteredShipments.filter(s => isForeign(s) && (s.devanningDate && s.devanningDate <= todayStr))
-                .sort((a, b) => new Date(b.devanningDate).getTime() - new Date(a.devanningDate).getTime()), 
-                [filteredShipments, todayStr]
-            );
-
             const currentList = useMemo(() => {
-                if (currentTab === 'DOMESTIC') return domesticShipments;
-                if (currentTab === 'DEVANED') return devannedForeign;
-                return notDevannedForeign; 
-            }, [currentTab, domesticShipments, devannedForeign, notDevannedForeign]);
+                if (currentTab === 'DOMESTIC') return filteredShipments.filter(s => isDomestic(s)).sort((a, b) => b.arrivalDate.localeCompare(a.arrivalDate));
+                
+                const foreignList = filteredShipments.filter(s => isForeign(s));
+                if (currentTab === 'DEVANED') return foreignList.filter(s => s.devanningDate && s.devanningDate <= todayStr).sort((a, b) => b.devanningDate.localeCompare(a.devanningDate));
+                return foreignList.filter(s => !s.devanningDate || s.devanningDate > todayStr).sort((a, b) => b.arrivalDate.localeCompare(a.arrivalDate));
+            }, [currentTab, filteredShipments, todayStr]);
 
-            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
+            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean)])).sort(), [shipments]);
             
             const getStatusStyle = (date) => { 
                 if (!date) return { bg: 'bg-gray-100', text: '未定', color: 'text-gray-400' };
                 const today = parseLocalMidnightDate(new Date().toISOString().split('T')[0]);
                 const arrival = parseLocalMidnightDate(date);
                 const diff = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
                 if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
                 if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
                 if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
@@ -416,51 +389,26 @@
                                 <div className="flex justify-between items-start mb-1">
                                     <div className="flex-1 min-w-0">
                                         <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
-                                        
                                         <div className="flex items-center gap-2">
                                             <span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>
-                                            {item.shippingCompany && (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium whitespace-nowrap">
-                                                    <div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}
-                                                </span>
-                                            )}
+                                            {item.shippingCompany && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium whitespace-nowrap"><div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}</span>}
                                         </div>
                                     </div>
                                     <div className="flex gap-3 ml-2 flex-shrink-0">
                                         {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
                                         <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
-                                        {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
+                                        {canEdit() && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
                                     </div>
                                 </div>
-                                
                                 <div className="flex flex-wrap gap-2 mt-2 items-center">
                                     <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker || '未指定'}</div>
                                     {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
-                                    <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-purple-500"><Icons.Factory /></div><span className="truncate max-w-[80px]">{item.supplier || '未填'}</span></div>
-                                    
-                                    {/* ⭐️ 倉庫收貨直覺勾選 UI ⭐️ */}
-                                    <label 
-                                        className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
-                                        onClick={e => e.stopPropagation()}
-                                    >
-                                        <input 
-                                            type="checkbox"
-                                            className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer"
-                                            checked={item.warehouseConfirmed || false}
-                                            onChange={(e) => handleWarehouseConfirm(e, item)}
-                                            disabled={!isAdmin}
-                                        />
-                                        <span className={item.warehouseConfirmed ? 'font-bold' : ''}>
-                                            {item.warehouseConfirmed ? '已收貨' : '確認收貨'}
-                                        </span>
+                                    <label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`} onClick={e => e.stopPropagation()}>
+                                        <input type="checkbox" className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer" checked={item.warehouseConfirmed || false} onChange={(e) => handleWarehouseConfirm(e, item)} disabled={!canEdit()} />
+                                        <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
                                     </label>
-                                    {/* ------------------------- */}
-
-                                    {/* 國內採購顯示交貨地點/日期，國外顯示拆櫃 */}
                                     {isDomestic(item) ? (
-                                        <>
-                                            {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨地: {item.devanningLocation}</div>}
-                                        </>
+                                        <> {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨地: {item.devanningLocation}</div>} </>
                                     ) : (
                                         <>
                                             {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>{item.devanningLocation}</div>}
@@ -470,44 +418,29 @@
                                 </div>
                             </div>
                         </div>
-
                         <div className="p-4">
                             <div className="space-y-3">
                                 {item.products.map((p, idx) => (
                                     <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
                                         <div className="flex-1 mr-2">
                                             <div className="flex items-baseline gap-2 flex-wrap">
-                                                {/* ⭐️ 優化: 品名字體放大至 text-sm ⭐️ */}
                                                 <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
-                                                {p.spec && (
-                                                    <span className="text-sm text-slate-500 font-medium">
-                                                        {p.spec} {/* ⭐️ 優化: 移除括號 ⭐️ */}
-                                                    </span>
-                                                )}
+                                                {p.spec && <span className="text-sm text-slate-500 font-medium">{p.spec}</span>}
                                             </div>
                                             <div className="flex gap-2 mt-1">
-                                                {/* ⭐️ 優化: 批號字體放大至 text-xs ⭐️ */}
                                                 {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
-                                                {/* ⭐️ 優化: 效期字體放大至 text-xs ⭐️ */}
                                                 {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                             </div>
+                                            {canSeePrice() && (
+                                                <div className="flex gap-2 mt-1 text-xs text-gray-500 font-mono">
+                                                    <span>單價:${(p.unitPrice||0).toLocaleString()}</span>
+                                                    <span>金額:${(p.amount||0).toLocaleString()}</span>
+                                                </div>
+                                            )}
                                         </div>
-                                        {/* ⭐️ 優化: 數量字體加大至 text-base 並加上「件」 ⭐️ */}
                                         <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()} 件</div>
                                     </div>
                                 ))}
-                            </div>
-                            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
-                                {isAdmin && (
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleDuplicateShipment(item)} className="text-xs text-gray-400 hover:text-blue-500 flex items-center gap-1"><Icons.Copy /> 複製</button>
-                                        <button onClick={() => handleDelete(item.id)} className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"><Icons.Trash2 /> 刪除</button>
-                                    </div>
-                                )}
-                                <div className="flex items-baseline gap-2 ml-auto">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">總數</span>
-                                    <span className="text-xl font-black text-blue-600">{item.totalQuantity.toLocaleString()} 件</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -523,12 +456,10 @@
                     <div className="login-screen">
                         <div className="bg-white p-8 rounded-2xl shadow-xl text-center w-full max-w-sm mx-4">
                             <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200"><Icons.Ship /></div>
-                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理系統</h1>
+                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理</h1>
                             <p className="text-gray-500 mb-8 text-sm">請選擇登入身分</p>
                             <div className="space-y-3">
-                                <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 管理員登入</button>
-                                <div className="relative py-2"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div><div className="relative flex justify-center text-xs text-gray-500"><span className="bg-white px-2">或</span></div></div>
-                                <button onClick={handleGuestLogin} className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-200 transition-all font-bold ios-btn"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button>
+                                <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 員工登入</button>
                             </div>
                         </div>
                     </div>
@@ -541,38 +472,11 @@
                         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-gray-900 text-lg">
                                 <div className="w-6 h-6 text-blue-600"><Icons.Ship /></div> 
-                                <span>貨櫃管理</span>
+                                <span>貨櫃管理 ({userRole === 'GUEST' ? '訪客' : userRole})</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showNotifications)}>
-                                    <div className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 ${urgentCount>0?'text-red-500 bell-shake':''}`}><Icons.Bell /></div>
-                                    {urgentCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
-                                    {showNotifications && (
-                                        <div className="mobile-modal-overlay" onClick={() => setShowNotifications(false)}>
-                                            <div className="mobile-modal-content" onClick={e => e.stopPropagation()}>
-                                                <div className="bg-gray-50 px-5 py-4 border-b border-gray-100 flex justify-between items-center">
-                                                    <span className="font-bold text-gray-700">近期到港急件 ({urgentCount})</span>
-                                                    <button onClick={() => setShowNotifications(false)} className="text-gray-400"><Icons.X /></button>
-                                                </div>
-                                                <div className="max-h-[60vh] overflow-y-auto p-2">
-                                                    {urgentShipments.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">無急件</div> : urgentShipments.map(s => (
-                                                        <div key={s.id} className="p-3 mb-2 bg-white rounded-xl border border-gray-100 shadow-sm">
-                                                            <div className="flex justify-between mb-1"><span className="font-bold text-blue-600">{s.containerNumber}</span><span className="text-xs font-bold text-red-500">{Math.ceil((new Date(s.arrivalDate)-new Date().setHours(0,0,0,0))/86400000)}天後</span></div>
-                                                            <div className="text-xs text-gray-500 mb-3">{s.importCompany} / {s.supplier}</div>
-                                                            <button onClick={() => handleShareToLine(s)} className="w-full py-2 bg-[#06C755] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 ios-btn"><Icons.MessageCircle /> 通知 LINE 群組</button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                {view === 'list' && (
-                                    <>
-                                        <button onClick={handleExport} className="p-2 rounded-full hover:bg-gray-100 text-gray-500" title="匯出"><Icons.Download /></button>
-                                        {isAdmin && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); setIsSubmitting(false); }} className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"><Icons.Plus /></button>}
-                                    </>
-                                )}
+                                {canCreate() && view === 'list' && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); setIsSubmitting(false); }} className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"><Icons.Plus /></button>}
+                                {view === 'list' && <button onClick={handleExport} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><Icons.Download /></button>}
                                 <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 text-gray-400"><Icons.LogOut /></button>
                             </div>
                         </div>
@@ -581,44 +485,20 @@
                     <main className="max-w-2xl mx-auto px-4 mt-4">
                         {view === 'list' ? (
                             <div className="space-y-4">
-                                
-                                {/* 平行三欄分頁 */}
                                 <div className="flex justify-between bg-white rounded-xl p-1 shadow-sm border border-gray-200 overflow-x-auto">
-                                    <button 
-                                        onClick={() => setCurrentTab('NOT_DEVANED')} 
-                                        className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'NOT_DEVANED' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-                                    >
-                                        未拆櫃 ({notDevannedForeign.length})
-                                    </button>
-                                    <button 
-                                        onClick={() => setCurrentTab('DEVANED')} 
-                                        className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'DEVANED' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-                                    >
-                                        已拆櫃 ({devannedForeign.length})
-                                    </button>
-                                    <button 
-                                        onClick={() => setCurrentTab('DOMESTIC')} 
-                                        className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'DOMESTIC' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-                                    >
-                                        國內採購 ({domesticShipments.length})
-                                    </button>
+                                    {['NOT_DEVANED', 'DEVANED', 'DOMESTIC'].map(tab => (
+                                        <button key={tab} onClick={() => setCurrentTab(tab)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === tab ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                            {tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : '國內採購'}
+                                        </button>
+                                    ))}
                                 </div>
-                                {/* ------------------------- */}
-
                                 <div className="relative">
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
-                                    {/* 搜尋提示文字 */}
-                                    <input type="text" placeholder="搜尋櫃號、廠商、貨品、批號、產地..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
+                                    <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                 </div>
-
                                 <div className="grid gap-4">
-                                    {currentList.length === 0 ? (
-                                        <div className="text-center py-12 text-gray-400 text-sm">
-                                            {searchTerm === '' ? '尚無資料' : `查無結果`}
-                                        </div>
-                                    ) : (
-                                        currentList.map(item => renderShipmentCard(item))
-                                    )}
+                                    {currentList.map(item => renderShipmentCard(item))}
+                                    {currentList.length === 0 && <div className="text-center py-12 text-gray-400 text-sm">查無結果</div>}
                                 </div>
                             </div>
                         ) : (
@@ -628,154 +508,74 @@
                                     <button onClick={() => setView('list')} className="text-gray-400 p-1"><Icons.X /></button>
                                 </div>
                                 <form onSubmit={handleSubmit} className="space-y-5">
+                                    {/* 表單內容：針對 WAREHOUSE 進行欄位鎖定 (disabled) */}
                                     <div className="grid grid-cols-1 gap-4">
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label>
-                                                <select name="importCompany" value={formData.importCompany} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label>
-                                                {/* 國內採購免填櫃號 */}
-                                                <input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500 outline-none" placeholder={formData.customsBroker === '國內採購' ? "國內採購免填" : "TEMU..."} required={formData.customsBroker !== '國內採購'} />
-                                            </div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase outline-none" placeholder="TEMU..." required={formData.customsBroker !== '國內採購'} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                {/* 動態 Label: 國內=到貨日，國外=到港日 */}
-                                                <label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker === '國內採購' ? '到貨日' : '到港日'}</label>
-                                                <input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-400 mb-1">報關行 <span className="text-xs text-blue-500 font-normal">(國內採購請選此)</span></label>
-                                                <select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                                            </div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker === '國內採購' ? '到貨日' : '到港日'}</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-400 mb-1">船公司</label>
-                                            <input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="例如: 長榮" />
-                                        </div>
+                                        <div><label className="block text-sm font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-400 mb-1">產地</label>
-                                                <input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="產地" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-400 mb-1">廠商</label>
-                                                <input name="supplier" value={formData.supplier} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="廠商" />
-                                            </div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist></div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                         </div>
-                                        
+
+                                        {/* 倉管可編輯區域 */}
                                         <div className="pt-3 border-t border-gray-100 relative">
-                                            <h3 className="font-bold text-gray-900 text-base mb-3">
-                                                {formData.customsBroker === '國內採購' ? '交貨資訊 (選填)' : '拆櫃資訊 (選填)'}
-                                            </h3>
-                                            {/* 倉庫收貨確認 Checkbox */}
+                                            <h3 className="font-bold text-gray-900 text-base mb-3">{formData.customsBroker === '國內採購' ? '交貨資訊' : '拆櫃資訊'}</h3>
                                             <div className="absolute top-3 right-0 flex items-center gap-2">
-                                                <input 
-                                                    type="checkbox" 
-                                                    name="warehouseConfirmed" 
-                                                    checked={formData.warehouseConfirmed || false} 
-                                                    onChange={handleInputChange}
-                                                    id="warehouseConfirmed"
-                                                    className="custom-checkbox"
-                                                />
+                                                <input type="checkbox" name="warehouseConfirmed" checked={formData.warehouseConfirmed || false} onChange={handleInputChange} id="warehouseConfirmed" className="custom-checkbox" />
                                                 <label htmlFor="warehouseConfirmed" className="text-sm font-bold text-blue-600 cursor-pointer select-none">倉庫已確認收貨</label>
                                             </div>
-
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-sm font-bold text-gray-400 mb-1">
-                                                        {formData.customsBroker === '國內採購' ? '交貨地點' : '拆櫃地點'}
-                                                    </label>
-                                                    <input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="例如: 冷庫A" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-bold text-gray-400 mb-1">
-                                                        {formData.customsBroker === '國內採購' ? '實際到貨日' : '拆櫃日期'}
-                                                    </label>
-                                                    <input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" />
-                                                </div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                             </div>
                                         </div>
-                                        
+
                                         <div>
                                             <label className="block text-sm font-bold text-gray-400 mb-1">附件</label>
                                             <div className="relative w-full bg-gray-50 rounded-lg px-3 py-2.5 flex items-center justify-between">
                                                 {formData.docUrl ? (
-                                                    <>
-                                                        <span className="text-sm text-gray-900 truncate">
-                                                            <a href={formData.docUrl} target="_blank" className="text-blue-600 underline">
-                                                                {formData.docName}
-                                                            </a>
-                                                        </span>
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={handleDeleteFile} 
-                                                            className="ml-2 text-red-500 hover:text-red-700 w-5 h-5 p-0 flex-shrink-0 ios-btn" 
-                                                            title="永久刪除雲端檔案"
-                                                        >
-                                                            <Icons.Trash2 />
-                                                        </button>
-                                                    </>
+                                                    <><span className="text-sm text-gray-900 truncate"><a href={formData.docUrl} target="_blank" className="text-blue-600 underline">{formData.docName}</a></span><button type="button" onClick={handleDeleteFile} disabled={isWarehouse()} className="ml-2 text-red-500 w-5 h-5"><Icons.Trash2 /></button></>
                                                 ) : (
-                                                    <>
-                                                        <input 
-                                                            type="file" 
-                                                            onChange={handleFileUpload} 
-                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                                                            disabled={uploading} 
-                                                        />
-                                                        <span className="text-sm text-gray-500 truncate">{uploading ? '上傳中...' : '上傳文件'}</span>
-                                                        <div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div>
-                                                    </>
+                                                    <><input type="file" onChange={handleFileUpload} disabled={isWarehouse() || uploading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><span className="text-sm text-gray-500">{uploading ? '上傳中...' : '上傳文件'}</span><div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div></>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="pt-3 border-t border-gray-100">
-                                        <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3><button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button></div>
+                                        <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3>{!isWarehouse() && <button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button>}</div>
                                         <div className="space-y-4">
                                             {formData.products.map((p, idx) => (
                                                 <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
                                                     <div className="space-y-3">
-                                                        <div>
-                                                            <label className="block text-xs font-bold text-gray-400 mb-1">品名</label>
-                                                            <input placeholder="請輸入品名" value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" required />
-                                                        </div>
-                                                        
+                                                        <div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none" required /></div>
                                                         <div className="grid grid-cols-2 gap-3">
-                                                            <div>
-                                                                <label className="block text-xs font-bold text-gray-400 mb-1">規格</label>
-                                                                <input placeholder="規格" value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100" />
-                                                            </div>
-                                                            <div>
-                                                                <label className="block text-xs font-bold text-gray-400 mb-1">數量</label>
-                                                                <input type="number" placeholder="0" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600 focus:ring-2 focus:ring-blue-100" />
-                                                            </div>
+                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
+                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">數量</label><input type="number" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600" /></div>
                                                         </div>
-
                                                         <div className="grid grid-cols-2 gap-3">
-                                                            <div>
-                                                                <label className="block text-xs font-bold text-gray-400 mb-1">批號</label>
-                                                                <input placeholder="批號" value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100" />
-                                                            </div>
-                                                            <div>
-                                                                <label className="block text-xs font-bold text-gray-400 mb-1">有效日期</label>
-                                                                <input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100" />
-                                                            </div>
+                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">批號</label><input value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
+                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">有效日期</label><input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
                                                         </div>
+                                                        {/* 只有採購能看到且編輯價格，會計只能看 */}
+                                                        {canSeePrice() && (
+                                                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 mt-2">
+                                                                <div><label className="block text-xs font-bold text-gray-400 mb-1">單價</label><input type="number" value={p.unitPrice} onChange={e => handleProductChange(idx, 'unitPrice', Number(e.target.value))} disabled={userRole !== 'PURCHASING'} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none text-right" /></div>
+                                                                <div><label className="block text-xs font-bold text-gray-400 mb-1">金額</label><div className="w-full bg-gray-100 rounded px-3 py-2 text-sm text-right font-bold">${(p.amount||0).toLocaleString()}</div></div>
+                                                            </div>
+                                                        )}
                                                     </div>
-
-                                                    <div className="absolute top-2 right-2 flex gap-1">
-                                                        <button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-500 p-1.5"><Icons.Copy /></button>
-                                                        {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 hover:text-red-500 p-1.5"><Icons.X /></button>}
-                                                    </div>
+                                                    {!isWarehouse() && <div className="absolute top-2 right-2 flex gap-1"><button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 p-1.5"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5"><Icons.X /></button>}</div>}
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="text-right mt-3 text-sm"><span className="text-gray-500 mr-2">Total</span><span className="text-xl font-bold text-blue-600">{formData.totalQuantity.toLocaleString()}</span></div>
                                     </div>
 
                                     <div className="flex gap-3 pt-2">
