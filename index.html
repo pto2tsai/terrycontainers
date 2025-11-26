@@ -3,595 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v7.2 角色權限旗艦版)</title>
-    
+    <title>貨櫃管理系統 (v9.7 最終完美版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
-
     <style>
-        body { background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1c1c1e; -webkit-tap-highlight-color: transparent; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 3px; }
-        
-        .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 16px; overflow: hidden; transition: all 0.3s ease; }
-        .ios-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
-        .ios-btn { transition: opacity 0.2s; }
-        .ios-btn:active { opacity: 0.6; }
-        .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
-        .btn-icon { display: flex; align-items: center; justify-content: center; border-radius: 9999px; transition: background-color 0.2s; }
-        .mobile-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding-top: 60px; backdrop-filter: blur(4px); }
-        .mobile-modal-content { background: white; width: 90%; max-width: 400px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); overflow: hidden; animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        input:focus, select:focus { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
-        
-        /* 鎖定輸入框樣式 */
-        input:disabled, select:disabled { background-color: #f9fafb; color: #9ca3af; cursor: not-allowed; border-color: #e5e7eb; }
-        .custom-checkbox { width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; border: 2px solid #d1d5db; cursor: pointer; }
-        .custom-checkbox:checked { background-color: #2563eb; border-color: #2563eb; }
+        body{background-color:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;-webkit-tap-highlight-color:transparent}
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+        .ios-card{background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:16px;overflow:hidden;border:1px solid #f3f4f6;transition:all .2s}
+        .ios-card:hover{transform:translateY(-1px);box-shadow:0 4px 6px -1px rgba(0,0,0,.1)}
+        .tag-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap}
+        .btn-icon{display:flex;align-items:center;justify-content:center;border-radius:99px;transition:background .2s}
+        .mobile-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;display:flex;justify-content:center;padding-top:60px;backdrop-filter:blur(4px)}
+        .mobile-modal-content{background:#fff;width:90%;max-width:400px;border-radius:20px;box-shadow:0 20px 25px -5px rgba(0,0,0,.1);overflow:hidden;animation:slideUp .3s}
+        @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+        input:focus,select:focus{box-shadow:0 0 0 2px rgba(59,130,246,.3);outline:0;border-color:#3b82f6}
+        input:disabled,select:disabled{background-color:#f9fafb;color:#9ca3af;cursor:not-allowed}
+        .custom-checkbox{width:1.25rem;height:1.25rem;border-radius:.25rem;border:2px solid #d1d5db;cursor:pointer;accent-color:#2563eb}
+        .sidebar-link{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;font-weight:600;color:#6b7280;transition:all .2s;cursor:pointer}
+        .sidebar-link:hover{background-color:#f3f4f6;color:#1f2937}.sidebar-link.active{background-color:#eff6ff;color:#2563eb}
+        .bottom-nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:8px 0;color:#9ca3af;font-size:10px;font-weight:600;cursor:pointer}
+        .bottom-nav-item.active{color:#2563eb}
     </style>
 </head>
 <body>
     <div id="root"></div>
-
     <script type="text/babel">
-        const Icons = {
-            Ship: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
-            Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
-            Plus: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
-            Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
-            Trash2: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
-            Edit: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>,
-            Copy: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
-            FileCheck: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>,
-            Globe: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
-            Factory: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>,
-            Paperclip: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,
-            ArrowRight: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
-            Download: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-3-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
-            LogOut: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
-            Google: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>,
-            X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>,
-            Check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
-            Bell: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>,
-            MessageCircle: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>,
-            User: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-            Briefcase: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
-            Barcode: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>,
-            AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
-            Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
-            BoxCheck: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
-        };
+        const Icons={Ship:()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,Anchor:()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,Plus:()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,Search:()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,Trash2:()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,Edit:()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>,Copy:()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,FileCheck:()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>,Globe:()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,Factory:()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>,Paperclip:()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,ArrowRight:()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,Download:()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-3-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,LogOut:()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,Google:()=><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>,X:()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>,Check:()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,Bell:()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>,MessageCircle:()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>,User:()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,Briefcase:()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,Barcode:()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>,AlertCircle:()=><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,Calendar:()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,BoxCheck:()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>,Chart:()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>,List:()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>};
 
         const { useState, useEffect, useMemo } = React;
+        const IMPORT_COMPANIES=['崇文冷凍','八方環球'], CUSTOMS_BROKERS=['原碩','尚鴻','國內採購'], DEFAULT_ORIGINS=['厄瓜多','巴拿馬','瓜地馬拉','宏都拉斯','泰國','印尼','印度','中國','智利','挪威'];
+        const ADMIN_EMAILS=["pto2.tw@gmail.com","bapbts0901@gmail.com","4onlymerich@gmail.com"];
 
-        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
-        const IMPORT_COMPANIES = ['崇文冷凍', '八方環球'];
-        const CUSTOMS_BROKERS = ['原碩', '尚鴻', '國內採購'];
-        const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
+        const firebaseConfig = {apiKey:"AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",authDomain:"containersystem-6342f.firebaseapp.com",projectId:"containersystem-6342f",storageBucket:"containersystem-6342f.firebasestorage.app",messagingSenderId:"27658303054",appId:"1:27658303054:web:d7a3710054ede268cdf51f"};
+        try{firebase.initializeApp(firebaseConfig);}catch(e){}
+        const db=firebase.firestore(), auth=firebase.auth(), storage=firebase.storage();
 
-        // ⚠️ 已預填您的 Firebase 設定
-        const firebaseConfig = {
-            apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
-            authDomain: "containersystem-6342f.firebaseapp.com",
-            projectId: "containersystem-6342f",
-            storageBucket: "containersystem-6342f.firebasestorage.app",
-            messagingSenderId: "27658303054",
-            appId: "1:27658303054:web:d7a3710054ede268cdf51f"
-        };
+        const parseDate=d=>{if(!d)return new Date(0);const p=d.split('-');if(p.length!==3)return new Date(0);return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]),0,0,0,0)};
+        const getStatusStyle=d=>{if(!d)return{bg:'bg-gray-100',text:'未定',color:'text-gray-400'};const n=parseDate(new Date().toISOString().split('T')[0]),a=parseDate(d),diff=Math.round((a-n)/86400000);if(diff<0)return{text:'已到港',color:'bg-gray-100 text-gray-500'};if(diff===0)return{text:'今日到港',color:'bg-red-100 text-red-600 animate-pulse'};if(diff===1)return{text:'明天到港',color:'bg-orange-100 text-orange-600'};return{text:`${diff} 天後`,color:'bg-blue-100 text-blue-600'}};
+        const getCompanyColor=n=>n==='崇文冷凍'?'bg-blue-100 text-blue-700':(n==='八方環球'?'bg-emerald-100 text-emerald-700':'bg-gray-200 text-gray-700');
 
-        let db = null, auth = null, storage = null;
-        try {
-            if (firebaseConfig.apiKey) {
-                firebase.initializeApp(firebaseConfig);
-                db = firebase.firestore();
-                auth = firebase.auth();
-                storage = firebase.storage();
-            }
-        } catch (e) { console.error(e); }
-
-        const parseLocalMidnightDate = (dateStr) => {
-            if (!dateStr) return new Date(0);
-            const parts = dateStr.split('-');
-            if (parts.length !== 3) return new Date(0);
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0); 
-        };
-
-        const getUrgentStatus = (date) => {
-            if (!date) return { text: '未定', color: 'bg-gray-100 text-gray-400' };
-            const todayStr = new Date().toISOString().split('T')[0];
-            const today = parseLocalMidnightDate(todayStr); 
-            const arrival = parseLocalMidnightDate(date); 
-            
-            const diff = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            
-            if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
-            if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
-            if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
-            return { text: `${diff} 天後`, color: 'bg-blue-100 text-blue-600' };
+        const Dashboard = ({ shipments, canSeePrice }) => {
+            const [tf, setTf] = useState('MONTH');
+            const stats = useMemo(() => {
+                const now = new Date();
+                const list = shipments.filter(s => {
+                    if(!s.arrivalDate) return false;
+                    const d = new Date(s.arrivalDate);
+                    if(tf==='MONTH') return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+                    if(tf==='YEAR') return d.getFullYear()===now.getFullYear();
+                    return true;
+                });
+                const count = list.length;
+                const items = list.reduce((s, i) => s + (Number(i.totalQuantity)||0), 0);
+                const w = list.reduce((s, i) => s + (Number(i.totalWeight)||0), 0);
+                const money = list.reduce((s, i) => s + ((i.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)||0), 0);
+                const supps = {}; list.forEach(s => { const n = s.supplier || '未填'; supps[n] = (supps[n] || 0) + 1; });
+                const top = Object.entries(supps).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                return { count, items, w, money, top };
+            }, [shipments, tf]);
+            const maxVal = (stats.top.length > 0 && stats.top[0][1] > 0) ? stats.top[0][1] : 1;
+            return (
+                <div className="space-y-4 animate-[fade-in_0.3s_ease-out]">
+                     <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-gray-800">統計儀表板</h2><div className="flex bg-white rounded-lg p-1 border shadow-sm">{['MONTH','YEAR','ALL'].map(k=><button key={k} onClick={()=>setTf(k)} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${tf===k?'bg-blue-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{k==='MONTH'?'本月':k==='YEAR'?'本年':'全部'}</button>)}</div></div>
+                     <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總筆數</div><div className="text-2xl font-black text-gray-800">{stats.count}</div></div>
+                        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總件數</div><div className="text-2xl font-black text-blue-600">{stats.items.toLocaleString()}</div></div>
+                        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{parseInt(stats.w).toLocaleString()}</div></div>
+                        {canSeePrice && <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">採購金額</div><div className="text-2xl font-black text-emerald-600">${stats.money.toLocaleString()}</div></div>}
+                     </div>
+                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">🏆 前五大廠商</h3><div className="space-y-3">{stats.top.map(([n,c],i)=><div key={n} className="flex items-center gap-3"><div className="w-6 text-xs font-bold text-gray-400">#{i+1}</div><div className="flex-1"><div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">{n}</span><span className="text-gray-500">{c} 筆</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{width:`${(c/maxVal)*100}%`}}></div></div></div></div>)}</div></div>
+                </div>
+            );
         };
 
         function ContainerApp() {
-            const [user, setUser] = useState(null);
-            const [shipments, setShipments] = useState([]);
-            const [view, setView] = useState('list');
-            const [editingId, setEditingId] = useState(null);
-            const [searchTerm, setSearchTerm] = useState('');
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [isSubmitting, setIsSubmitting] = useState(false);
-            const [uploading, setUploading] = useState(false);
-            const [showNotifications, setShowNotifications] = useState(false);
+            const [user,setUser]=useState(null),[shipments,setShipments]=useState([]),[view,setView]=useState('list'),[editingId,setEditingId]=useState(null),[searchTerm,setSearchTerm]=useState(''),[loading,setLoading]=useState(true),[isSubmitting,setIsSubmitting]=useState(false),[uploading,setUploading]=useState(false),[currentTab,setCurrentTab]=useState('NOT_DEVANED'),[userRole,setUserRole]=useState('GUEST'),[adminList,setAdminList]=useState([]);
+            useEffect(()=>{auth.onAuthStateChanged(u=>{setUser(u);if(!u)setLoading(false)})},[]);
+            useEffect(()=>{if(!user)return;const unsubDB=db.collection('shipments').onSnapshot(snap=>{const d=snap.docs.map(doc=>({id:doc.id,...doc.data()}));d.sort((a,b)=>(b.arrivalDate?new Date(b.arrivalDate):0)-(a.arrivalDate?new Date(a.arrivalDate):0));setShipments(d);setLoading(false)},e=>{console.error(e);setLoading(false)});const unsubSet=db.collection('settings').doc('config').onSnapshot(doc=>{if(doc.exists){const d=doc.data();if(d.user_roles&&d.user_roles[user.email])setUserRole(d.user_roles[user.email]);else if(d.admin_emails&&d.admin_emails.includes(user.email))setUserRole('PURCHASING');else setUserRole('GUEST')}else{if(ADMIN_EMAILS.includes(user.email))setUserRole('PURCHASING');else setUserRole('GUEST')}});return()=>{unsubDB();unsubSet()}},[user]);
+            const canEdit=()=>['PURCHASING','WAREHOUSE'].includes(userRole),canCreate=()=>['PURCHASING'].includes(userRole),canDelete=()=>['PURCHASING'].includes(userRole),canUpload=()=>['PURCHASING','QC'].includes(userRole),canSeePrice=()=>['PURCHASING','ACCOUNTING'].includes(userRole),isWarehouse=()=>userRole==='WAREHOUSE';
+            const initialFormState={importCompany:IMPORT_COMPANIES[0],customsBroker:CUSTOMS_BROKERS[0],origin:'',supplier:'',arrivalDate:new Date().toISOString().split('T')[0],containerNumber:'',shippingCompany:'',products:[{id:Date.now(),name:'',batchNumber:'',expiryDate:'',spec:'',boxCapacity:1,quantity:0,weight:0,unitPrice:0,amount:0,pricingMode:'quantity'}],totalQuantity:0,totalWeight:0,docUrl:'',docName:'',docRefPath:'',devanningLocation:'',devanningDate:'',warehouseConfirmed:false};
+            const [formData,setFormData]=useState(initialFormState);
+            const handleInputChange=e=>{const{name,value,type,checked}=e.target;setFormData(prev=>({...prev,[name]:name==='containerNumber'?value.toUpperCase():(type==='checkbox'?checked:value)}))};
+            const handleProductChange=(idx,field,value)=>{const np=[...formData.products];np[idx]={...np[idx],[field]:value};const p=np[idx],q=Number(p.quantity)||0,b=Number(p.boxCapacity)||1,w=Number(p.weight)||0,u=Number(p.unitPrice)||0;p.amount=Math.round(p.pricingMode==='weight'?w*u:q*b*u);setFormData(prev=>({...prev,products:np,totalQuantity:np.reduce((s,i)=>s+(Number(i.quantity)||0),0),totalWeight:np.reduce((s,i)=>s+(Number(i.weight)||0),0)}))};
+            const addProductRow=()=>setFormData(prev=>({...prev,products:[...prev.products,{id:Date.now(),name:'',batchNumber:'',expiryDate:'',spec:'',boxCapacity:1,quantity:0,weight:0,unitPrice:0,amount:0,pricingMode:'quantity'}]}));
+            const duplicateProductRow=(idx)=>{const np=[...formData.products];np.splice(idx+1,0,{...formData.products[idx],id:Date.now()});setFormData(prev=>({...prev,products:np,totalQuantity:np.reduce((s,i)=>s+(Number(i.quantity)||0),0),totalWeight:np.reduce((s,i)=>s+(Number(i.weight)||0),0)}))};
+            const removeProductRow=(idx)=>{const np=formData.products.filter((_,i)=>i!==idx);setFormData(prev=>({...prev,products:np,totalQuantity:np.reduce((s,i)=>s+(Number(i.quantity)||0),0),totalWeight:np.reduce((s,i)=>s+(Number(i.weight)||0),0)}))};
+            const handleFileUpload=async(e)=>{const file=e.target.files[0];if(!file)return;setUploading(true);try{const ref=storage.ref(`docs/${Date.now()}_${file.name}`);await ref.put(file);const url=await ref.getDownloadURL();setFormData(prev=>({...prev,docUrl:url,docName:file.name,docRefPath:ref.fullPath}))}catch(e){alert(e.message)}finally{setUploading(false)}};
+            const handleDeleteFile=async()=>{if(!formData.docUrl||!confirm("確定刪除?"))return;if(formData.docRefPath)try{await storage.ref(formData.docRefPath).delete()}catch(e){console.warn(e)}setFormData(prev=>({...prev,docUrl:'',docName:'',docRefPath:''}))};
+            const handleSubmit=async(e)=>{e.preventDefault();if(!isAdmin)return alert("權限不足");if(formData.customsBroker!=='國內採購'&&!formData.containerNumber)return alert('請輸入櫃號');setIsSubmitting(true);try{const payload={...formData,updatedAt:new Date().toISOString()};if(editingId)await db.collection('shipments').doc(editingId).update(payload);else await db.collection('shipments').add({...payload,createdAt:new Date().toISOString()});setFormData(initialFormState);setEditingId(null);setView('list')}catch(e){alert(e.message)}finally{setIsSubmitting(false)}};
+            const handleShareToLine=s=>{const isDomestic=s.customsBroker==='國內採購',quantityUnit=' 件';const productDetails=(s.products||[]).map((p,i)=>`${i+1}. ${p.name}${p.spec?` ${p.spec}`:''} - ${p.quantity.toLocaleString()}${quantityUnit}${p.weight?` / ${p.weight}kg`:''}${p.batchNumber?` [批:${p.batchNumber}]`:''}`).join('\n');const locationInfo=s.devanningLocation?`\n📍 ${isDomestic?'交貨地':'拆櫃地'}：${s.devanningLocation}`:'';const devanningDateInfo=(!isDomestic&&s.devanningDate)?`\n🕒 拆櫃日：${s.devanningDate}`:'';const totalWeightInfo=s.totalWeight?` / ${s.totalWeight.toLocaleString()} kg`:'';let text=isDomestic?`🚚 到貨通知(國內採購)\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier||'未填'}\n🌎 產地：${s.origin||'未填'}${locationInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}${totalWeightInfo}`:`🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier||'未填'}\n🌎 產地：${s.origin||'未填'}${locationInfo}${devanningDateInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}${totalWeightInfo}`;window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`,'_blank')};
+            const handleWarehouseConfirm=async(e,item)=>{e.stopPropagation();if(!canEdit())return alert("權限不足");try{await db.collection('shipments').doc(item.id).update({warehouseConfirmed:!item.warehouseConfirmed})}catch(error){alert("更新失敗")}};
             
-            const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); 
-            
-            // 角色狀態: GUEST, PURCHASING, SALES, WAREHOUSE, QC, ACCOUNTING
-            const [userRole, setUserRole] = useState('GUEST');
-            
-            useEffect(() => {
-                if (!auth) { setError("CONFIG_MISSING"); setLoading(false); return; }
-                const authUnsub = auth.onAuthStateChanged((u) => { setUser(u); if (!u) setLoading(false); });
-                return () => authUnsub();
-            }, []);
+            const filteredShipments=useMemo(()=>{const t=searchTerm.toLowerCase();return shipments.filter(s=>s.containerNumber?.toLowerCase().includes(t)||(s.importCompany||"").toLowerCase().includes(t)||(s.supplier||"").toLowerCase().includes(t)||(s.shippingCompany||"").toLowerCase().includes(t)||(s.origin||"").toLowerCase().includes(t)||(s.devanningLocation||"").toLowerCase().includes(t)||(s.products||[]).some(p=>(p.name||"").toLowerCase().includes(t)||(p.spec||"").toLowerCase().includes(t)||(p.batchNumber||"").toLowerCase().includes(t)))},[shipments,searchTerm]);
+            const todayStr=new Date().toISOString().split('T')[0];const isDom=s=>(s.customsBroker||'').includes('國內採購');
+            const currentList=useMemo(()=>{if(currentTab==='DOMESTIC')return filteredShipments.filter(s=>isDom(s)).sort((a,b)=>b.arrivalDate.localeCompare(a.arrivalDate));const foreignList=filteredShipments.filter(s=>!isDom(s));if(currentTab==='DEVANED')return foreignList.filter(s=>s.devanningDate&&s.devanningDate<=todayStr).sort((a,b)=>b.devanningDate.localeCompare(a.devanningDate));return foreignList.filter(s=>!s.devanningDate||s.devanningDate>todayStr).sort((a,b)=>b.arrivalDate.localeCompare(a.arrivalDate))},[currentTab,filteredShipments,todayStr]);
+            const urgentCount=useMemo(()=>{const today=parseLocalMidnightDate(todayStr);return shipments.filter(s=>{if(!s.arrivalDate)return false;const arrival=parseLocalMidnightDate(s.arrivalDate);const diff=Math.round((arrival.getTime()-today.getTime())/(1000*60*60*24));return diff>=0&&diff<=3}).length},[shipments]);
+            const availableOrigins=useMemo(()=>Array.from(new Set([...DEFAULT_ORIGINS,...shipments.map(s=>s.origin).filter(Boolean),'國內採購'])).sort(),[shipments]);
 
-            useEffect(() => {
-                if (!user || !db) return;
-                
-                const unsubscribeDB = db.collection('shipments').onSnapshot(
-                    (snapshot) => {
-                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        data.sort((a, b) => {
-                            const dateA = a.arrivalDate ? new Date(a.arrivalDate).getTime() : 0;
-                            const dateB = b.arrivalDate ? new Date(b.arrivalDate).getTime() : 0;
-                            return dateB - dateA;
-                        });
-                        setShipments(data);
-                        setLoading(false);
-                        setError(null);
-                    },
-                    (err) => {
-                        console.error(err);
-                        setLoading(false);
-                    }
-                );
-
-                // 讀取角色設定
-                const unsubscribeSettings = db.collection('settings').doc('config').onSnapshot(
-                    (doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            if (data.user_roles && data.user_roles[user.email]) {
-                                setUserRole(data.user_roles[user.email]);
-                            } else if (data.admin_emails && data.admin_emails.includes(user.email)) {
-                                setUserRole('PURCHASING'); 
-                            } else {
-                                setUserRole('GUEST');
-                            }
-                        } else {
-                             // 預設後門
-                             if (ADMIN_EMAILS.includes(user.email)) {
-                                 setUserRole('PURCHASING');
-                             }
-                        }
-                    },
-                    (err) => console.log("Settings fetch error:", err)
-                );
-
-                return () => { unsubscribeDB(); unsubscribeSettings(); };
-            }, [user]);
-
-            const handleAdminLogin = async () => { try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch (e) { alert("登入失敗: " + e.message); } };
-            const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (e) { alert("訪客登入失敗"); } };
-            const handleLogout = () => auth.signOut();
-
-            // 權限判斷
-            const canEdit = () => ['PURCHASING', 'WAREHOUSE'].includes(userRole);
-            const canCreate = () => ['PURCHASING'].includes(userRole);
-            const canDelete = () => ['PURCHASING'].includes(userRole);
-            const canUpload = () => ['PURCHASING', 'QC'].includes(userRole);
-            const canSeePrice = () => ['PURCHASING', 'ACCOUNTING'].includes(userRole);
-            const isWarehouse = () => userRole === 'WAREHOUSE';
-
-            const initialFormState = { 
-                importCompany: IMPORT_COMPANIES[0], 
-                customsBroker: CUSTOMS_BROKERS[0], 
-                origin: '', 
-                supplier: '', 
-                arrivalDate: new Date().toISOString().split('T')[0], 
-                containerNumber: '', 
-                shippingCompany: '', 
-                products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0, unitPrice: 0, amount: 0 }], 
-                totalQuantity: 0, 
-                docUrl: '', 
-                docName: '',
-                docRefPath: '', 
-                devanningLocation: '', 
-                devanningDate: '',
-                warehouseConfirmed: false 
-            };
-            const [formData, setFormData] = useState(initialFormState);
-
-            const handleInputChange = (e) => { 
-                const { name, value, type, checked } = e.target; 
-                const val = type === 'checkbox' ? checked : value;
-                setFormData(prev => ({ ...prev, [name]: name === 'containerNumber' ? val.toUpperCase() : val })); 
-            };
-
-            const handleProductChange = (idx, field, value) => { 
-                const np = [...formData.products]; 
-                np[idx] = { ...np[idx], [field]: value }; 
-                if (field === 'quantity' || field === 'unitPrice') {
-                    np[idx].amount = (Number(np[idx].quantity) || 0) * (Number(np[idx].unitPrice) || 0);
-                }
-                setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, p) => s + Number(p.quantity||0), 0) })); 
-            };
-
-            const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0, unitPrice: 0, amount: 0 }] }));
-            const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
-            const removeProductRow = (idx) => { const np = formData.products.filter((_, i) => i !== idx); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
-
-            const handleFileUpload = async (e) => {
-                const file = e.target.files[0]; if (!file) return; setUploading(true);
-                try { 
-                    const filePath = `docs/${Date.now()}_${file.name}`; 
-                    const ref = storage.ref().child(filePath); 
-                    await ref.put(file); 
-                    const url = await ref.getDownloadURL(); 
-                    setFormData(prev => ({ ...prev, docUrl: url, docName: file.name, docRefPath: filePath })); 
-                } catch (e) { alert("上傳失敗: " + e.message); } finally { setUploading(false); }
-            };
-            
-            const handleDeleteFile = async () => { 
-                if(!formData.docUrl || !confirm("確定要永久移除此附件嗎？")) return;
-                if (formData.docRefPath && storage) {
-                    try { await storage.ref().child(formData.docRefPath).delete(); alert("檔案已從雲端移除。"); } catch (e) { console.warn(e); }
-                }
-                setFormData(prev => ({ ...prev, docUrl: '', docName: '', docRefPath: '' }));
-            };
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if (!canEdit()) return alert("權限不足");
-                if (formData.customsBroker !== '國內採購' && !formData.containerNumber) return alert('請輸入櫃號');
-                
-                setIsSubmitting(true);
-                try {
-                    const payload = { ...formData, updatedAt: new Date().toISOString() };
-                    if (editingId) await db.collection('shipments').doc(editingId).update(payload);
-                    else await db.collection('shipments').add({ ...payload, createdAt: new Date().toISOString() });
-                    setFormData(initialFormState); setEditingId(null); setView('list'); window.scrollTo(0,0);
-                } catch (e) { alert("錯誤：" + e.message); } finally { setIsSubmitting(false); }
-            };
-
-            const handleDuplicateShipment = (s) => { 
-                if(!canCreate()) return; 
-                const {id,...d}=s; 
-                const np=d.products.map(p=>({...p,id:Date.now()+Math.random()})); 
-                setFormData({...d, containerNumber:'', products:np}); 
-                setEditingId(null); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); 
-            };
-            const handleEdit = (s) => { 
-                if(!canEdit()) return; 
-                setFormData(s); setEditingId(s.id); setView('form'); window.scrollTo(0,0); setIsSubmitting(false); 
-            };
-            const handleDelete = async (id) => { 
-                if(!canDelete() || !confirm('確定刪除此貨櫃資料？')) return; 
-                await db.collection('shipments').doc(id).delete(); 
-            };
-
-            const handleExport = () => { 
-                if (userRole === 'GUEST') return alert("權限不足"); 
-                const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期";
-                if (showPrice) header += ",單價,金額";
-                header += "\n";
-
-                const rows = filteredShipments.flatMap(s => s.products.map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate];
-                    if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
-                    return row.map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(",");
-                })).join("\n");
-                
-                const link = document.createElement("a"); 
-                link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); 
-                link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; 
-                link.click(); 
-            };
-            
-            const handleShareToLine = (s) => {
-                const isDomestic = s.customsBroker === '國內採購';
-                const quantityUnit = ' 件'; 
-
-                const productDetails = s.products.map((p, i) => 
-                    `${i+1}. ${p.name}${p.spec ? ` ${p.spec}` : ''} - ${p.quantity.toLocaleString()}${quantityUnit}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`
-                ).join('\n');
-
-                let text = '';
-                if (isDomestic) {
-                    text = `🚚 到貨通知(國內採購)\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
-                } else {
-                    const devanningInfo = (s.devanningDate || s.devanningLocation) ? `\n\n🚛 拆櫃: ${s.devanningDate || '未定'}${s.devanningLocation ? ` @ ${s.devanningLocation}` : ''}` : '';
-                    text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}${devanningInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
-                }
-                window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`, '_blank');
-            };
-
-            const handleWarehouseConfirm = async (e, item) => {
-                e.stopPropagation(); 
-                if (!canEdit()) return alert("權限不足"); 
-                try {
-                    await db.collection('shipments').doc(item.id).update({ warehouseConfirmed: !item.warehouseConfirmed });
-                } catch (error) { alert("更新狀態失敗"); }
-            };
-
-            const filteredShipments = useMemo(() => { 
-                const t=searchTerm.toLowerCase(); 
-                return shipments.filter(s => (
-                    s.containerNumber.toLowerCase().includes(t) || 
-                    (s.importCompany||"").toLowerCase().includes(t) || 
-                    (s.supplier||"").toLowerCase().includes(t) || 
-                    (s.shippingCompany||"").toLowerCase().includes(t) || 
-                    (s.origin||"").toLowerCase().includes(t) || 
-                    (s.devanningLocation||"").toLowerCase().includes(t) || 
-                    s.products.some(p => (p.name||"").toLowerCase().includes(t) || (p.spec||"").toLowerCase().includes(t) || (p.batchNumber||"").toLowerCase().includes(t))
-                )); 
-            }, [shipments, searchTerm]);
-            
-            const todayStr = new Date().toISOString().split('T')[0];
-            const DOMESTIC_FLAG = '國內採購';
-            const isDomestic = (s) => (s.customsBroker || '').includes(DOMESTIC_FLAG);
-            const isForeign = (s) => !isDomestic(s);
-
-            const currentList = useMemo(() => {
-                if (currentTab === 'DOMESTIC') return filteredShipments.filter(s => isDomestic(s)).sort((a, b) => b.arrivalDate.localeCompare(a.arrivalDate));
-                
-                const foreignList = filteredShipments.filter(s => isForeign(s));
-                if (currentTab === 'DEVANED') return foreignList.filter(s => s.devanningDate && s.devanningDate <= todayStr).sort((a, b) => b.devanningDate.localeCompare(a.devanningDate));
-                return foreignList.filter(s => !s.devanningDate || s.devanningDate > todayStr).sort((a, b) => b.arrivalDate.localeCompare(a.arrivalDate));
-            }, [currentTab, filteredShipments, todayStr]);
-
-            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean)])).sort(), [shipments]);
-            
-            const getStatusStyle = (date) => { 
-                if (!date) return { bg: 'bg-gray-100', text: '未定', color: 'text-gray-400' };
-                const today = parseLocalMidnightDate(new Date().toISOString().split('T')[0]);
-                const arrival = parseLocalMidnightDate(date);
-                const diff = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
-                if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
-                if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
-                return { text: `${diff} 天後`, color: 'bg-blue-100 text-blue-600' };
-            };
-
-            const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
-
-            const renderShipmentCard = (item) => {
-                const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
-                const mainDate = item.arrivalDate ? new Date(item.arrivalDate) : null; 
-                const mainDateStatus = isDevanned ? { text: '已拆櫃', color: 'text-green-600', bg: 'bg-green-100' } : getStatusStyle(item.arrivalDate);
-
-                return (
-                    <div key={item.id} className="ios-card">
-                        <div className="p-4 border-b border-gray-50 flex gap-4">
-                            <div className={`flex-shrink-0 w-14 flex flex-col items-center justify-center rounded-xl border ${mainDateStatus.bg} h-16`}>
-                                <span className="text-[10px] font-bold uppercase text-gray-500">{mainDate.toLocaleString('default', { month: 'short' })}</span>
-                                <span className="text-xl font-bold text-gray-800 leading-none my-0.5">{mainDate.getDate()}</span>
-                                <span className={`text-[9px] font-bold ${mainDateStatus.color}`}>{mainDateStatus.text}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start mb-1">
-                                    <div className="flex-1 min-w-0">
-                                        <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>
-                                            {item.shippingCompany && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium whitespace-nowrap"><div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}</span>}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3 ml-2 flex-shrink-0">
-                                        {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
-                                        <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
-                                        {canEdit() && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
-                                    </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2 mt-2 items-center">
-                                    <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker || '未指定'}</div>
-                                    {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
-                                    <label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`} onClick={e => e.stopPropagation()}>
-                                        <input type="checkbox" className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer" checked={item.warehouseConfirmed || false} onChange={(e) => handleWarehouseConfirm(e, item)} disabled={!canEdit()} />
-                                        <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
-                                    </label>
-                                    {isDomestic(item) ? (
-                                        <> {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨地: {item.devanningLocation}</div>} </>
-                                    ) : (
-                                        <>
-                                            {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>{item.devanningLocation}</div>}
-                                            {item.devanningDate && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Calendar /></div>拆櫃日: {item.devanningDate}</div>}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-4">
-                            <div className="space-y-3">
-                                {item.products.map((p, idx) => (
-                                    <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
-                                        <div className="flex-1 mr-2">
-                                            <div className="flex items-baseline gap-2 flex-wrap">
-                                                <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
-                                                {p.spec && <span className="text-sm text-slate-500 font-medium">{p.spec}</span>}
-                                            </div>
-                                            <div className="flex gap-2 mt-1">
-                                                {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
-                                                {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
-                                            </div>
-                                            {canSeePrice() && (
-                                                <div className="flex gap-2 mt-1 text-xs text-gray-500 font-mono">
-                                                    <span>單價:${(p.unitPrice||0).toLocaleString()}</span>
-                                                    <span>金額:${(p.amount||0).toLocaleString()}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()} 件</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                );
-            };
-
-            if (error === "CONFIG_MISSING") return <div className="flex h-screen items-center justify-center text-red-600 font-bold p-4 text-center">系統未設定</div>;
-            if (error === "PERMISSION_DENIED") return <div className="flex h-screen items-center justify-center flex-col p-4"><div className="text-red-500 mb-4"><Icons.AlertCircle size={40} /></div><h2 className="text-xl font-bold mb-2">權限不足</h2><p className="text-gray-500">請檢查 Firebase 資料庫規則設定。</p><button onClick={()=>location.reload()} className="mt-4 text-blue-500">重新整理</button></div>;
-            if (loading && !user) return <div className="flex h-screen items-center justify-center text-gray-400">Loading...</div>;
-
-            if (!user) {
-                return (
-                    <div className="login-screen">
-                        <div className="bg-white p-8 rounded-2xl shadow-xl text-center w-full max-w-sm mx-4">
-                            <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200"><Icons.Ship /></div>
-                            <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理</h1>
-                            <p className="text-gray-500 mb-8 text-sm">請選擇登入身分</p>
-                            <div className="space-y-3">
-                                <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 員工登入</button>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
+            if(!user)return(<div className="flex h-screen items-center justify-center bg-gray-50 p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"><Icons.Ship /></div><h1 className="text-2xl font-bold mb-6">貨櫃管理</h1><div className="space-y-3"><button onClick={async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){alert(e.message)}}} className="w-full py-3 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 員工登入</button><button onClick={async()=>{try{await auth.signInAnonymously()}catch(e){alert("Error")}}} className="w-full py-3 px-4 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center gap-3 font-bold ios-btn"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button></div></div></div>);
 
             return (
-                <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-10">
-                    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/60">
-                        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-                            <div className="flex items-center gap-2 font-bold text-gray-900 text-lg">
-                                <div className="w-6 h-6 text-blue-600"><Icons.Ship /></div> 
-                                <span>貨櫃管理 ({userRole === 'GUEST' ? '訪客' : userRole})</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {canCreate() && view === 'list' && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); setIsSubmitting(false); }} className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"><Icons.Plus /></button>}
-                                {view === 'list' && <button onClick={handleExport} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><Icons.Download /></button>}
-                                <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 text-gray-400"><Icons.LogOut /></button>
-                            </div>
-                        </div>
-                    </header>
-
-                    <main className="max-w-2xl mx-auto px-4 mt-4">
-                        {view === 'list' ? (
-                            <div className="space-y-4">
-                                <div className="flex justify-between bg-white rounded-xl p-1 shadow-sm border border-gray-200 overflow-x-auto">
-                                    {['NOT_DEVANED', 'DEVANED', 'DOMESTIC'].map(tab => (
-                                        <button key={tab} onClick={() => setCurrentTab(tab)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === tab ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
-                                            {tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : '國內採購'}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="relative">
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
-                                    <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
-                                </div>
-                                <div className="grid gap-4">
-                                    {currentList.map(item => renderShipmentCard(item))}
-                                    {currentList.length === 0 && <div className="text-center py-12 text-gray-400 text-sm">查無結果</div>}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="max-w-2xl mx-auto ios-card p-5 animate-[fade-in_0.3s_ease-out]">
-                                <div className="flex justify-between items-center mb-5 pb-3 border-b border-gray-100">
-                                    <h2 className="text-lg font-bold text-gray-900">{editingId ? '編輯' : '新增'}貨櫃</h2>
-                                    <button onClick={() => setView('list')} className="text-gray-400 p-1"><Icons.X /></button>
-                                </div>
-                                <form onSubmit={handleSubmit} className="space-y-5">
-                                    {/* 表單內容：針對 WAREHOUSE 進行欄位鎖定 (disabled) */}
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase outline-none" placeholder="TEMU..." required={formData.customsBroker !== '國內採購'} /></div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker === '國內採購' ? '到貨日' : '到港日'}</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                        </div>
-                                        <div><label className="block text-sm font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist></div>
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
-                                        </div>
-
-                                        {/* 倉管可編輯區域 */}
-                                        <div className="pt-3 border-t border-gray-100 relative">
-                                            <h3 className="font-bold text-gray-900 text-base mb-3">{formData.customsBroker === '國內採購' ? '交貨資訊' : '拆櫃資訊'}</h3>
-                                            <div className="absolute top-3 right-0 flex items-center gap-2">
-                                                <input type="checkbox" name="warehouseConfirmed" checked={formData.warehouseConfirmed || false} onChange={handleInputChange} id="warehouseConfirmed" className="custom-checkbox" />
-                                                <label htmlFor="warehouseConfirmed" className="text-sm font-bold text-blue-600 cursor-pointer select-none">倉庫已確認收貨</label>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-400 mb-1">附件</label>
-                                            <div className="relative w-full bg-gray-50 rounded-lg px-3 py-2.5 flex items-center justify-between">
-                                                {formData.docUrl ? (
-                                                    <><span className="text-sm text-gray-900 truncate"><a href={formData.docUrl} target="_blank" className="text-blue-600 underline">{formData.docName}</a></span><button type="button" onClick={handleDeleteFile} disabled={isWarehouse()} className="ml-2 text-red-500 w-5 h-5"><Icons.Trash2 /></button></>
-                                                ) : (
-                                                    <><input type="file" onChange={handleFileUpload} disabled={isWarehouse() || uploading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><span className="text-sm text-gray-500">{uploading ? '上傳中...' : '上傳文件'}</span><div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div></>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-3 border-t border-gray-100">
-                                        <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3>{!isWarehouse() && <button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button>}</div>
-                                        <div className="space-y-4">
-                                            {formData.products.map((p, idx) => (
-                                                <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
-                                                    <div className="space-y-3">
-                                                        <div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none" required /></div>
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
-                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">數量</label><input type="number" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600" /></div>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">批號</label><input value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
-                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">有效日期</label><input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
-                                                        </div>
-                                                        {/* 只有採購能看到且編輯價格，會計只能看 */}
-                                                        {canSeePrice() && (
-                                                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 mt-2">
-                                                                <div><label className="block text-xs font-bold text-gray-400 mb-1">單價</label><input type="number" value={p.unitPrice} onChange={e => handleProductChange(idx, 'unitPrice', Number(e.target.value))} disabled={userRole !== 'PURCHASING'} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none text-right" /></div>
-                                                                <div><label className="block text-xs font-bold text-gray-400 mb-1">金額</label><div className="w-full bg-gray-100 rounded px-3 py-2 text-sm text-right font-bold">${(p.amount||0).toLocaleString()}</div></div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {!isWarehouse() && <div className="absolute top-2 right-2 flex gap-1"><button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 p-1.5"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5"><Icons.X /></button>}</div>}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-3 pt-2">
-                                        <button type="button" onClick={() => setView('list')} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold ios-btn">取消</button>
-                                        <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold ios-btn shadow-lg shadow-blue-200">{isSubmitting ? '...' : '儲存'}</button>
-                                    </div>
-                                </form>
-                            </div>
-                        )}
-                    </main>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ContainerApp />);
-    </script>
-</body>
-</html>
+                <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-20 md:pb-0 flex">
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="nav-icon"><Icons.List /></div>貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="nav-icon"><Icons.Chart /></div>統計分析</button></nav><div className="p-4 border-t border-gray-100"><div className="text-sm font-bold truncate">{user.displayName||'訪客'}</div><div className="text-xs text-gray-400 mb-2">{userRole}</div><button onClick={()=>auth.signOut()} className="text-red-500 text-sm flex items-center gap-2"><Icons.LogOut />登出</button></div></aside>
+                    <div className="flex-1 md:ml-64"><header className="md:hidden sticky top-0 z-30 bg-white/90 backdrop-blur border-b px-4 h-14 flex items-center justify-between"><div className="flex items-center gap-2 font-bold text-gray-900"><div className="w-6 text-blue-600"><Icons.Ship /></div>{view==='list'?'列表':'統計'}</div><div className="flex gap-3 items-center">{urgentCount>0&&<div className="relative text-red-500 animate-pulse"><Icons.Bell /><span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span></div>}{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><div className="w-6"><Icons.Plus /></div></button>}</div></header><main className="max-w-3xl mx-auto p-4">{view==='list'?(<div className="space-y-4"><div className="flex justify-between bg-white rounded-xl p-1 shadow-sm border border-gray-200 overflow-x-auto">{['NOT_DEVANED','DEVANED','DOMESTIC'].map(t=>{let list=[];if(t==='DOMESTIC')list=domesticShipments;else if(t==='DEVANED')list=devannedForeign;else list=notDevannedForeign;const un=list.filter(i=>!i.warehouseConfirmed).length;return<button key={t} onClick={()=>setCurrentTab(t)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg whitespace-nowrap ${currentTab===t?'bg-blue-600 text-white':'text-gray-500 hover:bg-gray-100'}`}><div className="flex items-center justify-center gap-1"><span>{t==='NOT_DEVANED'?'未拆櫃':t==='DEVANED'?'已拆櫃':'國內'} ({list.length})</span>{un>0&&<span className={`text-xs ${currentTab===t?'text-yellow-200':'text-red-500'}`}>({un})</span>}</div></button>})}</div><div className="relative"><div className="absolute left-3 top-2.5 text-gray-400 w-4"><Icons.Search /></div><input placeholder="搜尋櫃號、廠商、貨品、批號、產地..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-2 pl-10 pr-4 outline-none shadow-sm" /></div><div className="grid gap-4">{currentList.map(item=>{const isDev=item.devanningDate&&item.devanningDate<=todayStr;const mainDate=item.arrivalDate?new Date(item.arrivalDate):null;const status=getStatusStyle(item.arrivalDate);return(<div key={item.id} className="ios-card" onClick={()=>{if(canEdit()){setFormData(item);setEditingId(item.id);setView('form')}}}><div className="p-4 border-b flex gap-4"><div className={`w-14 flex flex-col items-center justify-center rounded-xl border ${isDev?'bg-green-50 text-green-600':status.bg} h-16`}><span className="text-[10px] font-bold uppercase text-gray-500">{mainDate?.toLocaleString('default',{month:'short'})}</span><span className="text-xl font-bold text-gray-800 leading-none my-0.5">{mainDate?.getDate()}</span><span className={`text-[9px] font-bold ${isDev?'text-green-600':status.color}`}>{isDev?'已拆櫃':status.text}</span></div><div className="flex-1 min-w-0"><div className="flex justify-between items-start mb-1"><div className="flex-1 min-w-0"><span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span><div className="flex items-center gap-2"><span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>{item.shippingCompany&&<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium whitespace-nowrap"><div className="w-3 h-3"><Icons.Anchor /></div>{item.shippingCompany}</span>}</div></div><div className="flex gap-3 ml-2 flex-shrink-0">{item.docUrl&&<a href={item.docUrl} target="_blank" onClick={e=>e.stopPropagation()} className="w-8 h-8 bg-blue-50 rounded-full flex items-center justify-center text-blue-600"><Icons.Paperclip /></a>}<button onClick={e=>{e.stopPropagation();handleShareToLine(item)}} className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center text-green-600"><Icons.MessageCircle /></button>{canEdit()&&<button onClick={e=>{e.stopPropagation();setFormData(item);setEditingId(item.id);setView('form')}} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-400"><Icons.Edit /></button>}</div></div><div className="flex flex-wrap gap-2 mt-2 items-center"><div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker||'未指定'}</div>{item.origin&&<div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}<label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed?'bg-green-100 border-green-200 text-green-700':'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`} onClick={e=>e.stopPropagation()}><input type="checkbox" className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer" checked={item.warehouseConfirmed||false} onChange={e=>handleWarehouseConfirm(e,item)} disabled={!canEdit()} /><span className={item.warehouseConfirmed?'font-bold':''}>{item.warehouseConfirmed?'已收貨':'確認收貨'}</span></label>{isDom(item)?(item.devanningLocation&&<div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨:{item.devanningLocation}</div>):(<>{item.devanningLocation&&<div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>{item.devanningLocation}</div>}{item.devanningDate&&<div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Calendar /></div>拆:{item.devanningDate}</div>}</>)}</div></div></div><div className="p-4"><div className="space-y-3">{(item.products||[]).map((p,idx)=>(<div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0"><div className="flex-1 mr-2"><div className="flex items-baseline gap-2 flex-wrap"><span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>{p.spec&&<span className="text-sm text-slate-500 font-medium">{p.spec}</span>}</div><div className="flex gap-2 mt-1">{p.batchNumber&&<span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}{p.expiryDate&&<span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}</div><div className="mt-1 text-xs text-gray-400">{p.pricingMode==='weight'?<span className="text-orange-500 font-bold">[重]</span>:<span className="text-blue-500 font-bold">[數]</span>}{p.weight>0&&<span className="ml-1">重:{p.weight}kg</span>}{canSeePrice()&&<span className="ml-2">${(p.amount||0).toLocaleString()}</span>}</div></div><div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()} 件</div></div>))}</div><div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">{item.totalWeight>0&&<span>總重: {item.totalWeight.toLocaleString()} kg</span>}<div className="flex items-baseline gap-2 ml-auto"><span className="text-[10px] font-bold text-gray-400 uppercase">總數</span><span className="text-xl font-black text-blue-600">{item.totalQuantity.toLocaleString()} 件</span></div></div></div></div>)})}
+                                    {currentList.length===0&&<div className="text-center py-12 text-gray-400 text-sm">查無結果</div>}</div></div>):view==='stats'?<Dashboard shipments={shipments} canSeePrice={canSeePrice()} />:(<div className="max-w-2xl mx-auto ios-card p-5 animate-[fade-in_0.3s_ease-out]"><div className="flex justify-between items-center mb-5 pb-3 border-b border-gray-100"><h2 className="text-lg font-bold text-gray-900">{editingId?'編輯':'新增'}貨櫃</h2><button onClick={()=>setView('list')} className="text-gray-400 p-1"><Icons.X /></button></div><form onSubmit={handleSubmit} className="space-y-5"><div className="grid grid-cols-1 gap-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500 outline-none" placeholder={formData.customsBroker==='國內採購'?"國內採購免填":"TEMU..."} required={formData.customsBroker!=='國內採購'} /></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker==='國內採購'?'到貨日':'到港日'}</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div><div><label className="block text-sm font-bold text-gray-400 mb-1">報關行 <span className="text-xs text-blue-500 font-normal">(國內採購請選此)</span></label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div><div><label className="block text-sm font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-sm font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="產地" /><datalist id="origins">{availableOrigins.map(o=><option key={o} value={o}/>)}</datalist></div><div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div></div><div className="pt-3 border-t border-gray-100 relative"><h3 className="font-bold text-gray-900 text-base mb-3">{formData.customsBroker==='國內採購'?'交貨資訊 (選填)':'拆櫃資訊 (選填)'}</h3><div className="absolute top-3 right-0 flex items-center gap-2"><input type="checkbox" name="warehouseConfirmed" checked={formData.warehouseConfirmed||false} onChange={handleInputChange} id="warehouseConfirmed" className="custom-checkbox" /><label htmlFor="warehouseConfirmed" className="text-sm font-bold text-blue-600 cursor-pointer select-none">倉庫已確認收貨</label></div><div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker==='國內採購'?'交貨地點':'拆櫃地點'}</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="例如: 冷庫A" /></div><div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker==='國內採購'?'實際到貨日':'拆櫃日期'}</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div></div></div><div><label className="block text-sm font-bold text-gray-400 mb-1">附件</label><div className="relative w-full bg-gray-50 rounded-lg px-3 py-2.5 flex items-center justify-between">{formData.docUrl?<><span className="text-sm text-gray-900 truncate"><a href={formData.docUrl} target="_blank" className="text-blue-600 underline">{formData.docName}</a></span><button type="button" onClick={handleDeleteFile} className="ml-2 text-red-500 hover:text-red-700 w-5 h-5 p-0 flex-shrink-0 ios-btn" title="永久刪除雲端檔案"><Icons.Trash2 /></button></>:<><input type="file" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled={uploading} /><span className="text-sm text-gray-500 truncate">{uploading?'上傳中...':'上傳文件'}</span><div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div></>}</div></div></div><div className="pt-3 border-t border-gray-100"><div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3><button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button></div><div className="space-y-4">{formData.products.map((p,idx)=>(<div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm"><div className="space-y-3"><div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input placeholder="請輸入品名" value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" required /></div><div className="flex items-center justify-end gap-2 mb-1"><label className="text-xs text-gray-400 font-bold">計價模式:</label><select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="text-xs bg-gray-100 rounded px-2 py-1 outline-none text-blue-600 font-bold"><option value="quantity">📦 依數量</option><option value="weight">⚖️ 依重量</option></select></div><div className="grid grid-cols-12 gap-2"><div className="col-span-4"><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input placeholder="規格" value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100" /></div>{p.pricingMode==='quantity'&&<div className="col-span-2"><label className="block text-xs font-bold text-gray-400 mb-1">箱容</label><input type="number" value={p.boxCapacity} onChange={e=>handleProductChange(idx,'boxCapacity',e.target.value)} className="w-full bg-gray-50 border-none rounded px-2 py-2 text-sm outline-none text-center" /></div>}<div className={p.pricingMode==='quantity'?"col-span-3":"col-span-4"}><label className="block text-xs font-bold text-gray-400 mb-1">件數</label><input type="number" placeholder="0" value={p.quantity} onChange={e=>handleProductChange(idx,'quantity',Number(e.target.value))} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600 focus:ring-2 focus:ring-blue-100" /></div><div className={p.pricingMode==='quantity'?"col-span-3":"col-span-4"}><label className="block text-xs font-bold text-gray-400 mb-1">重量(kg)</label><input type="number" value={p.weight} onChange={e=>handleProductChange(idx,'weight',Number(e.target.value))} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-orange-500" /></div></div><div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-400 mb-1">批號</label><input placeholder="批號" value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100" /></div><div><label className="block text-xs font-bold text-gray-400 mb-1">有效日期</label><input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100" /></div></div>{canSeePrice()&&(<div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 mt-2"><div><label className="block text-xs font-bold text-gray-400 mb-1">單價</label><input type="number" value={p.unitPrice} onChange={e=>handleProductChange(idx,'unitPrice',Number(e.target.value))} disabled={userRole!=='PURCHASING'} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none text-right" /></div><div><label className="block text-xs font-bold text-gray-400 mb-1">金額</label><div className="w-full bg-gray-100 rounded px-3 py-2 text-sm text-right font-bold">${(p.amount||0).toLocaleString()}</div></div></div>)}</div><div className="absolute top-2 right-2 flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-500 p-1.5"><Icons.Copy /></button>{formData.products.length>1&&<button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-500 p-1.5"><Icons.X /></button>}</div></div>))}</div><div className="text-right mt-3 text-sm"><span className="text-gray-500 mr-2">Total</span><span className="text-xl font-bold text-blue-600">{formData.totalQuantity.toLocaleString()} 件</span></div></div><div className="flex gap-3 pt-2"><button type="button" onClick={()=>setView('list')} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold ios-btn">取消</button><button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold ios-btn shadow-lg shadow-blue-200">{isSubmitting?'...':'儲存'}</button></div></form></div>)}</main><div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-2 flex justify-between z-40 pb-safe"><button onClick={()=>setView('list')} className={`bottom-nav-item ${view==='list'?'active':''}`}><div className="bottom-nav-icon"><Icons.List /></div><span>列表</span></button><button onClick={()=>setView('stats')} className={`bottom-nav-item ${view==='stats'?'active':''}`}><div className="bottom-nav-icon"><Icons.Chart /></div><span>統計</span></button><button onClick={handleLogout} className="bottom-nav-item text-red-400"><div className="bottom-nav-icon"><Icons.LogOut /></div><span>登出</span></button></div></div></div>)}
+const root=ReactDOM.createRoot(document.getElementById('root'));root.render(<ContainerApp />);</script></body></html>
