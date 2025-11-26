@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統_(V5.1 穩定運行版)</title>
+    <title>貨櫃管理 (v5.0 平行分頁版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -76,9 +76,8 @@
         const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
         const IMPORT_COMPANIES = ['崇文冷凍', '八方環球'];
         const CUSTOMS_BROKERS = ['原碩', '尚鴻'];
-        const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
+        const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威', '國內採購'];
 
-        // ⚠️ 已預填您的 Firebase 設定，解決手機登入問題
         const firebaseConfig = {
             apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
             authDomain: "containersystem-6342f.firebaseapp.com",
@@ -98,26 +97,21 @@
             }
         } catch (e) { console.error(e); }
 
-        // ⭐️ 修正邏輯：確保日期對齊到本地午夜，以避免時區造成的 1 天誤差 ⭐️
         const parseLocalMidnightDate = (dateStr) => {
             const parts = dateStr.split('-');
-            // new Date(year, monthIndex, day, hours, minutes, seconds, milliseconds)
-            // 設置為本地時區的午夜 (0, 0, 0, 0)
             return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0); 
         };
 
         const getUrgentStatus = (date) => {
             const todayStr = new Date().toISOString().split('T')[0];
-            const today = parseLocalMidnightDate(todayStr); // 確保今天日期精確到本地午夜
-            const arrival = parseLocalMidnightDate(date); // 確保到港日期精確到本地午夜
-            
-            // 使用 Math.round 來處理微小的浮點誤差，確保同一天差異為 0
+            const today = parseLocalMidnightDate(todayStr); 
+            const arrival = parseLocalMidnightDate(date); 
             const diff = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
             
-            if (diff < 0) return { text: '已到港', color: 'bg-gray-100', color: 'text-gray-500' };
-            if (diff === 0) return { text: '今日到港', color: 'bg-red-100', color: 'text-red-600' };
-            if (diff === 1) return { text: '明天到港', color: 'bg-orange-100', color: 'text-orange-600' };
-            return { text: `${diff} 天後`, color: 'bg-blue-100', color: 'text-blue-600' };
+            if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
+            if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
+            if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
+            return { text: `${diff} 天後`, color: 'bg-blue-100 text-blue-600' };
         };
 
         function ContainerApp() {
@@ -129,9 +123,11 @@
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             const [isSubmitting, setIsSubmitting] = useState(false);
-            // ⭐️ 修正關鍵語法錯誤 ⭐️
-            const [uploading, setUploading] = useState(false); 
+            const [uploading, setUploading] = useState(false);
             const [showNotifications, setShowNotifications] = useState(false);
+            
+            // ⭐️ 分頁狀態：預設為未拆櫃 ⭐️
+            const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); // NOT_DEVANED | DEVANED | DOMESTIC
 
             const isAdmin = user && !user.isAnonymous && ADMIN_EMAILS.includes(user.email);
 
@@ -162,7 +158,6 @@
             const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (e) { alert("訪客登入失敗: 請確認 Firebase 後台已開啟「匿名登入」。\n" + e.message); } };
             const handleLogout = () => auth.signOut();
 
-            // ⭐️ 雲端刪除功能：新增 docRefPath 欄位 ⭐️
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
                 customsBroker: CUSTOMS_BROKERS[0], 
@@ -175,7 +170,7 @@
                 totalQuantity: 0, 
                 docUrl: '', 
                 docName: '',
-                docRefPath: '', // 儲存 Storage 檔案路徑
+                docRefPath: '', 
                 devanningLocation: '', 
                 devanningDate: '' 
             };
@@ -187,20 +182,17 @@
             const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
             const removeProductRow = (idx) => { const np = formData.products.filter((_, i) => i !== idx); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
 
-            // ⭐️ 雲端刪除功能：修改上傳邏輯，保存檔案路徑 ⭐️
             const handleFileUpload = async (e) => {
                 const file = e.target.files[0]; if (!file) return; setUploading(true);
                 try { 
-                    const filePath = `docs/${Date.now()}_${file.name}`; // 定義路徑
+                    const filePath = `docs/${Date.now()}_${file.name}`; 
                     const ref = storage.ref().child(filePath); 
                     await ref.put(file); 
                     const url = await ref.getDownloadURL(); 
-                    // 儲存 URL, Name, 和 Path
                     setFormData(prev => ({ ...prev, docUrl: url, docName: file.name, docRefPath: filePath })); 
                 } catch (e) { alert("上傳失敗: " + e.message); } finally { setUploading(false); }
             };
             
-            // ⭐️ 雲端刪除功能：實現 Storage 檔案永久刪除 ⭐️
             const handleDeleteFile = async () => { 
                 if(!formData.docUrl || !confirm("確定要永久移除此附件嗎？檔案將從雲端儲存空間刪除。")) return;
 
@@ -217,11 +209,8 @@
                         }
                     }
                 } else if (formData.docUrl) {
-                    // 針對沒有 docRefPath 的舊紀錄提示
                     alert("警告：此紀錄無路徑資訊，無法刪除雲端檔案，將僅清除連結。請手動檢查 Firebase Storage。");
                 }
-                
-                // 清除 local state 和 Firestore 欄位
                 setFormData(prev => ({ ...prev, docUrl: '', docName: '', docRefPath: '' }));
             };
 
@@ -244,7 +233,6 @@
             const handleDelete = async (id) => { if(!isAdmin || !confirm('刪除？'))return; await db.collection('shipments').doc(id).delete(); };
             const handleExport = () => { if (!isAdmin && user.isAnonymous) return alert("訪客無法匯出"); const header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期\n"; const rows = filteredShipments.flatMap(s => s.products.map(p => [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate].map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(","))).join("\n"); const link = document.createElement("a"); link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; link.click(); };
             
-            // ⭐️ 優化：Line 訊息中新增產地 ⭐️
             const handleShareToLine = (s) => {
                 const productDetails = s.products.map((p, i) => `${i+1}. ${p.name}${p.spec ? ` ${p.spec}` : ''} - ${p.quantity.toLocaleString()}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`).join('\n');
                 const devanningInfo = (s.devanningDate || s.devanningLocation) ? `\n\n🚛 拆櫃: ${s.devanningDate || '未定'}${s.devanningLocation ? ` @ ${s.devanningLocation}` : ''}` : '';
@@ -266,51 +254,68 @@
             
             const urgentCount = urgentShipments.length;
 
-            // ⭐️ 修正：增強搜尋功能，納入批號 ⭐️
             const filteredShipments = useMemo(() => { 
                 const t=searchTerm.toLowerCase(); 
                 return shipments.filter(s => (
-                    s.containerNumber.toLowerCase().includes(t) || // 櫃號
-                    (s.importCompany||"").toLowerCase().includes(t) || // 進口公司
-                    (s.supplier||"").toLowerCase().includes(t) || // 廠商
-                    (s.shippingCompany||"").toLowerCase().includes(t) || // 船公司
-                    (s.origin||"").toLowerCase().includes(t) || // 產地
-                    (s.devanningLocation||"").toLowerCase().includes(t) || // 拆櫃地點 
-                    s.products.some(p => // 產品明細 (品名, 規格, 批號)
-                        (p.name||"").toLowerCase().includes(t) || 
-                        (p.spec||"").toLowerCase().includes(t) ||
-                        (p.batchNumber||"").toLowerCase().includes(t) // ⭐️ 新增批號 ⭐️
-                    )
+                    s.containerNumber.toLowerCase().includes(t) || 
+                    (s.importCompany||"").toLowerCase().includes(t) || 
+                    (s.supplier||"").toLowerCase().includes(t) || 
+                    (s.shippingCompany||"").toLowerCase().includes(t) || 
+                    (s.origin||"").toLowerCase().includes(t) || 
+                    (s.devanningLocation||"").toLowerCase().includes(t) || 
+                    s.products.some(p => (p.name||"").toLowerCase().includes(t) || (p.spec||"").toLowerCase().includes(t))
                 )); 
             }, [shipments, searchTerm]);
             
             const today = new Date();
             const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-            // ⭐️ 狀態邏輯：未拆櫃 (拆櫃日為空或在未來) ⭐️
-            const notDevannedShipments = useMemo(() => 
-                filteredShipments.filter(s => !s.devanningDate || s.devanningDate > todayStr)
+            // ⭐️ 分類邏輯 ⭐️
+            const DOMESTIC_FLAG = '國內採購';
+            // 判斷是否為國內採購
+            const isDomestic = (s) => (s.origin || '').includes(DOMESTIC_FLAG);
+            
+            // 判斷是否為國外進口 (非國內採購)
+            const isForeign = (s) => !isDomestic(s);
+
+            // 1. 國內採購列表
+            const domesticShipments = useMemo(() => 
+                filteredShipments.filter(s => isDomestic(s))
+                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
+                [filteredShipments]
+            );
+
+            // 2. 未拆櫃 (國外進口)
+            const notDevannedForeign = useMemo(() => 
+                filteredShipments.filter(s => isForeign(s) && (!s.devanningDate || s.devanningDate > todayStr))
                 .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
                 [filteredShipments, todayStr]
             );
 
-            // ⭐️ 狀態邏輯：已拆櫃 (拆櫃日已到或已過) ⭐️
-            const devannedShipments = useMemo(() => 
-                filteredShipments.filter(s => s.devanningDate && s.devanningDate <= todayStr)
+            // 3. 已拆櫃 (國外進口)
+            const devannedForeign = useMemo(() => 
+                filteredShipments.filter(s => isForeign(s) && (s.devanningDate && s.devanningDate <= todayStr))
                 .sort((a, b) => new Date(b.devanningDate).getTime() - new Date(a.devanningDate).getTime()), 
                 [filteredShipments, todayStr]
             );
 
-            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean)])).sort(), [shipments]);
+            // 根據當前 Tab 選擇要顯示的列表
+            const currentList = useMemo(() => {
+                if (currentTab === 'DOMESTIC') return domesticShipments;
+                if (currentTab === 'DEVANED') return devannedForeign;
+                return notDevannedForeign; // 預設 NOT_DEVANED
+            }, [currentTab, domesticShipments, devannedForeign, notDevannedForeign]);
+
+            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
             const getStatusStyle = (date) => { 
                 const today = parseLocalMidnightDate(new Date().toISOString().split('T')[0]);
                 const arrival = parseLocalMidnightDate(date);
                 const diff = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-                if (diff < 0) return { text: '已到港', color: 'bg-gray-100', color: 'text-gray-400' };
-                if (diff === 0) return { text: '今日到港', color: 'bg-red-100', color: 'text-red-600' };
-                if (diff === 1) return { text: '明天到港', color: 'bg-orange-100', color: 'text-orange-600' };
-                return { text: `${diff} 天後`, color: 'bg-blue-100', color: 'text-blue-600' };
+                if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
+                if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
+                if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
+                return { text: `${diff} 天後`, color: 'bg-blue-100 text-blue-600' };
             };
 
             const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
@@ -321,8 +326,7 @@
                 const mainDateStatus = isDevanned ? { text: '已拆櫃', color: 'text-green-600', bg: 'bg-green-100' } : getStatusStyle(item.arrivalDate);
 
                 return (
-                    // ⭐️ 圖示固定優化: 新增 relative ⭐️
-                    <div key={item.id} className="ios-card relative">
+                    <div key={item.id} className="ios-card">
                         <div className="p-4 border-b border-gray-50 flex gap-4">
                             <div className={`flex-shrink-0 w-14 flex flex-col items-center justify-center rounded-xl border ${mainDateStatus.bg} h-16`}>
                                 <span className="text-[10px] font-bold uppercase text-gray-500">{mainDate.toLocaleString('default', { month: 'short' })}</span>
@@ -332,7 +336,6 @@
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">
                                     <div>
-                                        {/* ⭐️ 優化: 進口公司字體改為 text-base (16px) 並調整 padding ⭐️ */}
                                         <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
                                         
                                         <div className="flex items-center gap-2">
@@ -344,7 +347,11 @@
                                             )}
                                         </div>
                                     </div>
-                                    {/* 圖示區域已移至下方絕對定位 */}
+                                    <div className="flex gap-3 ml-2">
+                                        {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
+                                        <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
+                                        {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
+                                    </div>
                                 </div>
                                 
                                 <div className="flex flex-wrap gap-2 mt-2">
@@ -357,17 +364,6 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        {/* ⭐️ 圖示固定優化: 絕對定位圖示區塊 ⭐️ */}
-                        <div className="absolute top-4 right-4 flex gap-3 z-10">
-                            {/* ⭐️ 優化: 移除附檔背景色，新增置中對齊 ⭐️ */}
-                            {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon flex items-center justify-center text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
-                            {/* ⭐️ 優化: 移除 Line 轉傳背景色，新增置中對齊 ⭐️ */}
-                            <button onClick={() => handleShareToLine(item)} className="btn-icon flex items-center justify-center text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
-                            {/* ⭐️ 新增置中對齊 ⭐️ */}
-                            {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon flex items-center justify-center text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
-                        </div>
-
 
                         <div className="p-4">
                             <div className="space-y-3">
@@ -375,22 +371,18 @@
                                     <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
                                         <div className="flex-1 mr-2">
                                             <div className="flex items-baseline gap-2 flex-wrap">
-                                                {/* ⭐️ 優化: 品名字體放大至 text-sm ⭐️ */}
                                                 <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
                                                 {p.spec && (
                                                     <span className="text-sm text-slate-500 font-medium">
-                                                        {p.spec} {/* ⭐️ 優化: 移除括號 ⭐️ */}
+                                                        {p.spec}
                                                     </span>
                                                 )}
                                             </div>
                                             <div className="flex gap-2 mt-1">
-                                                {/* ⭐️ 優化: 批號字體放大至 text-xs ⭐️ */}
                                                 {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
-                                                {/* ⭐️ 優化: 效期字體放大至 text-xs ⭐️ */}
                                                 {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                             </div>
                                         </div>
-                                        {/* ⭐️ 優化: 數量字體加大至 text-base ⭐️ */}
                                         <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()}</div>
                                     </div>
                                 ))}
@@ -436,7 +428,8 @@
             return (
                 <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-10">
                     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/60">
-                        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+                        {/* ⭐️ 優化: 最大寬度設為 3xl ⭐️ */}
+                        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-gray-900 text-lg">
                                 <div className="w-6 h-6 text-blue-600"><Icons.Ship /></div> 
                                 <span>貨櫃管理</span>
@@ -476,49 +469,47 @@
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto px-4 mt-4">
+                    {/* ⭐️ 優化: 最大寬度設為 3xl ⭐️ */}
+                    <main className="max-w-3xl mx-auto px-4 mt-4">
                         {view === 'list' ? (
                             <div className="space-y-4">
+                                
+                                {/* ⭐️ 頂級分頁：平行三欄 (未拆櫃 / 已拆櫃 / 國內採購) ⭐️ */}
+                                <div className="flex justify-between bg-white rounded-xl p-1 shadow-sm border border-gray-200 overflow-x-auto">
+                                    <button 
+                                        onClick={() => setCurrentTab('NOT_DEVANED')} 
+                                        className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'NOT_DEVANED' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                                    >
+                                        未拆櫃 ({notDevannedForeign.length})
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentTab('DEVANED')} 
+                                        className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'DEVANED' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                                    >
+                                        已拆櫃 ({devannedForeign.length})
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentTab('DOMESTIC')} 
+                                        className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'DOMESTIC' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                                    >
+                                        國內採購 ({domesticShipments.length})
+                                    </button>
+                                </div>
+                                {/* ------------------------- */}
+
                                 <div className="relative">
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
                                     <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                 </div>
 
-                                {/* 列表分區顯示 Grid */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 items-start">
-                                    {/* 1. 未拆櫃 (Not Devanned) Column */}
-                                    <div className="space-y-4">
-                                        <div className="sticky top-16 z-10 bg-slate-100/95 backdrop-blur py-2 border-b border-gray-200">
-                                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                                <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
-                                                未拆櫃 <span className="text-sm font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{notDevannedShipments.length}</span>
-                                            </h2>
+                                <div className="grid gap-4">
+                                    {currentList.length === 0 ? (
+                                        <div className="text-center py-12 text-gray-400 text-sm">
+                                            {searchTerm === '' ? '尚無資料' : `查無結果`}
                                         </div>
-                                        <div className="grid gap-4">
-                                            {notDevannedShipments.length === 0 ? (
-                                                <div className="text-center py-4 text-gray-400 text-sm bg-white/50 rounded-xl border border-dashed border-gray-300">{searchTerm === '' ? '目前無待拆櫃貨物' : `查無結果`}</div>
-                                            ) : (
-                                                notDevannedShipments.map(item => renderShipmentCard(item))
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* 2. 已拆櫃 (Devanned) Column */}
-                                    <div className="space-y-4">
-                                        <div className="sticky top-16 z-10 bg-slate-100/95 backdrop-blur py-2 border-b border-gray-200">
-                                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                                <span className="w-2 h-6 bg-green-500 rounded-full"></span>
-                                                已拆櫃 <span className="text-sm font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{devannedShipments.length}</span>
-                                            </h2>
-                                        </div>
-                                        <div className="grid gap-4">
-                                            {devannedShipments.length === 0 ? (
-                                                <div className="text-center py-4 text-gray-400 text-sm bg-white/50 rounded-xl border border-dashed border-gray-300">{searchTerm === '' ? '目前無已拆櫃紀錄' : `查無結果`}</div>
-                                            ) : (
-                                                devannedShipments.map(item => renderShipmentCard(item))
-                                            )}
-                                        </div>
-                                    </div>
+                                    ) : (
+                                        currentList.map(item => renderShipmentCard(item))
+                                    )}
                                 </div>
                             </div>
                         ) : (
@@ -630,26 +621,21 @@
                                         <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3><button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button></div>
                                         <div className="space-y-3">
                                             {formData.products.map((p, idx) => (
-                                                <div key={idx} className="bg-gray-50 rounded-xl p-3 relative pt-10">
-                                                    
-                                                    {/* 修正：將 icons 放置在絕對位置，並使用 gap-3 增加間距 */}
-                                                    <div className="absolute top-3 right-3 flex gap-3 z-10">
-                                                        <button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-500 p-1"><Icons.Copy /></button>
-                                                        {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 hover:text-red-500 p-1"><Icons.X /></button>}
-                                                    </div>
-
-                                                    {/* 修正：品名/規格欄位調整為 6/6 比例 */}
+                                                <div key={idx} className="bg-gray-50 rounded-xl p-3 relative">
                                                     <div className="grid grid-cols-12 gap-2 mb-2">
-                                                        <div className="col-span-6"><input placeholder="品名" value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} className="w-full bg-transparent border-b border-gray-200 outline-none text-sm font-bold py-1" required /></div>
-                                                        <div className="col-span-6"><input placeholder="規格" value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} className="w-full bg-transparent border-b border-gray-200 outline-none text-sm py-1" /></div>
+                                                        <div className="col-span-8"><input placeholder="品名" value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} className="w-full bg-transparent border-b border-gray-200 outline-none text-sm font-bold py-1" required /></div>
+                                                        <div className="col-span-4"><input placeholder="規格" value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} className="w-full bg-transparent border-b border-gray-200 outline-none text-sm py-1" /></div>
                                                     </div>
-                                                    
                                                     <div className="grid grid-cols-12 gap-2">
                                                         {/* ⭐️ 優化: 輸入框字體改為 text-sm ⭐️ */}
                                                         <div className="col-span-4"><input placeholder="批號" value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} className="w-full bg-white rounded px-2 py-1 text-sm outline-none" /></div>
                                                         {/* ⭐️ 優化: 輸入框字體改為 text-sm ⭐️ */}
                                                         <div className="col-span-4"><input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} className="w-full bg-white rounded px-2 py-1 text-sm outline-none" /></div>
                                                         <div className="col-span-4"><input type="number" placeholder="數量" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} className="w-full bg-white rounded px-2 py-1 text-sm font-bold text-right outline-none text-blue-600" /></div>
+                                                    </div>
+                                                    <div className="absolute top-2 right-2 flex gap-1">
+                                                        <button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-500 p-1"><Icons.Copy /></button>
+                                                        {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 hover:text-red-500 p-1"><Icons.X /></button>}
                                                     </div>
                                                 </div>
                                             ))}
