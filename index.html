@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v6.4 最終完整版)</title>
+    <title>貨櫃管理 (v7.0 雲端權限版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -84,7 +84,7 @@
 
         const { useState, useEffect, useMemo } = React;
 
-        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com","wensfood@gmail.com"];
+        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
         const IMPORT_COMPANIES = ['崇文冷凍', '八方環球'];
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', '國內採購'];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
@@ -143,34 +143,53 @@
             const [showNotifications, setShowNotifications] = useState(false);
             
             const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); // NOT_DEVANED | DEVANED | DOMESTIC
+            
+            // ⭐️ 雲端名單狀態 ⭐️
+            const [adminList, setAdminList] = useState([]);
 
-            const isAdmin = user && !user.isAnonymous && ADMIN_EMAILS.includes(user.email);
+            // 判斷是否為管理員 (優先使用 DB 名單，若無則使用預設)
+            const isAdmin = user && !user.isAnonymous && (adminList.length > 0 ? adminList.includes(user.email) : ADMIN_EMAILS.includes(user.email));
 
             useEffect(() => {
                 if (!auth) { setError("CONFIG_MISSING"); setLoading(false); return; }
                 const authUnsub = auth.onAuthStateChanged((u) => { setUser(u); if (!u) setLoading(false); });
-                let unsubscribeDB = () => {};
-                if (auth.currentUser || user) {
-                     unsubscribeDB = db.collection('shipments').onSnapshot(
-                        (snapshot) => {
-                            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                            data.sort((a, b) => {
-                                const dateA = a.arrivalDate ? new Date(a.arrivalDate).getTime() : 0;
-                                const dateB = b.arrivalDate ? new Date(b.arrivalDate).getTime() : 0;
-                                return dateB - dateA;
-                            });
-                            setShipments(data);
-                            setLoading(false);
-                            setError(null);
-                        },
-                        (err) => {
-                            if (err.code === 'permission-denied') setError("PERMISSION_DENIED");
-                            else setError("CONNECTION_ERROR");
-                            setLoading(false);
+                return () => authUnsub();
+            }, []);
+
+            useEffect(() => {
+                if (!user || !db) return;
+                
+                const unsubscribeDB = db.collection('shipments').onSnapshot(
+                    (snapshot) => {
+                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        data.sort((a, b) => {
+                            const dateA = a.arrivalDate ? new Date(a.arrivalDate).getTime() : 0;
+                            const dateB = b.arrivalDate ? new Date(b.arrivalDate).getTime() : 0;
+                            return dateB - dateA;
+                        });
+                        setShipments(data);
+                        setLoading(false);
+                        setError(null);
+                    },
+                    (err) => {
+                        if (err.code === 'permission-denied') setError("PERMISSION_DENIED");
+                        else setError("CONNECTION_ERROR");
+                        setLoading(false);
+                    }
+                );
+
+                const unsubscribeAdmins = db.collection('settings').doc('config').onSnapshot(
+                    (doc) => {
+                        if (doc.exists && doc.data().admin_emails) {
+                            setAdminList(doc.data().admin_emails);
+                        } else {
+                            setAdminList(ADMIN_EMAILS); // 使用預設名單作為備案
                         }
-                    );
-                }
-                return () => { authUnsub(); unsubscribeDB(); };
+                    },
+                    (err) => console.log("Admin list fetch error:", err) 
+                );
+
+                return () => { unsubscribeDB(); unsubscribeAdmins(); };
             }, [user]);
 
             const handleAdminLogin = async () => { try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch (e) { alert("登入失敗: " + e.message); } };
@@ -575,6 +594,7 @@
 
                                 <div className="relative">
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
+                                    {/* 搜尋提示文字 */}
                                     <input type="text" placeholder="搜尋櫃號、廠商、貨品、批號、產地..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                 </div>
 
