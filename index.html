@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v5.7 最終細節優化版)</title>
+    <title>貨櫃管理 (v5.8 最終完美版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -247,10 +247,10 @@
             const handleDelete = async (id) => { if(!isAdmin || !confirm('刪除？'))return; await db.collection('shipments').doc(id).delete(); };
             const handleExport = () => { if (!isAdmin && user.isAnonymous) return alert("訪客無法匯出"); const header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期\n"; const rows = filteredShipments.flatMap(s => s.products.map(p => [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate].map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(","))).join("\n"); const link = document.createElement("a"); link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; link.click(); };
             
-            // ⭐️ Line 分享功能：國內採購/國外進口區分 & 單位統一 ⭐️
+            // ⭐️ Line 分享功能：國內採購/國外進口區分 & 單位統一為「件」 ⭐️
             const handleShareToLine = (s) => {
                 const isDomestic = s.customsBroker === '國內採購';
-                const quantityUnit = ' 件'; // 統一單位為「件」
+                const quantityUnit = ' 件'; // 統一單位
 
                 const productDetails = s.products.map((p, i) => 
                     `${i+1}. ${p.name}${p.spec ? ` ${p.spec}` : ''} - ${p.quantity.toLocaleString()}${quantityUnit}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`
@@ -282,6 +282,7 @@
             
             const urgentCount = urgentShipments.length;
 
+            // ⭐️ 優化：加入「批號」搜尋功能，並更新提示文字 ⭐️
             const filteredShipments = useMemo(() => { 
                 const t=searchTerm.toLowerCase(); 
                 return shipments.filter(s => (
@@ -291,7 +292,11 @@
                     (s.shippingCompany||"").toLowerCase().includes(t) || 
                     (s.origin||"").toLowerCase().includes(t) || 
                     (s.devanningLocation||"").toLowerCase().includes(t) || 
-                    s.products.some(p => (p.name||"").toLowerCase().includes(t) || (p.spec||"").toLowerCase().includes(t))
+                    s.products.some(p => 
+                        (p.name||"").toLowerCase().includes(t) || 
+                        (p.spec||"").toLowerCase().includes(t) ||
+                        (p.batchNumber||"").toLowerCase().includes(t) // 批號搜尋
+                    )
                 )); 
             }, [shipments, searchTerm]);
             
@@ -358,7 +363,7 @@
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">
                                     <div className="flex-1 min-w-0">
-                                        {/* ⭐️ 優化: 進口公司字體改為 text-base (16px) 並調整 padding ⭐️ */}
+                                        {/* 進口公司字體調整 */}
                                         <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
                                         
                                         <div className="flex items-center gap-2">
@@ -370,11 +375,9 @@
                                             )}
                                         </div>
                                     </div>
-                                    {/* ⭐️ 優化: 增加圖示間隔到 gap-3 並固定不縮放 ⭐️ */}
+                                    {/* 圖示間隔與固定 */}
                                     <div className="flex gap-3 ml-2 flex-shrink-0">
-                                        {/* ⭐️ 優化: 移除附檔背景色 ⭐️ */}
                                         {item.docUrl && <a href={item.docUrl} target="_blank" className="btn-icon text-blue-500 hover:bg-gray-100 w-8 h-8"><Icons.Paperclip /></a>}
-                                        {/* ⭐️ 優化: 移除 Line 轉傳背景色 ⭐️ */}
                                         <button onClick={() => handleShareToLine(item)} className="btn-icon text-green-500 hover:bg-gray-100 w-8 h-8"><Icons.MessageCircle /></button>
                                         {isAdmin && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="btn-icon text-gray-400 hover:bg-gray-100 w-8 h-8"><Icons.Edit /></button>}
                                     </div>
@@ -397,22 +400,19 @@
                                     <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
                                         <div className="flex-1 mr-2">
                                             <div className="flex items-baseline gap-2 flex-wrap">
-                                                {/* ⭐️ 優化: 品名字體放大至 text-sm ⭐️ */}
                                                 <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
                                                 {p.spec && (
                                                     <span className="text-sm text-slate-500 font-medium">
-                                                        {p.spec} {/* ⭐️ 優化: 移除括號 ⭐️ */}
+                                                        {p.spec}
                                                     </span>
                                                 )}
                                             </div>
                                             <div className="flex gap-2 mt-1">
-                                                {/* ⭐️ 優化: 批號字體放大至 text-xs ⭐️ */}
                                                 {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
-                                                {/* ⭐️ 優化: 效期字體放大至 text-xs ⭐️ */}
                                                 {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                             </div>
                                         </div>
-                                        {/* ⭐️ 優化: 數量字體加大至 text-base 並加上「件」 ⭐️ */}
+                                        {/* ⭐️ 數量加上「件」 ⭐️ */}
                                         <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()} 件</div>
                                     </div>
                                 ))}
@@ -527,7 +527,8 @@
 
                                 <div className="relative">
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
-                                    <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
+                                    {/* ⭐️ 搜尋提示文字優化 ⭐️ */}
+                                    <input type="text" placeholder="搜尋櫃號、廠商、貨品、批號、產地..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                 </div>
 
                                 <div className="grid gap-4">
@@ -642,6 +643,7 @@
                                                             <label className="block text-xs font-bold text-gray-400 mb-1">品名</label>
                                                             <input placeholder="請輸入品名" value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" required />
                                                         </div>
+                                                        
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="block text-xs font-bold text-gray-400 mb-1">規格</label>
@@ -652,6 +654,7 @@
                                                                 <input type="number" placeholder="0" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600 focus:ring-2 focus:ring-blue-100" />
                                                             </div>
                                                         </div>
+
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="block text-xs font-bold text-gray-400 mb-1">批號</label>
@@ -663,6 +666,7 @@
                                                             </div>
                                                         </div>
                                                     </div>
+
                                                     <div className="absolute top-2 right-2 flex gap-1">
                                                         <button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-500 p-1.5"><Icons.Copy /></button>
                                                         {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 hover:text-red-500 p-1.5"><Icons.X /></button>}
