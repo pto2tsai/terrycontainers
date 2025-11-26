@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v5.6 旗艦體驗版)</title>
+    <title>貨櫃管理 (v5.7 最終細節優化版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -247,6 +247,7 @@
             const handleDelete = async (id) => { if(!isAdmin || !confirm('刪除？'))return; await db.collection('shipments').doc(id).delete(); };
             const handleExport = () => { if (!isAdmin && user.isAnonymous) return alert("訪客無法匯出"); const header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期\n"; const rows = filteredShipments.flatMap(s => s.products.map(p => [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate].map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(","))).join("\n"); const link = document.createElement("a"); link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); link.download=`貨櫃_${new Date().toISOString().slice(0,10)}.csv`; link.click(); };
             
+            // ⭐️ Line 分享功能：國內採購/國外進口區分 & 單位統一 ⭐️
             const handleShareToLine = (s) => {
                 const isDomestic = s.customsBroker === '國內採購';
                 const quantityUnit = ' 件'; // 統一單位為「件」
@@ -325,7 +326,7 @@
                 return notDevannedForeign; 
             }, [currentTab, domesticShipments, devannedForeign, notDevannedForeign]);
 
-            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean)])).sort(), [shipments]);
+            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
             
             const getStatusStyle = (date) => { 
                 if (!date) return { bg: 'bg-gray-100', text: '未定', color: 'text-gray-400' };
@@ -411,8 +412,8 @@
                                                 {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                             </div>
                                         </div>
-                                        {/* ⭐️ 優化: 數量字體加大至 text-base ⭐️ */}
-                                        <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()}</div>
+                                        {/* ⭐️ 優化: 數量字體加大至 text-base 並加上「件」 ⭐️ */}
+                                        <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()} 件</div>
                                     </div>
                                 ))}
                             </div>
@@ -547,7 +548,7 @@
                                 </div>
                                 <form onSubmit={handleSubmit} className="space-y-5">
                                     <div className="grid grid-cols-1 gap-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label>
                                                 <select name="importCompany" value={formData.importCompany} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
@@ -557,13 +558,12 @@
                                                 <input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500 outline-none" placeholder="TEMU..." required />
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-400 mb-1">到港日</label>
                                                 <input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" />
                                             </div>
                                             <div>
-                                                {/* ⭐️ 優化: 標題提醒 (國內採購請選此) ⭐️ */}
                                                 <label className="block text-sm font-bold text-gray-400 mb-1">報關行 <span className="text-xs text-blue-500 font-normal">(國內採購請選此)</span></label>
                                                 <select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select>
                                             </div>
@@ -572,7 +572,7 @@
                                             <label className="block text-sm font-bold text-gray-400 mb-1">船公司</label>
                                             <input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="例如: 長榮" />
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-400 mb-1">產地</label>
                                                 <input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="產地" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist>
@@ -585,7 +585,7 @@
                                         
                                         <div className="pt-3 border-t border-gray-100">
                                             <h3 className="font-bold text-gray-900 text-base mb-3">拆櫃資訊 (選填)</h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <label className="block text-sm font-bold text-gray-400 mb-1">拆櫃地點</label>
                                                     <input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="例如: 冷庫A" />
@@ -597,7 +597,6 @@
                                             </div>
                                         </div>
                                         
-                                        {/* ⭐️ 修正後的附件 UI 邏輯 ⭐️ */}
                                         <div>
                                             <label className="block text-sm font-bold text-gray-400 mb-1">附件</label>
                                             <div className="relative w-full bg-gray-50 rounded-lg px-3 py-2.5 flex items-center justify-between">
@@ -634,20 +633,15 @@
                                     </div>
 
                                     <div className="pt-3 border-t border-gray-100">
-                                        {/* ⭐️ 優化: 標題字體改為 text-base ⭐️ */}
                                         <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3><button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button></div>
                                         <div className="space-y-4">
                                             {formData.products.map((p, idx) => (
                                                 <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
-                                                    {/* ⭐️ 三層式佈局 + 明確 Labels ⭐️ */}
                                                     <div className="space-y-3">
-                                                        {/* 1. 品名 (全寬) */}
                                                         <div>
                                                             <label className="block text-xs font-bold text-gray-400 mb-1">品名</label>
                                                             <input placeholder="請輸入品名" value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" required />
                                                         </div>
-                                                        
-                                                        {/* 2. 規格 & 數量 (並排) */}
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="block text-xs font-bold text-gray-400 mb-1">規格</label>
@@ -658,8 +652,6 @@
                                                                 <input type="number" placeholder="0" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600 focus:ring-2 focus:ring-blue-100" />
                                                             </div>
                                                         </div>
-
-                                                        {/* 3. 批號 & 有效日期 (並排) */}
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div>
                                                                 <label className="block text-xs font-bold text-gray-400 mb-1">批號</label>
@@ -671,7 +663,6 @@
                                                             </div>
                                                         </div>
                                                     </div>
-
                                                     <div className="absolute top-2 right-2 flex gap-1">
                                                         <button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-500 p-1.5"><Icons.Copy /></button>
                                                         {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 hover:text-red-500 p-1.5"><Icons.X /></button>}
