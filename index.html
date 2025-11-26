@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v5.9 國內採購免填櫃號版)</title>
+    <title>貨櫃管理 (v6.0 倉庫確認版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -43,6 +43,10 @@
         
         /* 輸入框專注效果 */
         input:focus, select:focus { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        
+        /* Checkbox 自訂樣式 */
+        .custom-checkbox { width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; border: 2px solid #d1d5db; cursor: pointer; }
+        .custom-checkbox:checked { background-color: #2563eb; border-color: #2563eb; }
     </style>
 </head>
 <body>
@@ -74,7 +78,8 @@
             Briefcase: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
             Barcode: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>,
             AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
-            Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+            BoxCheck: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
         };
 
         const { useState, useEffect, useMemo } = React;
@@ -172,6 +177,7 @@
             const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (e) { alert("訪客登入失敗: 請確認 Firebase 後台已開啟「匿名登入」。\n" + e.message); } };
             const handleLogout = () => auth.signOut();
 
+            // ⭐️ 新增 warehouseConfirmed 欄位 ⭐️
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
                 customsBroker: CUSTOMS_BROKERS[0], 
@@ -186,11 +192,18 @@
                 docName: '',
                 docRefPath: '', 
                 devanningLocation: '', 
-                devanningDate: '' 
+                devanningDate: '',
+                warehouseConfirmed: false // 新增：倉庫確認狀態
             };
             const [formData, setFormData] = useState(initialFormState);
 
-            const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: name === 'containerNumber' ? value.toUpperCase() : value })); };
+            // ⭐️ 修改 handleInputChange 以支援 Checkbox ⭐️
+            const handleInputChange = (e) => { 
+                const { name, value, type, checked } = e.target; 
+                const val = type === 'checkbox' ? checked : value;
+                setFormData(prev => ({ ...prev, [name]: name === 'containerNumber' ? val.toUpperCase() : val })); 
+            };
+
             const handleProductChange = (idx, field, value) => { const np = [...formData.products]; np[idx] = { ...np[idx], [field]: value }; setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, p) => s + Number(p.quantity||0), 0) })); };
             const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0 }] }));
             const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
@@ -232,7 +245,6 @@
                 e.preventDefault();
                 if (!isAdmin) return alert("權限不足");
                 
-                // ⭐️ 修正：國內採購 (報關行選'國內採購') 不強制檢查櫃號 ⭐️
                 if (formData.customsBroker !== '國內採購' && !formData.containerNumber) {
                     return alert('請輸入櫃號');
                 }
@@ -393,8 +405,24 @@
                                     {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
                                     <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-purple-500"><Icons.Factory /></div><span className="truncate max-w-[80px]">{item.supplier || '未填'}</span></div>
                                     
-                                    {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>{item.devanningLocation}</div>}
-                                    {item.devanningDate && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Calendar /></div>拆櫃日: {item.devanningDate}</div>}
+                                    {/* ⭐️ 顯示倉庫確認標籤 ⭐️ */}
+                                    {item.warehouseConfirmed && (
+                                        <div className="tag-badge bg-green-100 text-green-600">
+                                            <div className="w-3 h-3 text-green-500"><Icons.BoxCheck /></div>已收貨
+                                        </div>
+                                    )}
+
+                                    {/* 國內採購顯示交貨地點/日期，國外顯示拆櫃 */}
+                                    {isDomestic(item) ? (
+                                        <>
+                                            {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨地: {item.devanningLocation}</div>}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>{item.devanningLocation}</div>}
+                                            {item.devanningDate && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Calendar /></div>拆櫃日: {item.devanningDate}</div>}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -570,7 +598,8 @@
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-400 mb-1">到港日</label>
+                                                {/* ⭐️ 動態 Label: 國內=到貨日，國外=到港日 ⭐️ */}
+                                                <label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker === '國內採購' ? '到貨日' : '到港日'}</label>
                                                 <input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" />
                                             </div>
                                             <div>
@@ -593,15 +622,35 @@
                                             </div>
                                         </div>
                                         
-                                        <div className="pt-3 border-t border-gray-100">
-                                            <h3 className="font-bold text-gray-900 text-base mb-3">拆櫃資訊 (選填)</h3>
+                                        <div className="pt-3 border-t border-gray-100 relative">
+                                            <h3 className="font-bold text-gray-900 text-base mb-3">
+                                                {formData.customsBroker === '國內採購' ? '交貨資訊 (選填)' : '拆櫃資訊 (選填)'}
+                                            </h3>
+                                            {/* ⭐️ 倉庫收貨確認 Checkbox ⭐️ */}
+                                            <div className="absolute top-3 right-0 flex items-center gap-2">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="warehouseConfirmed" 
+                                                    checked={formData.warehouseConfirmed || false} 
+                                                    onChange={handleInputChange}
+                                                    id="warehouseConfirmed"
+                                                    className="custom-checkbox"
+                                                />
+                                                <label htmlFor="warehouseConfirmed" className="text-sm font-bold text-blue-600 cursor-pointer select-none">倉庫已確認收貨</label>
+                                            </div>
+
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <label className="block text-sm font-bold text-gray-400 mb-1">拆櫃地點</label>
+                                                    <label className="block text-sm font-bold text-gray-400 mb-1">
+                                                        {formData.customsBroker === '國內採購' ? '交貨地點' : '拆櫃地點'}
+                                                    </label>
                                                     <input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" placeholder="例如: 冷庫A" />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-sm font-bold text-gray-400 mb-1">拆櫃日期</label>
+                                                    {/* 國內採購不需要顯示拆櫃日期，因為已經有到貨日了，但為了結構統一保留欄位，可視需求隱藏 */}
+                                                    <label className="block text-sm font-bold text-gray-400 mb-1">
+                                                        {formData.customsBroker === '國內採購' ? '實際到貨日' : '拆櫃日期'}
+                                                    </label>
                                                     <input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" />
                                                 </div>
                                             </div>
