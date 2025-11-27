@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v12.3 財務對帳版)</title>
-    
+    <title>貨櫃管理 (v12.4 終極修正版)</title>
+
     <script>
-        window.onerror = function(msg, url, line, col, error) {
+        window.onerror = function(msg, url, line, col, sysErr) {
             if (msg && msg.toLowerCase().indexOf("script error") > -1) return false;
+            if (msg && msg.indexOf("ResizeObserver") > -1) return false;
+
             var div = document.createElement("div");
             div.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#fee; color:red; padding:20px; z-index:9999; border-bottom:2px solid red; font-size:14px; box-sizing:border-box; overflow-wrap: break-word;";
-            div.innerHTML = "<h3>⚠️ 系統錯誤</h3>" + msg + "<br>Line: " + line;
+            div.innerHTML = "<h3>⚠️ 系統發生錯誤</h3>" + msg + "<br>Line: " + line;
             document.body.appendChild(div);
             return false;
         };
@@ -31,17 +33,12 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-        
-        /* Card Styles */
         .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden; border: 1px solid #f3f4f6; transition: all 0.2s ease; }
         .ios-card:active { transform: scale(0.99); }
-        
-        /* Table Styles for Reconciliation */
         .reconcile-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; }
         .reconcile-table th { background: #f9fafb; color: #6b7280; font-weight: 600; padding: 10px 8px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
         .reconcile-table td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
         .reconcile-table tr:hover { background-color: #f9fafb; cursor: pointer; }
-        
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
         .btn-icon { display: flex; align-items: center; justify-content: center; border-radius: 9999px; transition: background-color 0.2s; }
         .mobile-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding-top: 60px; backdrop-filter: blur(4px); }
@@ -59,20 +56,47 @@
         .sticky-header-group { position: sticky; top: 0; z-index: 30; background-color: #F3F4F6; }
         .bell-shake { animation: shake 0.5s ease-in-out infinite; }
         @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- 1. 全域常數 ---
+        // --- 1. 全域常數 (Global Constants) ---
+        // 確保這些常數在所有 Component 渲染前就已定義
         const DOMESTIC_FLAG = '國內採購';
         const IMPORT_COMPANIES = ['崇文冷凍', '八方環球'];
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', DOMESTIC_FLAG];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
+        const PAYMENT_TERMS_DOMESTIC = ['現金', '月結 30 天', '月結 45 天', '月結 60 天', '其他'];
         const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
 
-        // --- 2. 圖示元件 ---
+        // --- 2. Firebase 初始化 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
+            authDomain: "containersystem-6342f.firebaseapp.com",
+            projectId: "containersystem-6342f",
+            storageBucket: "containersystem-6342f.firebasestorage.app",
+            messagingSenderId: "27658303054",
+            appId: "1:27658303054:web:d7a3710054ede268cdf51f"
+        };
+
+        let db, auth, storage;
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            auth = firebase.auth();
+            storage = firebase.storage();
+        } catch (err) {
+            console.error("Firebase Init Error:", err);
+            // 這裡故意不 alert，避免干擾使用者，只記錄在 console
+        }
+
+        // --- 3. 圖示元件 ---
         const Icons = {
             Ship: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
             Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
@@ -106,35 +130,15 @@
 
         const { useState, useEffect, useMemo } = React;
 
-        // ⚠️ Firebase Config
-        const firebaseConfig = {
-            apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
-            authDomain: "containersystem-6342f.firebaseapp.com",
-            projectId: "containersystem-6342f",
-            storageBucket: "containersystem-6342f.firebasestorage.app",
-            messagingSenderId: "27658303054",
-            appId: "1:27658303054:web:d7a3710054ede268cdf51f"
-        };
-
-        let db = null, auth = null, storage = null;
-        try {
-            if (firebaseConfig.apiKey) {
-                firebase.initializeApp(firebaseConfig);
-                db = firebase.firestore();
-                auth = firebase.auth();
-                storage = firebase.storage();
-            }
-        } catch (err) { console.error(err); }
-
-        // 3. 輔助函式
+        // --- 3. 輔助函式 ---
         const parseDate = (dateStr) => {
             if (!dateStr) return new Date(0);
             const parts = dateStr.split('-');
             if (parts.length !== 3) return new Date(0);
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0); 
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0);
         };
-        
-        const getStatusStyle = (date) => { 
+
+        const getStatusStyle = (date) => {
             if (!date) return { bg: 'bg-gray-100', text: '未定', color: 'text-gray-400' };
             const today = parseDate(new Date().toISOString().split('T')[0]);
             const arrival = parseDate(date);
@@ -148,7 +152,7 @@
 
         const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
 
-        // 4. Dashboard
+        // --- 4. Dashboard 元件 ---
         const Dashboard = ({ shipments, canSeePrice }) => {
             const [tf, setTf] = useState('MONTH');
             const stats = useMemo(() => {
@@ -160,19 +164,32 @@
                     if(tf==='YEAR') return d.getFullYear()===now.getFullYear();
                     return true;
                 });
-                
+
                 const count = list.length;
                 const items = list.reduce((sum, s) => sum + (Number(s.totalQuantity) || 0), 0);
                 const w = list.reduce((sum, s) => sum + (Number(s.totalWeight) || 0), 0);
-                const money = list.reduce((sum, s) => sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)||0), 0);
-                
-                const supps = {}; 
+
+                const moneyUSD = list.reduce((sum, s) => {
+                    if(s.currency === 'USD') {
+                        return sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0));
+                    }
+                    return sum;
+                }, 0);
+
+                const moneyTWD = list.reduce((sum, s) => {
+                    if(s.currency === 'TWD') {
+                        return sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0));
+                    }
+                    return sum;
+                }, 0);
+
+                const supps = {};
                 list.forEach(s => { const n = s.supplier || '未填'; supps[n] = (supps[n] || 0) + 1; });
                 const top = Object.entries(supps).sort((a, b) => b[1] - a[1]).slice(0, 5);
-                
-                return { count, items, w, money, top };
+
+                return { count, items, w, moneyUSD, moneyTWD, top };
             }, [shipments, tf]);
-            
+
             const maxVal = (stats.top.length > 0 && stats.top[0][1] > 0) ? stats.top[0][1] : 1;
 
             return (
@@ -181,27 +198,32 @@
                      <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總筆數</div><div className="text-2xl font-black text-gray-800">{stats.count}</div></div>
                         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總件數</div><div className="text-2xl font-black text-blue-600">{stats.items.toLocaleString()}</div></div>
-                        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{parseInt(stats.w).toLocaleString()}</div></div>
-                        {canSeePrice && <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">採購金額</div><div className="text-2xl font-black text-emerald-600">${stats.money.toLocaleString()}</div></div>}
+                        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm col-span-2"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{parseInt(stats.w).toLocaleString()}</div></div>
+                        {canSeePrice && (
+                            <>
+                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyUSD.toLocaleString()}</div></div>
+                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyTWD.toLocaleString()}</div></div>
+                            </>
+                        )}
                      </div>
                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">🏆 前五大廠商</h3><div className="space-y-3">{stats.top.map(([n,c],i)=><div key={n} className="flex items-center gap-3"><div className="w-6 text-xs font-bold text-gray-400">#{i+1}</div><div className="flex-1"><div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">{n}</span><span className="text-gray-500">{c} 筆</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{width:(c/maxVal)*100 + '%'}}></div></div></div></div>)}</div></div>
                 </div>
             );
         };
 
-        // 5. 主程式
+        // --- 5. 主程式 ---
         function ContainerApp() {
             const [user, setUser] = useState(null);
             const [shipments, setShipments] = useState([]);
-            const [view, setView] = useState('list'); 
-            const [displayMode, setDisplayMode] = useState('card'); // card or table
+            const [view, setView] = useState('list');
+            const [displayMode, setDisplayMode] = useState('card');
             const [editingId, setEditingId] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
             const [loading, setLoading] = useState(true);
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [uploading, setUploading] = useState(false);
             const [showNotifications, setShowNotifications] = useState(false);
-            const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); 
+            const [currentTab, setCurrentTab] = useState('NOT_DEVANED');
             const [userRole, setUserRole] = useState('GUEST');
 
             useEffect(() => {
@@ -212,7 +234,7 @@
 
             useEffect(() => {
                 if (!user || !db) return;
-                
+
                 const unsubscribeDB = db.collection('shipments').onSnapshot(
                     (snapshot) => {
                         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -263,60 +285,77 @@
             const canSeePrice = () => ['PURCHASING', 'ACCOUNTING'].includes(userRole);
             const isWarehouse = () => userRole === 'WAREHOUSE';
 
-            const initialFormState = { 
-                importCompany: IMPORT_COMPANIES[0], 
-                customsBroker: CUSTOMS_BROKERS[0], 
-                origin: '', 
-                supplier: '', 
-                arrivalDate: new Date().toISOString().split('T')[0], 
-                containerNumber: '', 
-                shippingCompany: '', 
-                products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }], 
-                totalQuantity: 0, 
-                totalWeight: 0, 
-                docUrl: '', 
-                docName: '', 
-                docRefPath: '', 
-                devanningLocation: '', 
-                devanningDate: '', 
+            const initialFormState = {
+                importCompany: IMPORT_COMPANIES[0],
+                customsBroker: CUSTOMS_BROKERS[0],
+                origin: '',
+                supplier: '',
+                arrivalDate: new Date().toISOString().split('T')[0],
+                containerNumber: '',
+                shippingCompany: '',
+                products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }],
+                totalQuantity: 0,
+                totalWeight: 0,
+                docUrl: '',
+                docName: '',
+                docRefPath: '',
+                devanningLocation: '',
+                devanningDate: '',
                 warehouseConfirmed: false,
                 attachments: [],
-                isPaid: false
+                isPaid: false,
+                currency: 'USD',
+                paymentTerm: '到港前付款',
+                prepayment: 0
             };
             const [formData, setFormData] = useState(initialFormState);
 
-            const handleInputChange = (evt) => { 
+            const handleInputChange = (evt) => {
                 const target = evt.target;
                 const name = target.name;
                 const value = target.value;
                 const type = target.type;
                 const checked = target.checked;
                 const val = type === 'checkbox' ? checked : value;
-                setFormData(prev => ({ ...prev, [name]: name === 'containerNumber' ? val.toUpperCase() : val })); 
+
+                setFormData(prev => {
+                    const newData = { ...prev, [name]: name === 'containerNumber' ? val.toUpperCase() : val };
+
+                    if (name === 'customsBroker') {
+                        if (val === DOMESTIC_FLAG) {
+                            newData.currency = 'TWD';
+                            newData.paymentTerm = PAYMENT_TERMS_DOMESTIC[0];
+                        } else {
+                            newData.currency = 'USD';
+                            newData.paymentTerm = '到港前付款';
+                        }
+                    }
+                    return newData;
+                });
             };
 
-            const handleProductChange = (idx, field, value) => { 
-                const np = [...formData.products]; 
-                np[idx] = { ...np[idx], [field]: value }; 
-                
+            const handleProductChange = (idx, field, value) => {
+                const np = [...formData.products];
+                np[idx] = { ...np[idx], [field]: value };
+
                 const p = np[idx];
                 const q = parseFloat(p.quantity) || 0;
                 const b = parseFloat(p.boxCapacity) || 1;
                 const w = parseFloat(p.weight) || 0;
                 const u = parseFloat(p.unitPrice) || 0;
-                
+
                 if (p.pricingMode === 'weight') {
-                    p.amount = Math.round(w * u); 
+                    p.amount = Math.round(w * u);
                 } else {
-                    p.amount = Math.round(q * b * u); 
+                    p.amount = Math.round(q * b * u);
                 }
 
-                setFormData(prev => ({ 
-                    ...prev, 
-                    products: np, 
+                setFormData(prev => ({
+                    ...prev,
+                    products: np,
                     totalQuantity: np.reduce((s, i) => s + (Number(i.quantity)||0), 0),
                     totalWeight: np.reduce((s, i) => s + (Number(i.weight)||0), 0)
-                })); 
+                }));
             };
 
             const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }] }));
@@ -325,16 +364,16 @@
 
             const handleFileUpload = async (evt) => {
                 const file = evt.target.files[0]; if (!file) return; setUploading(true);
-                try { 
-                    const ref = storage.ref('docs/' + Date.now() + '_' + file.name); 
-                    await ref.put(file); 
-                    const url = await ref.getDownloadURL(); 
+                try {
+                    const ref = storage.ref('docs/' + Date.now() + '_' + file.name);
+                    await ref.put(file);
+                    const url = await ref.getDownloadURL();
                     const newFile = { name: file.name, url: url, path: ref.fullPath };
                     setFormData(prev => ({ ...prev, attachments: [...(prev.attachments||[]), newFile] }));
                 } catch (err) { alert("上傳失敗: " + err.message); } finally { setUploading(false); }
             };
-            
-            const handleDeleteFile = async (index) => { 
+
+            const handleDeleteFile = async (index) => {
                 if(!confirm("確定要刪除此附件嗎？")) return;
                 const target = formData.attachments[index];
                 if (target.path && storage) {
@@ -347,11 +386,11 @@
             const handleSubmit = async (evt) => {
                 evt.preventDefault();
                 if (!canEdit()) return alert("權限不足");
-                if (formData.customsBroker !== '國內採購' && !formData.containerNumber) return alert('請輸入櫃號');
-                
+                if (formData.customsBroker !== DOMESTIC_FLAG && !formData.containerNumber) return alert('請輸入櫃號');
+
                 const currentData = editingId ? shipments.find(s => s.id === editingId) : {};
                 const mergedData = { ...currentData, ...formData, updatedAt: new Date().toISOString() };
-                
+
                 setIsSubmitting(true);
                 try {
                     if (editingId) await db.collection('shipments').doc(editingId).update(mergedData);
@@ -359,58 +398,66 @@
                     setFormData(initialFormState); setEditingId(null); setView('list'); window.scrollTo(0,0);
                 } catch (err) { alert("錯誤：" + err.message); } finally { setIsSubmitting(false); }
             };
-            
+
             const handleEdit = (item) => {
-                if(!canEdit()) return; 
+                if(!canEdit()) return;
                 let atts = item.attachments || [];
                 if (item.docUrl && atts.length === 0) { atts.push({ name: item.docName || '附件', url: item.docUrl, path: item.docRefPath }); }
-                setFormData({ ...initialFormState, ...item, attachments: atts }); 
+
+                setFormData({
+                    ...initialFormState,
+                    ...item,
+                    attachments: atts,
+                    currency: item.currency || (item.customsBroker === DOMESTIC_FLAG ? 'TWD' : 'USD'),
+                    paymentTerm: item.paymentTerm || (item.customsBroker === DOMESTIC_FLAG ? PAYMENT_TERMS_DOMESTIC[0] : '到港前付款'),
+                    prepayment: item.prepayment || 0
+                });
                 setEditingId(item.id);
-                setView('form'); 
+                setView('form');
                 window.scrollTo(0,0);
             };
 
-            const handleDuplicateShipment = (s) => { 
-                if(!canCreate()) return; 
-                const {id, ...d} = s; 
+            const handleDuplicateShipment = (s) => {
+                if(!canCreate()) return;
+                const {id, ...d} = s;
                 const merged = { ...initialFormState, ...d };
-                const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()})); 
-                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false}); 
-                setEditingId(null); setView('form'); window.scrollTo(0,0); 
+                const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()}));
+                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0});
+                setEditingId(null); setView('form'); window.scrollTo(0,0);
             };
 
-            const handleDelete = async (id) => { 
-                if(!canDelete() || !confirm('確定刪除此貨櫃資料？')) return; 
-                await db.collection('shipments').doc(id).delete(); 
+            const handleDelete = async (id) => {
+                if(!canDelete() || !confirm('確定刪除此貨櫃資料？')) return;
+                await db.collection('shipments').doc(id).delete();
             };
 
-            const handleExport = () => { 
-                if (userRole === 'GUEST') return alert("權限不足"); 
+            const handleExport = () => {
+                if (userRole === 'GUEST') return alert("權限不足");
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款";
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款";
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
 
                 const rows = filteredShipments.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款'];
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0];
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
                 })).join("\n");
-                
-                const link = document.createElement("a"); 
-                link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); 
-                link.download='貨櫃_' + new Date().toISOString().slice(0,10) + '.csv'; 
-                link.click(); 
+
+                const link = document.createElement("a");
+                link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"}));
+                link.download='貨櫃_' + new Date().toISOString().slice(0,10) + '.csv';
+                link.click();
             };
-            
+
             const handleShareToLine = (s) => {
                 const isDomestic = s.customsBroker === DOMESTIC_FLAG;
-                const quantityUnit = ' 件'; 
+                const quantityUnit = ' 件';
 
-                const productDetails = (s.products || []).map((p, i) => 
+                const productDetails = (s.products || []).map((p, i) =>
                     (i+1) + ". " + p.name + (p.spec ? " " + p.spec : "") + " - " + p.quantity.toLocaleString() + quantityUnit + (p.weight ? " / " + p.weight + "kg" : "") + (p.batchNumber ? " [批:" + p.batchNumber + "]" : "")
                 ).join('\n');
-                
+
                 const locationInfo = s.devanningLocation ? ("\n📍 " + (isDomestic ? '交貨地' : '拆櫃地') + "：" + s.devanningLocation) : '';
                 const devanningDateInfo = (!isDomestic && s.devanningDate) ? ("\n🕒 拆櫃日：" + s.devanningDate) : '';
                 const totalWeightInfo = s.totalWeight ? (" / " + s.totalWeight.toLocaleString() + " kg") : '';
@@ -426,68 +473,67 @@
             };
 
             const handleWarehouseConfirm = async (evt, item) => {
-                evt.stopPropagation(); 
-                if (!canEdit()) return alert("權限不足"); 
+                evt.stopPropagation();
+                if (!canEdit()) return alert("權限不足");
                 try {
                     await db.collection('shipments').doc(item.id).update({ warehouseConfirmed: !item.warehouseConfirmed });
                 } catch (err) { alert("更新狀態失敗"); }
             };
 
-            const urgentShipments = useMemo(() => { 
+            const urgentShipments = useMemo(() => {
                 const todayStr = new Date().toISOString().split('T')[0];
                 const today = parseDate(todayStr);
-                return shipments.filter(s => { 
+                return shipments.filter(s => {
                     if (!s.arrivalDate) return false;
                     const arrival = parseDate(s.arrivalDate);
                     const diffDays = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                     return diffDays >= 0 && diffDays <= 3;
-                }); 
+                });
             }, [shipments]);
-            
+
             const urgentCount = urgentShipments.length;
 
-            const filteredShipments = useMemo(() => { 
-                const t=searchTerm.toLowerCase(); 
+            const filteredShipments = useMemo(() => {
+                const t=searchTerm.toLowerCase();
                 return shipments.filter(s => (
-                    (s.containerNumber && s.containerNumber.toLowerCase().includes(t)) || 
-                    (s.importCompany || "").toLowerCase().includes(t) || 
-                    (s.supplier || "").toLowerCase().includes(t) || 
-                    (s.shippingCompany || "").toLowerCase().includes(t) || 
-                    (s.origin || "").toLowerCase().includes(t) || 
-                    (s.devanningLocation || "").toLowerCase().includes(t) || 
-                    (s.products || []).some(p => 
-                        (p.name || "").toLowerCase().includes(t) || 
+                    (s.containerNumber && s.containerNumber.toLowerCase().includes(t)) ||
+                    (s.importCompany || "").toLowerCase().includes(t) ||
+                    (s.supplier || "").toLowerCase().includes(t) ||
+                    (s.shippingCompany || "").toLowerCase().includes(t) ||
+                    (s.origin || "").toLowerCase().includes(t) ||
+                    (s.devanningLocation || "").toLowerCase().includes(t) ||
+                    (s.products || []).some(p =>
+                        (p.name || "").toLowerCase().includes(t) ||
                         (p.spec || "").toLowerCase().includes(t) ||
-                        (p.batchNumber || "").toLowerCase().includes(t) 
+                        (p.batchNumber || "").toLowerCase().includes(t)
                     )
-                )); 
+                ));
             }, [shipments, searchTerm]);
-            
+
             const todayStr = new Date().toISOString().split('T')[0];
 
             const isDomestic = (s) => (s.customsBroker || '').includes(DOMESTIC_FLAG);
             const isForeign = (s) => !isDomestic(s);
 
-            const domesticShipments = useMemo(() => 
+            const domesticShipments = useMemo(() =>
                 filteredShipments.filter(s => isDomestic(s))
-                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
+                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()),
                 [filteredShipments]
             );
 
-            const notDevannedForeign = useMemo(() => 
+            const notDevannedForeign = useMemo(() =>
                 filteredShipments.filter(s => isForeign(s) && (!s.devanningDate || s.devanningDate > todayStr))
-                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
+                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()),
                 [filteredShipments, todayStr]
             );
 
-            const devannedForeign = useMemo(() => 
+            const devannedForeign = useMemo(() =>
                 filteredShipments.filter(s => isForeign(s) && (s.devanningDate && s.devanningDate <= todayStr))
-                .sort((a, b) => new Date(b.devanningDate).getTime() - new Date(a.devanningDate).getTime()), 
+                .sort((a, b) => new Date(b.devanningDate).getTime() - new Date(a.devanningDate).getTime()),
                 [filteredShipments, todayStr]
             );
 
-            // V12.3: 新增 Unpaid 列表
-            const unpaidList = useMemo(() => 
+            const unpaidList = useMemo(() =>
                 filteredShipments.filter(s => !s.isPaid)
                 .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()),
                 [filteredShipments]
@@ -497,20 +543,26 @@
                 if (currentTab === 'UNPAID') return unpaidList;
                 if (currentTab === 'DOMESTIC') return domesticShipments;
                 if (currentTab === 'DEVANED') return devannedForeign;
-                return notDevannedForeign; 
+                return notDevannedForeign;
             }, [currentTab, unpaidList, domesticShipments, devannedForeign, notDevannedForeign]);
 
-            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
-            
-            // 計算當前分頁的總金額
-            const currentTotalAmount = useMemo(() => {
-                return currentList.reduce((acc, item) => {
+            // V12.4: 修正總金額計算
+            const currentTotalTWD = useMemo(() => {
+                return currentList.filter(s => s.currency === 'TWD').reduce((acc, item) => {
                     const itemTotal = (item.products || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
                     return acc + itemTotal;
                 }, 0);
             }, [currentList]);
 
-            // 渲染表格視圖
+            const currentTotalUSD = useMemo(() => {
+                return currentList.filter(s => s.currency === 'USD').reduce((acc, item) => {
+                    const itemTotal = (item.products || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                    return acc + itemTotal;
+                }, 0);
+            }, [currentList]);
+
+            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
+
             const renderTableView = () => (
                 <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                     <table className="reconcile-table">
@@ -520,25 +572,26 @@
                                 <th>櫃號/單號</th>
                                 <th>廠商</th>
                                 <th>品名摘要</th>
-                                <th className="text-right">總數</th>
-                                <th className="text-right">總重</th>
+                                <th className="text-right">總數 (件)</th>
+                                <th className="text-right">總重 (kg)</th>
                                 {canSeePrice() && <th className="text-right">總金額</th>}
-                                <th className="text-center">狀態</th>
+                                <th className="text-center">匯款狀態</th>
                             </tr>
                         </thead>
                         <tbody>
                             {currentList.map(item => {
                                 const totalAmt = (item.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
                                 const prodSummary = (item.products || []).map(p => p.name).join(', ');
+                                const curr = item.currency === 'USD' ? 'US$' : 'NT$';
                                 return (
                                     <tr key={item.id} onClick={() => handleEdit(item)}>
-                                        <td>{item.arrivalDate}</td>
-                                        <td className="font-bold">{item.containerNumber}</td>
+                                        <td className="whitespace-nowrap">{item.arrivalDate}</td>
+                                        <td className="font-bold whitespace-nowrap">{item.containerNumber}</td>
                                         <td>{item.supplier}</td>
                                         <td className="truncate max-w-[150px]" title={prodSummary}>{prodSummary}</td>
                                         <td className="text-right text-blue-600 font-bold">{(item.totalQuantity||0).toLocaleString()}</td>
                                         <td className="text-right text-orange-500 font-bold">{(item.totalWeight||0).toLocaleString()}</td>
-                                        {canSeePrice() && <td className="text-right text-emerald-600 font-bold">${totalAmt.toLocaleString()}</td>}
+                                        {canSeePrice() && <td className="text-right text-emerald-600 font-bold whitespace-nowrap">{curr} {totalAmt.toLocaleString()}</td>}
                                         <td className="text-center">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${item.isPaid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                 {item.isPaid ? '已匯' : '未匯'}
@@ -554,10 +607,11 @@
 
             const renderShipmentCard = (item) => {
                 const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
-                const mainDate = item.arrivalDate ? new Date(item.arrivalDate) : null; 
+                const mainDate = item.arrivalDate ? new Date(item.arrivalDate) : null;
                 const mainDateStatus = isDevanned ? { text: '已拆櫃', color: 'text-green-600', bg: 'bg-green-100' } : getStatusStyle(item.arrivalDate);
                 const hasAttachments = (item.attachments && item.attachments.length > 0) || item.docUrl;
                 const totalAmount = (item.products || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                const currSymbol = item.currency === 'USD' ? 'US$' : 'NT$';
 
                 return (
                     <div key={item.id} className="ios-card" onClick={() => handleEdit(item)}>
@@ -571,7 +625,7 @@
                                 <div className="flex justify-between items-start mb-1">
                                     <div className="flex-1 min-w-0">
                                         <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
-                                        
+
                                         <div className="flex items-center gap-2">
                                             <span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>
                                             {item.shippingCompany && (
@@ -587,23 +641,14 @@
                                         {canEdit() && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-600"><Icons.Edit /></button>}
                                     </div>
                                 </div>
-                                
+
                                 <div className="flex flex-wrap gap-2 mt-2 items-center">
                                     <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker || '未指定'}</div>
                                     {item.supplier && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-gray-500"><Icons.Factory /></div>{item.supplier}</div>}
                                     {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
-                                    
-                                    <label 
-                                        className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
-                                        onClick={e => e.stopPropagation()}
-                                    >
-                                        <input 
-                                            type="checkbox"
-                                            className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer"
-                                            checked={item.warehouseConfirmed || false}
-                                            onChange={(e) => handleWarehouseConfirm(e, item)}
-                                            disabled={!canEdit()}
-                                        />
+
+                                    <label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`} onClick={e => e.stopPropagation()}>
+                                        <input type="checkbox" className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer" checked={item.warehouseConfirmed || false} onChange={(e) => handleWarehouseConfirm(e, item)} disabled={!canEdit()} />
                                         <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
                                     </label>
 
@@ -652,8 +697,7 @@
                                     </div>
                                 ))}
                             </div>
-                            
-                            {/* V12.2: 卡片底部統計 */}
+
                             <div className={`mt-3 pt-3 border-t border-gray-100 grid gap-2 ${canSeePrice() ? 'grid-cols-3' : 'grid-cols-2'}`}>
                                 <div className="text-center">
                                     <div className="text-[10px] text-gray-400 font-bold">總數量</div>
@@ -666,11 +710,11 @@
                                 {canSeePrice() && (
                                     <div className="text-center border-l border-gray-100">
                                         <div className="text-[10px] text-gray-400 font-bold">總金額</div>
-                                        <div className="text-lg font-black text-emerald-600">${totalAmount.toLocaleString()}</div>
+                                        <div className="text-lg font-black text-emerald-600">{currSymbol}{totalAmount.toLocaleString()}</div>
                                     </div>
                                 )}
                             </div>
-                            
+
                             <div className="mt-2 flex justify-start gap-3 border-t border-gray-100 pt-2">
                                 {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-xs text-gray-400 hover:text-blue-500 flex items-center gap-1"><Icons.Copy /> 複製</button>}
                                 {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"><Icons.Trash2 /> 刪除</button>}
@@ -703,7 +747,7 @@
                     {/* Desktop Sidebar */}
                     <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full z-20">
                         <div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800">
-                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v12.3</span>
+                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v12.4</span>
                         </div>
                         <nav className="flex-1 px-4 space-y-2">
                             <button onClick={() => setView('list')} className={`sidebar-link w-full ${view === 'list' ? 'active' : ''}`}>
@@ -746,7 +790,7 @@
                                 </div>
                             </div>
                         )}
-                        
+
                         <header className="md:hidden sticky-header-group border-b border-gray-200 px-4 h-14 flex items-center justify-between shadow-sm">
                             <div className="flex items-center gap-2 font-bold text-gray-900">
                                 <div className="w-6 h-6 text-blue-600"><Icons.Ship /></div> {view === 'list' ? '貨櫃列表' : '統計分析'}
@@ -770,12 +814,12 @@
                                                 let list = [];
                                                 if (tab === 'DOMESTIC') list = domesticShipments;
                                                 else if (tab === 'DEVANED') list = devannedForeign;
-                                                else if (tab === 'UNPAID') list = unpaidList; // V12.3: 待付款
+                                                else if (tab === 'UNPAID') list = unpaidList;
                                                 else list = notDevannedForeign;
-                                                
+
                                                 const un = list.filter(i => !i.warehouseConfirmed).length;
                                                 const tabName = tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : tab === 'DOMESTIC' ? '國內' : '待付款';
-                                                
+
                                                 return (
                                                     <button key={tab} onClick={() => setCurrentTab(tab)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === tab ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
                                                         <div className="flex items-center justify-center gap-1">
@@ -786,20 +830,24 @@
                                                 );
                                             })}
                                         </div>
-                                        
-                                        {/* V12.3: 待付款總金額摘要 */}
+
                                         {currentTab === 'UNPAID' && canSeePrice() && (
-                                            <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-3 text-center shadow-sm">
-                                                <div className="text-xs text-red-400 font-bold mb-1">待付款總金額</div>
-                                                <div className="text-2xl font-black text-red-600">${currentTotalAmount.toLocaleString()}</div>
+                                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                                <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center shadow-sm">
+                                                    <div className="text-xs text-red-400 font-bold mb-1">待付總額 (NT$)</div>
+                                                    <div className="text-2xl font-black text-red-600">${currentTotalTWD.toLocaleString()}</div>
+                                                </div>
+                                                <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center shadow-sm">
+                                                    <div className="text-xs text-green-400 font-bold mb-1">待付總額 (US$)</div>
+                                                    <div className="text-2xl font-black text-green-600">${currentTotalUSD.toLocaleString()}</div>
+                                                </div>
                                             </div>
                                         )}
 
                                         <div className="relative">
                                             <div className="absolute left-3 top-2.5 text-gray-400 w-4"><Icons.Search /></div>
                                             <div className="flex gap-2 items-center">
-                                                <input placeholder="搜尋櫃號、廠商、貨品..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-2 pl-10 pr-4 outline-none shadow-sm" />
-                                                {/* V12.3: 表格模式切換按鈕 */}
+                                                <input placeholder="搜尋櫃號、廠商、貨品、批號..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-2 pl-10 pr-4 outline-none shadow-sm" />
                                                 <button onClick={() => setDisplayMode(displayMode === 'card' ? 'table' : 'card')} className={`p-2 rounded-xl shadow-sm flex-shrink-0 ${displayMode === 'table' ? 'bg-blue-100 text-blue-600' : 'bg-white text-gray-500'}`}>
                                                     {displayMode === 'card' ? <Icons.List /> : <Icons.Grid />}
                                                 </button>
@@ -809,7 +857,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="grid gap-4">
                                         {displayMode === 'card' ? (
                                             <>
@@ -817,7 +865,6 @@
                                                 {currentList.length === 0 && <div className="text-center py-12 text-gray-400 text-sm">查無資料</div>}
                                             </>
                                         ) : (
-                                            /* V12.3: 表格檢視模式 */
                                             renderTableView()
                                         )}
                                     </div>
@@ -837,10 +884,10 @@
                                             </div>
                                             <div><label className="block text-sm font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><datalist id="origins">{DEFAULT_ORIGINS.map(o => <option key={o} value={o} />)}</datalist></div>
                                                 <div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                             </div>
-                                            
+
                                             <div className="pt-3 border-t border-gray-100 relative">
                                                 <h3 className="font-bold text-gray-900 text-base mb-3">{formData.customsBroker === '國內採購' ? '交貨資訊 (選填)' : '拆櫃資訊 (選填)'}</h3>
                                                 <div className="absolute top-3 right-0 flex items-center gap-4">
@@ -852,13 +899,33 @@
                                                     )}
                                                     <div className="flex items-center gap-2">
                                                         <input type="checkbox" name="warehouseConfirmed" checked={formData.warehouseConfirmed || false} onChange={handleInputChange} id="warehouseConfirmed" className="custom-checkbox" />
-                                                        <label htmlFor="warehouseConfirmed" className="text-sm font-bold text-blue-600 cursor-pointer select-none">倉庫已確認</label>
+                                                        <label htmlFor="warehouseConfirmed" className="text-sm font-bold text-blue-600 cursor-pointer select-none">倉庫已確認收貨</label>
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div><label className="block text-sm font-bold text-gray-400 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                                     <div><label className="block text-sm font-bold text-gray-400 mb-1">日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                                 </div>
+                                                {canSeePrice() && (
+                                                    <div className="grid grid-cols-2 gap-3 mt-3">
+                                                        <div>
+                                                            <label className="block text-sm font-bold text-gray-400 mb-1">付款條件</label>
+                                                            {formData.currency === 'TWD' ? (
+                                                                <select name="paymentTerm" value={formData.paymentTerm} onChange={handleInputChange} className="w-full bg-gray-200 border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none">
+                                                                    {PAYMENT_TERMS_DOMESTIC.map(t => <option key={t} value={t}>{t}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <input value="到港前付款" disabled className="w-full bg-gray-100 text-gray-500 border border-gray-300 rounded-lg px-3 py-2.5 text-sm" />
+                                                            )}
+                                                        </div>
+                                                        {formData.currency !== 'TWD' && (
+                                                            <div>
+                                                                <label className="block text-sm font-bold text-gray-400 mb-1">預付款 (USD)</label>
+                                                                <input type="number" name="prepayment" value={formData.prepayment} onChange={handleInputChange} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div>
@@ -888,7 +955,7 @@
                                                     <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
                                                         <div className="space-y-3">
                                                             <div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-200 border border-gray-300 text-gray-900 rounded px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" required /></div>
-                                                            
+
                                                             <div className="flex items-center justify-end gap-2 mb-1">
                                                                 <label className="text-xs text-gray-400 font-bold">計價模式:</label>
                                                                 <select value={p.pricingMode} onChange={e => handleProductChange(idx, 'pricingMode', e.target.value)} disabled={isWarehouse()} className="text-xs bg-gray-100 rounded px-2 py-1 outline-none text-blue-600 font-bold">
@@ -919,7 +986,7 @@
                                                 ))}
                                             </div>
                                             <div className="text-right mt-3 text-sm"><span className="text-gray-500 mr-2">Total: <span className="text-blue-600 text-xl">{formData.totalQuantity.toLocaleString()} 件</span> / <span className="text-orange-500 text-xl">{formData.totalWeight.toLocaleString()} kg</span></span></div>
-                                            {canSeePrice() && <div className="text-right mt-1 text-sm"><span className="text-gray-500 mr-2">總金額: <span className="text-emerald-600 text-xl font-black">${(formData.products.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)).toLocaleString()}</span></span></div>}
+                                            {canSeePrice() && <div className="text-right mt-1 text-sm"><span className="text-gray-500 mr-2">總金額 ({formData.currency}): <span className="text-emerald-600 text-xl font-black">${(formData.products.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)).toLocaleString()}</span></span></div>}
                                         </div>
 
                                         <div className="flex gap-3 pt-2">
