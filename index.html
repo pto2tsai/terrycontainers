@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v8.0 雙單位計價版)</title>
+    <title>貨櫃管理 (v7.2 角色權限旗艦版)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -31,6 +31,8 @@
         .mobile-modal-content { background: white; width: 90%; max-width: 400px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); overflow: hidden; animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         input:focus, select:focus { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        
+        /* 鎖定輸入框樣式 */
         input:disabled, select:disabled { background-color: #f9fafb; color: #9ca3af; cursor: not-allowed; border-color: #e5e7eb; }
         .custom-checkbox { width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; border: 2px solid #d1d5db; cursor: pointer; }
         .custom-checkbox:checked { background-color: #2563eb; border-color: #2563eb; }
@@ -40,7 +42,6 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- 圖示 ---
         const Icons = {
             Ship: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
             Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
@@ -66,8 +67,7 @@
             Barcode: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>,
             AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
             Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
-            BoxCheck: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>,
-            Scale: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>
+            BoxCheck: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
         };
 
         const { useState, useEffect, useMemo } = React;
@@ -77,7 +77,7 @@
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', '國內採購'];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
 
-        // ⚠️ 請確認此處為您的 Firebase Config
+        // ⚠️ 已預填您的 Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
             authDomain: "containersystem-6342f.firebaseapp.com",
@@ -131,9 +131,10 @@
             const [showNotifications, setShowNotifications] = useState(false);
             
             const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); 
+            
+            // 角色狀態: GUEST, PURCHASING, SALES, WAREHOUSE, QC, ACCOUNTING
             const [userRole, setUserRole] = useState('GUEST');
-            const [adminList, setAdminList] = useState([]);
-
+            
             useEffect(() => {
                 if (!auth) { setError("CONFIG_MISSING"); setLoading(false); return; }
                 const authUnsub = auth.onAuthStateChanged((u) => { setUser(u); if (!u) setLoading(false); });
@@ -161,6 +162,7 @@
                     }
                 );
 
+                // 讀取角色設定
                 const unsubscribeSettings = db.collection('settings').doc('config').onSnapshot(
                     (doc) => {
                         if (doc.exists) {
@@ -173,10 +175,9 @@
                                 setUserRole('GUEST');
                             }
                         } else {
+                             // 預設後門
                              if (ADMIN_EMAILS.includes(user.email)) {
                                  setUserRole('PURCHASING');
-                             } else {
-                                 setUserRole('GUEST');
                              }
                         }
                     },
@@ -206,10 +207,8 @@
                 arrivalDate: new Date().toISOString().split('T')[0], 
                 containerNumber: '', 
                 shippingCompany: '', 
-                // ⭐️ V8.0: 新增 pricingMode, weight, boxCapacity ⭐️
-                products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }], 
+                products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0, unitPrice: 0, amount: 0 }], 
                 totalQuantity: 0, 
-                totalWeight: 0, // 新增總重量
                 docUrl: '', 
                 docName: '',
                 docRefPath: '', 
@@ -228,31 +227,15 @@
             const handleProductChange = (idx, field, value) => { 
                 const np = [...formData.products]; 
                 np[idx] = { ...np[idx], [field]: value }; 
-                
-                const p = np[idx];
-                const q = Number(p.quantity) || 0;
-                const b = Number(p.boxCapacity) || 1;
-                const w = Number(p.weight) || 0;
-                const u = Number(p.unitPrice) || 0;
-                
-                // ⭐️ V8.0: 根據計價模式計算金額 ⭐️
-                if (p.pricingMode === 'weight') {
-                    p.amount = Math.round(w * u); // 重量計價: 重量 * 單價
-                } else {
-                    p.amount = Math.round(q * b * u); // 數量計價: 件數 * 箱容 * 單價
+                if (field === 'quantity' || field === 'unitPrice') {
+                    np[idx].amount = (Number(np[idx].quantity) || 0) * (Number(np[idx].unitPrice) || 0);
                 }
-
-                setFormData(prev => ({ 
-                    ...prev, 
-                    products: np, 
-                    totalQuantity: np.reduce((s, i) => s + (Number(i.quantity)||0), 0),
-                    totalWeight: np.reduce((s, i) => s + (Number(i.weight)||0), 0) // 計算總重量
-                })); 
+                setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, p) => s + Number(p.quantity||0), 0) })); 
             };
 
-            const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }] }));
-            const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0), totalWeight: np.reduce((s, i) => s + Number(i.weight||0), 0) })); };
-            const removeProductRow = (idx) => { const np = formData.products.filter((_, i) => i !== idx); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0), totalWeight: np.reduce((s, i) => s + Number(i.weight||0), 0) })); };
+            const addProductRow = () => setFormData(prev => ({ ...prev, products: [...prev.products, { id: Date.now() + Math.random(), name: '', batchNumber: '', expiryDate: '', spec: '', quantity: 0, unitPrice: 0, amount: 0 }] }));
+            const duplicateProductRow = (idx) => { const p = formData.products[idx]; const np = [...formData.products]; np.splice(idx + 1, 0, { ...p, id: Date.now() + Math.random() }); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
+            const removeProductRow = (idx) => { const np = formData.products.filter((_, i) => i !== idx); setFormData(prev => ({ ...prev, products: np, totalQuantity: np.reduce((s, i) => s + Number(i.quantity||0), 0) })); };
 
             const handleFileUpload = async (e) => {
                 const file = e.target.files[0]; if (!file) return; setUploading(true);
@@ -306,12 +289,12 @@
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert("權限不足"); 
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期";
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,數量,總數,文件,拆櫃地點,拆櫃日期";
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
 
                 const rows = filteredShipments.flatMap(s => s.products.map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate];
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.quantity,s.totalQuantity,s.docUrl,s.devanningLocation,s.devanningDate];
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(",");
                 })).join("\n");
@@ -325,22 +308,17 @@
             const handleShareToLine = (s) => {
                 const isDomestic = s.customsBroker === '國內採購';
                 const quantityUnit = ' 件'; 
-                // ⭐️ Line 訊息顯示雙單位與計價模式 ⭐️
-                const productDetails = s.products.map((p, i) => {
-                    const priceModeStr = p.pricingMode === 'weight' ? '(重)' : '(數)';
-                    const weightStr = p.weight ? ` / ${p.weight}kg` : '';
-                    return `${i+1}. ${p.name}${p.spec ? ` ${p.spec}` : ''} - ${p.quantity.toLocaleString()}${quantityUnit}${weightStr}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`;
-                }).join('\n');
 
-                const locationInfo = s.devanningLocation ? `\n📍 ${isDomestic ? '交貨地' : '拆櫃地'}：${s.devanningLocation}` : '';
-                const devanningDateInfo = (!isDomestic && s.devanningDate) ? `\n🕒 拆櫃日：${s.devanningDate}` : '';
-                const totalWeightInfo = s.totalWeight ? ` / ${s.totalWeight.toLocaleString()} kg` : '';
+                const productDetails = s.products.map((p, i) => 
+                    `${i+1}. ${p.name}${p.spec ? ` ${p.spec}` : ''} - ${p.quantity.toLocaleString()}${quantityUnit}${p.batchNumber ? ` [批:${p.batchNumber}]` : ''}`
+                ).join('\n');
 
                 let text = '';
                 if (isDomestic) {
-                    text = `🚚 到貨通知(國內採購)\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}${locationInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}${totalWeightInfo}`;
+                    text = `🚚 到貨通知(國內採購)\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
                 } else {
-                    text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}${locationInfo}${devanningDateInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}${totalWeightInfo}`;
+                    const devanningInfo = (s.devanningDate || s.devanningLocation) ? `\n\n🚛 拆櫃: ${s.devanningDate || '未定'}${s.devanningLocation ? ` @ ${s.devanningLocation}` : ''}` : '';
+                    text = `🚢 到港通知\n📦 櫃號：${s.containerNumber}\n📅 日期：${s.arrivalDate}\n🏢 公司：${s.importCompany}\n🏭 廠商：${s.supplier || '未填'}\n🌎 產地：${s.origin || '未填'}${devanningInfo}\n\n📋 明細：\n${productDetails}\n\n🔢 總數：${s.totalQuantity.toLocaleString()}${quantityUnit}`;
                 }
                 window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`, '_blank');
             };
@@ -352,20 +330,6 @@
                     await db.collection('shipments').doc(item.id).update({ warehouseConfirmed: !item.warehouseConfirmed });
                 } catch (error) { alert("更新狀態失敗"); }
             };
-
-            const urgentShipments = useMemo(() => { 
-                const todayStr = new Date().toISOString().split('T')[0];
-                const today = parseLocalMidnightDate(todayStr);
-
-                return shipments.filter(s => { 
-                    if (!s.arrivalDate) return false;
-                    const arrival = parseLocalMidnightDate(s.arrivalDate);
-                    const diffDays = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                    return diffDays >= 0 && diffDays <= 3;
-                }); 
-            }, [shipments]);
-            
-            const urgentCount = urgentShipments.length;
 
             const filteredShipments = useMemo(() => { 
                 const t=searchTerm.toLowerCase(); 
@@ -380,45 +344,26 @@
                 )); 
             }, [shipments, searchTerm]);
             
-            const today = new Date();
-            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
+            const todayStr = new Date().toISOString().split('T')[0];
             const DOMESTIC_FLAG = '國內採購';
             const isDomestic = (s) => (s.customsBroker || '').includes(DOMESTIC_FLAG);
             const isForeign = (s) => !isDomestic(s);
 
-            const domesticShipments = useMemo(() => 
-                filteredShipments.filter(s => isDomestic(s))
-                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
-                [filteredShipments]
-            );
-
-            const notDevannedForeign = useMemo(() => 
-                filteredShipments.filter(s => isForeign(s) && (!s.devanningDate || s.devanningDate > todayStr))
-                .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()), 
-                [filteredShipments, todayStr]
-            );
-
-            const devannedForeign = useMemo(() => 
-                filteredShipments.filter(s => isForeign(s) && (s.devanningDate && s.devanningDate <= todayStr))
-                .sort((a, b) => new Date(b.devanningDate).getTime() - new Date(a.devanningDate).getTime()), 
-                [filteredShipments, todayStr]
-            );
-
             const currentList = useMemo(() => {
-                if (currentTab === 'DOMESTIC') return domesticShipments;
-                if (currentTab === 'DEVANED') return devannedForeign;
-                return notDevannedForeign; 
-            }, [currentTab, domesticShipments, devannedForeign, notDevannedForeign]);
+                if (currentTab === 'DOMESTIC') return filteredShipments.filter(s => isDomestic(s)).sort((a, b) => b.arrivalDate.localeCompare(a.arrivalDate));
+                
+                const foreignList = filteredShipments.filter(s => isForeign(s));
+                if (currentTab === 'DEVANED') return foreignList.filter(s => s.devanningDate && s.devanningDate <= todayStr).sort((a, b) => b.devanningDate.localeCompare(a.devanningDate));
+                return foreignList.filter(s => !s.devanningDate || s.devanningDate > todayStr).sort((a, b) => b.arrivalDate.localeCompare(a.arrivalDate));
+            }, [currentTab, filteredShipments, todayStr]);
 
-            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
+            const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean)])).sort(), [shipments]);
             
             const getStatusStyle = (date) => { 
                 if (!date) return { bg: 'bg-gray-100', text: '未定', color: 'text-gray-400' };
                 const today = parseLocalMidnightDate(new Date().toISOString().split('T')[0]);
                 const arrival = parseLocalMidnightDate(date);
                 const diff = Math.round((arrival.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
                 if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
                 if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
                 if (diff === 1) return { text: '明天到港', color: 'bg-orange-100 text-orange-600' };
@@ -486,26 +431,16 @@
                                                 {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
                                                 {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
                                             </div>
-                                            {/* ⭐️ 列表顯示雙單位與計價模式提示 ⭐️ */}
-                                            <div className="mt-1 text-xs text-gray-400">
-                                                {p.pricingMode === 'weight' ? <span className="text-orange-500 font-bold">[重]</span> : <span className="text-blue-500 font-bold">[數]</span>}
-                                                {p.weight > 0 && <span className="ml-1">重:{p.weight}kg</span>}
-                                                {canSeePrice() && <span className="ml-2">單價:${(p.unitPrice||0).toLocaleString()} / 金額:${(p.amount||0).toLocaleString()}</span>}
-                                            </div>
+                                            {canSeePrice() && (
+                                                <div className="flex gap-2 mt-1 text-xs text-gray-500 font-mono">
+                                                    <span>單價:${(p.unitPrice||0).toLocaleString()}</span>
+                                                    <span>金額:${(p.amount||0).toLocaleString()}</span>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="text-right font-mono font-bold text-base text-gray-700">
-                                            {p.quantity.toLocaleString()} 件
-                                        </div>
+                                        <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity.toLocaleString()} 件</div>
                                     </div>
                                 ))}
-                            </div>
-                            {/* ⭐️ 列表底部總計增加總重量 ⭐️ */}
-                            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
-                                {item.totalWeight > 0 && <span>總重: {item.totalWeight.toLocaleString()} kg</span>}
-                                <div className="flex items-baseline gap-2 ml-auto">
-                                    <span className="font-bold uppercase">總數</span>
-                                    <span className="text-xl font-black text-blue-600">{item.totalQuantity.toLocaleString()} 件</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -525,8 +460,6 @@
                             <p className="text-gray-500 mb-8 text-sm">請選擇登入身分</p>
                             <div className="space-y-3">
                                 <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 員工登入</button>
-                                <div className="relative py-2"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div><div className="relative flex justify-center text-xs text-gray-500"><span className="bg-white px-2">或</span></div></div>
-                                <button onClick={handleGuestLogin} className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-200 transition-all font-bold ios-btn"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button>
                             </div>
                         </div>
                     </div>
@@ -561,7 +494,7 @@
                                 </div>
                                 <div className="relative">
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"><Icons.Search /></div>
-                                    <input type="text" placeholder="搜尋櫃號、廠商、貨品、批號、產地..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
+                                    <input type="text" placeholder="搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                 </div>
                                 <div className="grid gap-4">
                                     {currentList.map(item => renderShipmentCard(item))}
@@ -575,14 +508,15 @@
                                     <button onClick={() => setView('list')} className="text-gray-400 p-1"><Icons.X /></button>
                                 </div>
                                 <form onSubmit={handleSubmit} className="space-y-5">
+                                    {/* 表單內容：針對 WAREHOUSE 進行欄位鎖定 (disabled) */}
                                     <div className="grid grid-cols-1 gap-4">
                                         <div className="grid grid-cols-2 gap-3">
                                             <div><label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase outline-none" placeholder={formData.customsBroker === '國內採購' ? "免填" : "TEMU..."} required={formData.customsBroker !== '國內採購'} /></div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm font-mono uppercase outline-none" placeholder="TEMU..." required={formData.customsBroker !== '國內採購'} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker === '國內採購' ? '到貨日' : '到港日'}</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">報關行 <span className="text-xs text-blue-500 font-normal">(國內採購請選此)</span></label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                                         </div>
                                         <div><label className="block text-sm font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                         <div className="grid grid-cols-2 gap-3">
@@ -590,6 +524,7 @@
                                             <div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded-lg px-3 py-2.5 text-sm outline-none" /></div>
                                         </div>
 
+                                        {/* 倉管可編輯區域 */}
                                         <div className="pt-3 border-t border-gray-100 relative">
                                             <h3 className="font-bold text-gray-900 text-base mb-3">{formData.customsBroker === '國內採購' ? '交貨資訊' : '拆櫃資訊'}</h3>
                                             <div className="absolute top-3 right-0 flex items-center gap-2">
@@ -606,11 +541,9 @@
                                             <label className="block text-sm font-bold text-gray-400 mb-1">附件</label>
                                             <div className="relative w-full bg-gray-50 rounded-lg px-3 py-2.5 flex items-center justify-between">
                                                 {formData.docUrl ? (
-                                                    <><span className="text-sm text-gray-900 truncate"><a href={formData.docUrl} target="_blank" className="text-blue-600 underline">{formData.docName}</a></span>
-                                                    {canUpload() && <button type="button" onClick={handleDeleteFile} className="ml-2 text-red-500 w-5 h-5"><Icons.Trash2 /></button>}
-                                                    </>
+                                                    <><span className="text-sm text-gray-900 truncate"><a href={formData.docUrl} target="_blank" className="text-blue-600 underline">{formData.docName}</a></span><button type="button" onClick={handleDeleteFile} disabled={isWarehouse()} className="ml-2 text-red-500 w-5 h-5"><Icons.Trash2 /></button></>
                                                 ) : (
-                                                    <><input type="file" onChange={handleFileUpload} disabled={!canUpload() || uploading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><span className="text-sm text-gray-500">{uploading ? '上傳中...' : '上傳文件'}</span><div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div></>
+                                                    <><input type="file" onChange={handleFileUpload} disabled={isWarehouse() || uploading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><span className="text-sm text-gray-500">{uploading ? '上傳中...' : '上傳文件'}</span><div className="text-blue-500 w-4 h-4"><Icons.Paperclip /></div></>
                                                 )}
                                             </div>
                                         </div>
@@ -623,32 +556,18 @@
                                                 <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
                                                     <div className="space-y-3">
                                                         <div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold outline-none" required /></div>
-                                                        
-                                                        {/* ⭐️ V8.0: 產品明細 UI 優化：加入計價模式切換 ⭐️ */}
-                                                        <div className="flex items-center justify-end gap-2 mb-1">
-                                                            <label className="text-xs text-gray-400 font-bold">計價模式:</label>
-                                                            <select value={p.pricingMode} onChange={e => handleProductChange(idx, 'pricingMode', e.target.value)} disabled={isWarehouse()} className="text-xs bg-gray-100 rounded px-2 py-1 outline-none text-blue-600 font-bold">
-                                                                <option value="quantity">📦 依數量 (件 x 箱容)</option>
-                                                                <option value="weight">⚖️ 依重量 (KG)</option>
-                                                            </select>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
+                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">數量</label><input type="number" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600" /></div>
                                                         </div>
-
-                                                        <div className="grid grid-cols-12 gap-2">
-                                                            <div className="col-span-4"><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
-                                                            {/* 根據模式顯示/隱藏箱容，但重量永遠顯示 */}
-                                                            {p.pricingMode === 'quantity' && <div className="col-span-2"><label className="block text-xs font-bold text-gray-400 mb-1">箱容</label><input type="number" value={p.boxCapacity} onChange={e => handleProductChange(idx, 'boxCapacity', e.target.value)} disabled={isWarehouse()} className="w-full bg-gray-50 border-none rounded px-2 py-2 text-sm outline-none text-center" /></div>}
-                                                            <div className={p.pricingMode === 'quantity' ? "col-span-3" : "col-span-4"}><label className="block text-xs font-bold text-gray-400 mb-1">件數</label><input type="number" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', Number(e.target.value))} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600" /></div>
-                                                            <div className={p.pricingMode === 'quantity' ? "col-span-3" : "col-span-4"}><label className="block text-xs font-bold text-gray-400 mb-1">重量(kg)</label><input type="number" value={p.weight} onChange={e => handleProductChange(idx, 'weight', Number(e.target.value))} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm font-bold text-right outline-none text-orange-500" /></div>
-                                                        </div>
-                                                        
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div><label className="block text-xs font-bold text-gray-400 mb-1">批號</label><input value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
                                                             <div><label className="block text-xs font-bold text-gray-400 mb-1">有效日期</label><input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} disabled={false} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none" /></div>
                                                         </div>
-                                                        
+                                                        {/* 只有採購能看到且編輯價格，會計只能看 */}
                                                         {canSeePrice() && (
                                                             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 mt-2">
-                                                                <div><label className="block text-xs font-bold text-gray-400 mb-1">單價 ({p.pricingMode === 'weight' ? '/kg' : '/單位'})</label><input type="number" value={p.unitPrice} onChange={e => handleProductChange(idx, 'unitPrice', Number(e.target.value))} disabled={userRole !== 'PURCHASING'} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none text-right" /></div>
+                                                                <div><label className="block text-xs font-bold text-gray-400 mb-1">單價</label><input type="number" value={p.unitPrice} onChange={e => handleProductChange(idx, 'unitPrice', Number(e.target.value))} disabled={userRole !== 'PURCHASING'} className="w-full bg-gray-50 border-none rounded px-3 py-2 text-sm outline-none text-right" /></div>
                                                                 <div><label className="block text-xs font-bold text-gray-400 mb-1">金額</label><div className="w-full bg-gray-100 rounded px-3 py-2 text-sm text-right font-bold">${(p.amount||0).toLocaleString()}</div></div>
                                                             </div>
                                                         )}
@@ -656,10 +575,6 @@
                                                     {!isWarehouse() && <div className="absolute top-2 right-2 flex gap-1"><button type="button" onClick={() => duplicateProductRow(idx)} className="text-gray-400 p-1.5"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5"><Icons.X /></button>}</div>}
                                                 </div>
                                             ))}
-                                        </div>
-                                        <div className="flex justify-end gap-4 mt-3 text-sm font-bold">
-                                            <span className="text-gray-500">總件數: <span className="text-blue-600 text-xl">{formData.totalQuantity.toLocaleString()}</span></span>
-                                            <span className="text-gray-500">總重量: <span className="text-orange-500 text-xl">{formData.totalWeight.toLocaleString()}</span></span>
                                         </div>
                                     </div>
 
