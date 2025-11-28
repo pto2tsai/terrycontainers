@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理 (v13.1 管理員直通版)</title>
+    <title>貨櫃管理系統 (v14.0 終極穩定版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -32,7 +32,7 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
         .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden; border: 1px solid #f3f4f6; transition: all 0.2s ease; }
-        .ios-card:hover { transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .ios-card:active { transform: scale(0.99); }
         .reconcile-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; }
         .reconcile-table th { background: #f9fafb; color: #6b7280; font-weight: 600; padding: 10px 8px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
         .reconcile-table td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
@@ -56,8 +56,14 @@
         @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
+        
+        /* V12.1: 輸入欄位底色與邊框 */
         .input-bg-style { background-color: #E5E7EB; border: 1px solid #D1D5DB; color: #1F2937; }
         .input-bg-style:focus { background-color: white; }
+        .product-grid-cols { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
+        @media (max-width: 640px) {
+            .product-grid-cols { grid-template-columns: 3fr 1.5fr 2fr 2fr 2fr; }
+        }
     </style>
 </head>
 <body>
@@ -70,12 +76,7 @@
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', DOMESTIC_FLAG];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
         const PAYMENT_TERMS_DOMESTIC = ['現金', '月結 30 天', '月結 45 天', '月結 60 天', '其他'];
-        
-        // ⚠️⚠️⚠️ 強制管理員名單 (包含您的 Email) ⚠️⚠️⚠️
-        const ADMIN_EMAILS = [
-            "pto2.tw@gmail.com", 
-            "4onlymerich@gmail.com"
-        ];
+        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
 
         // --- 2. Firebase 初始化 ---
         const firebaseConfig = {
@@ -95,9 +96,9 @@
                 auth = firebase.auth();
                 storage = firebase.storage();
             }
-        } catch (err) { console.error(err); }
+        } catch (e) { console.error(e); }
 
-        // --- 3. 圖示元件 ---
+        // --- 3. 圖示元件 (Icons) ---
         const Icons = {
             Ship: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
             Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
@@ -123,7 +124,6 @@
             Barcode: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>,
             AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
             Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
-            BoxCheck: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8l-2-2H5L3 8h18z"/><path d="M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>,
             Chart: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>,
             List: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
             Grid: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -131,7 +131,7 @@
 
         const { useState, useEffect, useMemo } = React;
 
-        // --- 4. 輔助函式 ---
+        // --- 3. 輔助函式 ---
         const parseDate = (dateStr) => {
             if (!dateStr) return new Date(0);
             const parts = dateStr.split('-');
@@ -153,7 +153,7 @@
 
         const getCompanyColor = (name) => name === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : name === '八方環球' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700';
 
-        // --- 5. Dashboard 元件 ---
+        // --- 4. Dashboard 元件 ---
         const Dashboard = ({ shipments, canSeePrice }) => {
             const [tf, setTf] = useState('MONTH');
             const stats = useMemo(() => {
@@ -202,8 +202,8 @@
                         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm col-span-2"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{parseInt(stats.w).toLocaleString()}</div></div>
                         {canSeePrice && (
                             <>
-                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">US$ {stats.moneyUSD.toLocaleString()}</div></div>
-                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">NT$ {stats.moneyTWD.toLocaleString()}</div></div>
+                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyUSD.toLocaleString()}</div></div>
+                                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyTWD.toLocaleString()}</div></div>
                             </>
                         )}
                      </div>
@@ -212,7 +212,7 @@
             );
         };
 
-        // 6. 主程式
+        // 5. 主程式
         function ContainerApp() {
             const [user, setUser] = useState(null);
             const [shipments, setShipments] = useState([]);
@@ -252,22 +252,22 @@
 
                 const unsubscribeSettings = db.collection('settings').doc('config').onSnapshot(
                     (doc) => {
-                        // 權限判斷邏輯：資料庫 > 管理員名單
-                        let role = 'GUEST';
-                        
-                        // 1. 優先檢查 hardcoded admin list (確保您永遠是 MANAGER)
-                        if (ADMIN_EMAILS.some(e => e.toLowerCase() === user.email.toLowerCase())) {
-                            role = 'MANAGER';
-                        } 
-                        // 2. 其次檢查 Firestore 設定
-                        else if (doc.exists) {
+                        if (doc.exists) {
                             const data = doc.data();
                             if (data.user_roles && data.user_roles[user.email]) {
-                                role = data.user_roles[user.email];
+                                setUserRole(data.user_roles[user.email]);
+                            } else if (data.admin_emails && data.admin_emails.includes(user.email)) {
+                                setUserRole('MANAGER'); // V13.0: 舊 ADMIN 升級為 MANAGER
+                            } else {
+                                setUserRole('GUEST');
                             }
+                        } else {
+                             if (ADMIN_EMAILS.includes(user.email)) {
+                                 setUserRole('MANAGER'); // V13.0: 預設 ADMIN 升級為 MANAGER
+                             } else {
+                                 setUserRole('GUEST');
+                             }
                         }
-                        
-                        setUserRole(role);
                     },
                     (err) => console.log("Settings fetch error:", err)
                 );
@@ -279,18 +279,19 @@
             const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (err) { alert("訪客登入失敗"); } };
             const handleLogout = () => auth.signOut();
 
-            // 權限判斷
-            const canManage = () => userRole === 'MANAGER'; 
-            const canEdit = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE'].includes(userRole);
-            const canCreate = () => ['MANAGER', 'PURCHASING'].includes(userRole);
-            const canDelete = () => ['MANAGER', 'PURCHASING'].includes(userRole);
-            const canUpload = () => ['MANAGER', 'PURCHASING', 'QC'].includes(userRole);
-            // 修正：將 MANAGER 加入 canSeePrice
-            const canSeePrice = () => ['MANAGER', 'PURCHASING', 'ACCOUNTING'].includes(userRole);
-            const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole);
-
-            const isWarehouse = () => userRole === 'WAREHOUSE';
-
+            // ⚠️ V13.0: 權限調整 (使用新角色)
+            const canManage = () => userRole === 'MANAGER'; // 管理層 (所有權限)
+            const canEdit = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole); // 廣泛編輯 (MANAGER/採助/倉管/品管)
+            const canCreate = () => ['MANAGER', 'PURCHASING'].includes(userRole); // 新增/複製 (MANAGER/採助)
+            const canDelete = () => ['MANAGER', 'PURCHASING'].includes(userRole); // 刪除 (MANAGER/採助)
+            const canUpload = () => ['MANAGER', 'PURCHASING', 'QC'].includes(userRole); // 上傳/刪除附件 (MANAGER/採助/品管)
+            const canSeePrice = () => ['MANAGER', 'PURCHASING', 'ACCOUNTING'].includes(userRole); // 財務可見 (MANAGER/採助/會計)
+            
+            // V13.0: 專屬修改權限檢查
+            const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole); // 國外費用/幣別/預付 (MANAGER/會計)
+            const canEditDomesticFull = () => ['MANAGER', 'PURCHASING'].includes(userRole); // 國內所有欄位 (MANAGER/採助)
+            const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE'].includes(userRole); // 倉管欄位 (MANAGER/採助/倉管)
+            
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
                 customsBroker: CUSTOMS_BROKERS[0], 
@@ -331,6 +332,7 @@
                         if (val === DOMESTIC_FLAG) {
                             newData.currency = 'TWD';
                             newData.paymentTerm = PAYMENT_TERMS_DOMESTIC[0];
+                            newData.prepayment = 0;
                         } else {
                             newData.currency = 'USD';
                             newData.paymentTerm = '到港前付款';
@@ -396,19 +398,13 @@
                 
                 const currentData = editingId ? shipments.find(s => s.id === editingId) : {};
                 
+                // ⚠️ V13.0: 採購助理 (PURCHASING) 國外單據，只能修改日期/地點，其他財務欄位必須被保護
                 let finalData = { ...formData };
-                const isDom = (formData.customsBroker || '').includes(DOMESTIC_FLAG);
-
-                if (userRole === 'PURCHASING' && !isDom) {
-                    const financeFields = ['currency', 'paymentTerm', 'prepayment', 'isPaid', 'products'];
-                    financeFields.forEach(field => {
-                        finalData[field] = currentData[field] || initialFormState[field];
-                    });
-                    finalData.products = (formData.products || []).map((p, idx) => {
-                        if (currentData.products && currentData.products[idx]) {
-                             return { ...p, unitPrice: currentData.products[idx].unitPrice, amount: currentData.products[idx].amount };
-                        }
-                        return p;
+                if (userRole === 'PURCHASING' && !isDomestic(formData) && !canManage()) {
+                    // 採購助理不能修改國外採購單的成本和數量信息，必須還原為資料庫舊值
+                    const fieldsToKeepOld = ['products', 'totalQuantity', 'totalWeight', 'currency', 'paymentTerm', 'prepayment', 'isPaid'];
+                    fieldsToKeepOld.forEach(field => {
+                        finalData[field] = currentData[field] !== undefined ? currentData[field] : finalData[field];
                     });
                 }
 
@@ -497,7 +493,8 @@
 
             const handleWarehouseConfirm = async (evt, item) => {
                 evt.stopPropagation(); 
-                if (!canEdit()) return alert("權限不足"); 
+                // ⚠️ 修正權限：倉管/採購/Manager 都可以點擊確認
+                if (!canEditWarehouseFields()) return alert("權限不足"); 
                 try {
                     await db.collection('shipments').doc(item.id).update({ warehouseConfirmed: !item.warehouseConfirmed });
                 } catch (err) { alert("更新狀態失敗"); }
@@ -586,7 +583,7 @@
                                 <th className="text-right">總數 (件)</th>
                                 <th className="text-right">總重 (kg)</th>
                                 {canSeePrice() && <th className="text-right">總金額</th>}
-                                <th className="text-center">狀態</th>
+                                <th className="text-center">匯款狀態</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -597,7 +594,7 @@
                                 return (
                                     <tr key={item.id} onClick={() => handleEdit(item)}>
                                         <td className="whitespace-nowrap">{item.arrivalDate}</td>
-                                        <td className="font-bold whitespace-nowrap">{item.containerNumber}</td>
+                                        <td className="font-bold">{item.containerNumber}</td>
                                         <td>{item.supplier}</td>
                                         <td className="truncate max-w-[150px]" title={prodSummary}>{prodSummary}</td>
                                         <td className="text-right text-blue-600 font-bold">{(item.totalQuantity||0).toLocaleString()}</td>
@@ -667,7 +664,7 @@
                                             className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer"
                                             checked={item.warehouseConfirmed || false}
                                             onChange={(e) => handleWarehouseConfirm(e, item)}
-                                            disabled={!canEdit()}
+                                            disabled={!canEditWarehouseFields()}
                                         />
                                         <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
                                     </label>
@@ -699,11 +696,7 @@
                                         <div className="flex-1 mr-2">
                                             <div className="flex items-baseline gap-2 flex-wrap">
                                                 <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
-                                                {p.spec && (
-                                                    <span className="text-sm text-slate-500 font-medium">
-                                                        {p.spec}
-                                                    </span>
-                                                )}
+                                                {p.spec && (<span className="text-sm text-slate-500 font-medium"> {p.spec}</span>)}
                                             </div>
                                             <div className="flex gap-2 mt-1">
                                                 {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
@@ -756,7 +749,7 @@
                             <h1 className="text-2xl font-bold text-gray-900 mb-2">貨櫃管理系統</h1>
                             <p className="text-gray-500 mb-8 text-sm">請選擇登入身分</p>
                             <div className="space-y-3">
-                                <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> Google 登入</button>
+                                <button onClick={handleAdminLogin} className="w-full py-3.5 px-4 bg-blue-600 text-white rounded-xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-md font-bold ios-btn"><div className="w-5 h-5"><Icons.Google /></div> 員工登入</button>
                                 <button onClick={handleGuestLogin} className="w-full py-3.5 px-4 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-200 transition-all font-bold ios-btn"><div className="w-5 h-5"><Icons.User /></div> 訪客登入</button>
                             </div>
                         </div>
@@ -765,11 +758,11 @@
             }
 
             return (
-                <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-20 md:pb-0 flex">
+                <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-10">
                     {/* Desktop Sidebar */}
                     <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full z-20">
                         <div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800">
-                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v12.5</span>
+                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v12.3</span>
                         </div>
                         <nav className="flex-1 px-4 space-y-2">
                             <button onClick={() => setView('list')} className={`sidebar-link w-full ${view === 'list' ? 'active' : ''}`}>
@@ -780,10 +773,12 @@
                             </button>
                         </nav>
                         <div className="p-4 border-t border-gray-100">
-                            <div className="mb-4 px-2">
-                                <div className="text-xs text-gray-400 font-bold mb-1">目前登入:</div>
-                                <div className="text-xs text-gray-800 break-all font-mono bg-gray-100 p-2 rounded">{user.email}</div>
-                                <div className="text-xs text-blue-600 font-bold mt-1">Role: {userRole}</div>
+                            <div className="flex items-center gap-3 px-4 py-2">
+                                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500"><Icons.User /></div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-bold text-gray-800 truncate">{user.displayName || '訪客'}</div>
+                                    <div className="text-xs text-gray-400">{userRole}</div>
+                                </div>
                             </div>
                             <button onClick={handleLogout} className="w-full mt-2 py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><Icons.LogOut /> 登出</button>
                         </div>
@@ -817,43 +812,49 @@
                             </div>
                             <div className="flex gap-3 items-center">
                                 <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showNotifications)}>
-                                    <div className={`text-gray-500 ${urgentCount > 0 ? 'text-red-500 bell-shake' : ''}`}><div className="w-6"><Icons.Bell /></div></div>
-                                    {urgentCount > 0 && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border border-white"></span>}
+                                    <div className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 ${urgentCount>0?'text-red-500 bell-shake':''}`}><Icons.Bell /></div>
+                                    {urgentCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
                                 </div>
-                                {/* 手機版右上角：登出與新增按鈕 */}
-                                <button onClick={handleLogout} className="text-red-400"><div className="w-6"><Icons.LogOut /></div></button>
-                                {canCreate() && view === 'list' && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); }} className="text-blue-600"><div className="w-6"><Icons.Plus /></div></button>}
+                                <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 text-gray-400"><Icons.LogOut /></button>
+                                {canCreate() && view === 'list' && <button onClick={() => { setFormData(initialFormState); setEditingId(null); setView('form'); }} className="p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100"><Icons.Plus /></button>}
                             </div>
                         </header>
 
-                        <main className="max-w-3xl mx-auto p-4">
+                        <main className="max-w-3xl mx-auto px-4 mt-4">
                             {view === 'list' ? (
                                 <div className="space-y-4">
                                     <div className="sticky top-0 z-20 bg-[#F3F4F6] pt-2 pb-2 -mt-2">
                                         <div className="flex justify-between bg-white rounded-xl p-1 shadow-sm border border-gray-200 overflow-x-auto mb-3">
-                                            {['UNPAID', 'NOT_DEVANED', 'DEVANED', 'DOMESTIC'].map(tab => {
+                                            {/* V12.3: 待付款分頁，訪客看不到 */}
+                                            {canSeePrice() && (
+                                            <button key="UNPAID" onClick={() => setCurrentTab('UNPAID')} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'UNPAID' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <span>待付款 ({unpaidList.length})</span>
+                                                    {unpaidList.length > 0 && <span className={`text-xs ${currentTab === 'UNPAID' ? 'text-yellow-200' : 'text-red-500'}`}>({unpaidList.length})</span>}
+                                                </div>
+                                            </button>
+                                            )}
+                                            {['NOT_DEVANED', 'DEVANED', 'DOMESTIC'].map(tab => {
                                                 let list = [];
                                                 if (tab === 'DOMESTIC') list = domesticShipments;
                                                 else if (tab === 'DEVANED') list = devannedForeign;
-                                                else if (tab === 'UNPAID') list = unpaidList;
                                                 else list = notDevannedForeign;
                                                 
                                                 const un = list.filter(i => !i.warehouseConfirmed).length;
-                                                const tabName = tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : tab === 'DOMESTIC' ? '國內' : '待付款';
-                                                
-                                                if (userRole === 'GUEST' && tab === 'UNPAID') return null;
+                                                const tabName = tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : '國內採購';
                                                 
                                                 return (
                                                     <button key={tab} onClick={() => setCurrentTab(tab)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === tab ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
                                                         <div className="flex items-center justify-center gap-1">
                                                             <span>{tabName} ({list.length})</span>
-                                                            {tab !== 'UNPAID' && un > 0 && <span className={`text-xs ${currentTab === tab ? 'text-yellow-200' : 'text-red-500'}`}>({un})</span>}
+                                                            {un > 0 && <span className={`text-xs ${currentTab === tab ? 'text-yellow-200' : 'text-red-500'}`}>({un})</span>}
                                                         </div>
                                                     </button>
                                                 );
                                             })}
                                         </div>
                                         
+                                        {/* V12.3: 待付款總金額摘要 */}
                                         {currentTab === 'UNPAID' && canSeePrice() && (
                                             <div className="grid grid-cols-2 gap-3 mb-3">
                                                 <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center shadow-sm">
@@ -870,7 +871,7 @@
                                         <div className="relative">
                                             <div className="absolute left-3 top-2.5 text-gray-400 w-4"><Icons.Search /></div>
                                             <div className="flex gap-2 items-center">
-                                                <input placeholder="搜尋櫃號、廠商、貨品..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-2 pl-10 pr-4 outline-none shadow-sm" />
+                                                <input placeholder="搜尋櫃號、廠商、貨品、批號..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 rounded-xl py-3 pl-10 pr-4 shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" />
                                                 <button onClick={() => setDisplayMode(displayMode === 'card' ? 'table' : 'card')} className={`p-2 rounded-xl shadow-sm flex-shrink-0 ${displayMode === 'table' ? 'bg-blue-100 text-blue-600' : 'bg-white text-gray-500'}`}>
                                                     {displayMode === 'card' ? <Icons.List /> : <Icons.Grid />}
                                                 </button>
@@ -892,23 +893,26 @@
                                         )}
                                     </div>
                                 </div>
-                            ) : view === 'stats' ? <Dashboard shipments={shipments} canSeePrice={canSeePrice()} /> : (
-                                <div className="max-w-2xl mx-auto ios-card p-5 animate-[fade-in_0.3s_ease-out]">
-                                    <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg text-gray-900">{editingId?'編輯':'新增'}貨櫃</h2><button onClick={()=>setView('list')} className="text-gray-400"><div className="w-6"><Icons.X /></div></button></div>
+                            ) : (
+                                <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
+                                    <div className="flex justify-between items-center mb-5 pb-3 border-b border-gray-100">
+                                        <h2 className="text-lg font-bold text-gray-900">{editingId ? '編輯' : '新增'}貨櫃</h2>
+                                        <button onClick={() => setView('list')} className="text-gray-400 p-1"><Icons.X /></button>
+                                    </div>
                                     <form onSubmit={handleSubmit} className="space-y-5">
                                         <div className="grid grid-cols-1 gap-4">
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={isWarehouse()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm font-mono uppercase outline-none focus:ring-2 focus:ring-blue-500" placeholder={formData.customsBroker === '國內採購' ? "免填" : "TEMU..."} required={formData.customsBroker !== '國內採購'} /></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">{IMPORT_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm font-mono uppercase outline-none focus:ring-2 focus:ring-blue-500" placeholder={formData.customsBroker === '國內採購' ? "免填" : "TEMU..."} required={formData.customsBroker !== '國內採購'} /></div>
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker === '國內採購' ? '到貨日' : '到港日'}</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={userRole === 'PURCHASING' && formData.customsBroker !== DOMESTIC_FLAG && !canManage()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">報關行 <span className="text-xs text-blue-500 font-normal">(國內選此)</span></label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={isWarehouse()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">{formData.customsBroker === '國內採購' ? '到貨日' : '到港日'}</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">報關行 <span className="text-xs text-blue-500 font-normal">(國內選此)</span></label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">{CUSTOMS_BROKERS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                                             </div>
-                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={isWarehouse()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                                            <div><label className="block text-sm font-bold text-gray-400 mb-1">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={isWarehouse()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist></div>
-                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={isWarehouse()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><datalist id="origins">{availableOrigins.map(o => <option key={o} value={o} />)}</datalist></div>
+                                                <div><label className="block text-sm font-bold text-gray-400 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                             </div>
                                             
                                             <div className="pt-3 border-t border-gray-100 relative">
@@ -921,24 +925,24 @@
                                                     </div>
                                                     )}
                                                     <div className="flex items-center gap-2">
-                                                        <input type="checkbox" name="warehouseConfirmed" checked={formData.warehouseConfirmed || false} onChange={handleInputChange} id="warehouseConfirmed" className="custom-checkbox" />
+                                                        <input type="checkbox" name="warehouseConfirmed" checked={formData.warehouseConfirmed || false} onChange={handleInputChange} id="warehouseConfirmed" className="custom-checkbox" disabled={!canEditWarehouseFields()}/>
                                                         <label htmlFor="warehouseConfirmed" className="text-sm font-bold text-blue-600 cursor-pointer select-none">倉庫已確認收貨</label>
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div><label className="block text-sm font-bold text-gray-400 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={userRole === 'PURCHASING' && formData.customsBroker !== DOMESTIC_FLAG && !canManage()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                                                    <div><label className="block text-sm font-bold text-gray-400 mb-1">日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={userRole === 'PURCHASING' && formData.customsBroker !== DOMESTIC_FLAG && !canManage()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                                                    <div><label className="block text-sm font-bold text-gray-400 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                                                    <div><label className="block text-sm font-bold text-gray-400 mb-1">日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                                 </div>
                                                 {canSeePrice() && (
                                                     <div className="grid grid-cols-2 gap-3 mt-3">
                                                         <div>
                                                             <label className="block text-sm font-bold text-gray-400 mb-1">付款條件</label>
                                                             {formData.currency === 'TWD' ? (
-                                                                <select name="paymentTerm" value={formData.paymentTerm} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none">
+                                                                <select name="paymentTerm" value={formData.paymentTerm} onChange={handleInputChange} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none" disabled={!canEditDomesticFull()}>
                                                                     {PAYMENT_TERMS_DOMESTIC.map(t => <option key={t} value={t}>{t}</option>)}
                                                                 </select>
                                                             ) : (
-                                                                <input value="到港前付款" disabled className="w-full bg-gray-100 text-gray-500 border border-gray-300 rounded-lg px-3 py-2.5 text-sm" />
+                                                                <input value="到港前付款" disabled={!canEditForeignFinance()} className="w-full bg-gray-100 text-gray-500 border border-gray-300 rounded-lg px-3 py-2.5 text-sm" />
                                                             )}
                                                         </div>
                                                         {formData.currency !== 'TWD' && (
@@ -953,7 +957,7 @@
 
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-400 mb-1">附件 (多檔)</label>
-                                                <div className="relative w-full bg-gray-200 border border-gray-300 rounded-lg px-3 py-2.5 flex items-center justify-between hover:bg-gray-300 transition">
+                                                <div className="relative w-full input-bg-style rounded-lg px-3 py-2.5 flex items-center justify-between hover:bg-gray-300 transition">
                                                     {formData.docUrl ? (
                                                         <><span className="text-sm text-gray-900 truncate"><a href={formData.docUrl} target="_blank" className="text-blue-600 underline">{formData.docName}</a></span>{canUpload() && <button type="button" onClick={handleDeleteFile} className="ml-2 text-red-500 w-5 h-5"><Icons.Trash2 /></button>}</>
                                                     ) : (
@@ -972,58 +976,55 @@
                                         </div>
 
                                         <div className="pt-3 border-t border-gray-100">
-                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3>{!isWarehouse() && <button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button>}</div>
+                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3>{!canEditWarehouseFields() && <button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button>}</div>
                                             <div className="space-y-4">
                                                 {formData.products.map((p, idx) => (
                                                     <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
                                                         <div className="space-y-3">
-                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} disabled={isWarehouse()} className="w-full input-bg-style rounded px-3 py-2 text-sm font-bold outline-none" required /></div>
+                                                            <div><label className="block text-xs font-bold text-gray-400 mb-1">品名</label><input value={p.name} onChange={e => handleProductChange(idx, 'name', e.target.value)} disabled={!canEditDomesticFull()} className="w-full input-bg-style rounded px-3 py-2 text-sm font-bold outline-none" required /></div>
                                                             
                                                             <div className="flex items-center justify-end gap-2 mb-1">
                                                                 <label className="text-xs text-gray-400 font-bold">計價模式:</label>
-                                                                <select value={p.pricingMode} onChange={e => handleProductChange(idx, 'pricingMode', e.target.value)} disabled={isWarehouse()} className="text-xs bg-gray-100 rounded px-2 py-1 outline-none text-blue-600 font-bold">
+                                                                <select value={p.pricingMode} onChange={e => handleProductChange(idx, 'pricingMode', e.target.value)} disabled={!canEditDomesticFull()} className="text-xs bg-gray-100 rounded px-2 py-1 outline-none text-blue-600 font-bold">
                                                                     <option value="quantity">📦 依數量 (件 x 箱容)</option>
                                                                     <option value="weight">⚖️ 依重量 (KG)</option>
                                                                 </select>
                                                             </div>
 
                                                             <div className="grid product-grid-cols gap-2">
-                                                                <div className="col-span-1"><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} disabled={isWarehouse()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none" /></div>
-                                                                <div className="col-span-1"><label className="block text-xs font-bold text-gray-400 mb-1">箱容</label><input type="number" step="0.01" value={p.boxCapacity} onChange={e => handleProductChange(idx, 'boxCapacity', e.target.value)} disabled={isWarehouse()} className="w-full input-bg-style rounded px-2 py-2 text-sm outline-none text-center focus:ring-2 focus:ring-blue-500" /></div>
-                                                                <div className="col-span-1"><label className="block text-xs font-bold text-gray-400 mb-1">件數</label><input type="number" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', e.target.value)} disabled={isWarehouse() && !canEdit()} className="w-full input-bg-style rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600 focus:ring-2 focus:ring-blue-500" /></div>
-                                                                <div className="col-span-1"><label className="block text-xs font-bold text-gray-400 mb-1">重量</label><input type="number" step="0.01" value={p.weight} onChange={e => handleProductChange(idx, 'weight', e.target.value)} disabled={isWarehouse() && !canEdit()} className="w-full input-bg-style rounded px-3 py-2 text-sm font-bold text-right outline-none text-orange-500 focus:ring-2 focus:ring-blue-500" /></div>
-                                                                
-                                                                {/* 額外欄位，不會佔用 grid space */}
-                                                                <div className="col-span-2 hidden md:block"></div>
-                                                                
+                                                                <div className="col-span-4"><label className="block text-xs font-bold text-gray-400 mb-1">規格</label><input value={p.spec} onChange={e => handleProductChange(idx, 'spec', e.target.value)} disabled={!canEditDomesticFull()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none" /></div>
+                                                                <div className="col-span-2"><label className="block text-xs font-bold text-gray-400 mb-1">箱容</label><input type="number" step="0.01" value={p.boxCapacity} onChange={e => handleProductChange(idx, 'boxCapacity', e.target.value)} disabled={!canEditDomesticFull()} className="w-full input-bg-style rounded px-2 py-2 text-sm outline-none text-center" /></div>
+                                                                <div className="col-span-3"><label className="block text-xs font-bold text-gray-400 mb-1">件數</label><input type="number" value={p.quantity} onChange={e => handleProductChange(idx, 'quantity', e.target.value)} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded px-3 py-2 text-sm font-bold text-right outline-none text-blue-600" /></div>
+                                                                <div className="col-span-3"><label className="block text-xs font-bold text-gray-400 mb-1">重量</label><input type="number" step="0.01" value={p.weight} onChange={e => handleProductChange(idx, 'weight', e.target.value)} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded px-3 py-2 text-sm font-bold text-right outline-none text-orange-500" /></div>
                                                             </div>
                                                             <div className="grid grid-cols-2 gap-2">
-                                                                <input placeholder="批號" value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} disabled={isWarehouse() && !canEdit()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none" />
-                                                                <input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} disabled={isWarehouse() && !canEdit()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none" />
+                                                                <input placeholder="批號" value={p.batchNumber} onChange={e => handleProductChange(idx, 'batchNumber', e.target.value)} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none" />
+                                                                <input type="date" value={p.expiryDate} onChange={e => handleProductChange(idx, 'expiryDate', e.target.value)} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none" />
                                                             </div>
                                                             {canSeePrice() && (
                                                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t mt-2">
-                                                                    <div><label className="block text-xs font-bold text-gray-400 mb-1">單價</label><input type="number" step="0.01" value={p.unitPrice} onChange={e => handleProductChange(idx, 'unitPrice', e.target.value)} disabled={!canEditForeignFinance()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none text-right focus:ring-2 focus:ring-blue-500" /></div>
-                                                                    <div><label className="block text-xs font-bold text-gray-400 mb-1">金額</label><div className="w-full bg-gray-100 rounded px-3 py-2 text-sm text-right font-bold">{formData.currency === 'USD' ? 'US$' : 'NT$'}{(p.amount||0).toLocaleString()}</div></div>
+                                                                    <div><label className="block text-xs font-bold text-gray-400 mb-1">單價</label><input type="number" step="0.01" value={p.unitPrice} onChange={e => handleProductChange(idx, 'unitPrice', e.target.value)} disabled={!canEditForeignFinance()} className="w-full input-bg-style rounded px-3 py-2 text-sm outline-none text-right" /></div>
+                                                                    <div><label className="block text-xs font-bold text-gray-400 mb-1">金額</label><div className="w-full bg-gray-100 rounded px-3 py-2 text-sm text-right font-bold">${(p.amount||0).toLocaleString()}</div></div>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        {!isWarehouse() && <div className="absolute top-2 right-2 flex gap-2"><button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5"><Icons.X /></button>}</div>}
+                                                        {!canEditWarehouseFields() && <div className="absolute top-2 right-2 flex gap-2"><button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5"><Icons.X /></button>}</div>}
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div className="text-right mt-4 pt-3 border-t-2 border-gray-200 grid gap-2" style={{gridTemplateColumns: canSeePrice() ? '1fr 1fr 1fr' : '1fr 1fr'}}>
+                                            
+                                            <div className="mt-4 pt-3 border-t-2 border-gray-200 grid gap-2" style={{gridTemplateColumns: canSeePrice() ? '1fr 1fr 1fr' : '1fr 1fr'}}>
                                                 <div className="text-center">
-                                                    <div className="text-xs text-gray-400 font-bold">總數量</div>
+                                                    <div className="text-[10px] text-gray-400 font-bold">總數量</div>
                                                     <div className="text-lg font-black text-blue-600">{(formData.totalQuantity || 0).toLocaleString()} <span className="text-xs">件</span></div>
                                                 </div>
                                                 <div className="text-center border-l border-gray-100">
-                                                    <div className="text-xs text-gray-400 font-bold">總重量</div>
+                                                    <div className="text-[10px] text-gray-400 font-bold">總重量</div>
                                                     <div className="text-lg font-black text-orange-500">{(formData.totalWeight || 0).toLocaleString()} <span className="text-xs">kg</span></div>
                                                 </div>
                                                 {canSeePrice() && (
                                                     <div className="text-center border-l border-gray-100">
-                                                        <div className="text-xs text-gray-400 font-bold">總金額 ({formData.currency})</div>
+                                                        <div className="text-[10px] text-gray-400 font-bold">總金額 ({formData.currency})</div>
                                                         <div className="text-lg font-black text-emerald-600">{formData.currency === 'USD' ? 'US$' : 'NT$'}{(formData.products.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)).toLocaleString()}</div>
                                                     </div>
                                                 )}
