@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v18.0 終極安全版)</title>
+    <title>貨櫃管理系統 (v18.1 最終穩定版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -95,7 +95,7 @@
             storage = firebase.storage();
         } catch (ex) { console.error("Firebase Init Error:", ex); }
 
-        // --- 3. 圖示元件 ---
+        // --- 3. 圖示元件 (Icons) ---
         const Icons = {
             Ship: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
             Anchor: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
@@ -187,7 +187,6 @@
                 const items = filteredList.reduce((sum, s) => sum + (Number(s.totalQuantity) || 0), 0);
                 const w = filteredList.reduce((sum, s) => sum + (Number(s.totalWeight) || 0), 0);
                 
-                // Dashboard 不計入 ManagerFee
                 const moneyUSD = filteredList.reduce((sum, s) => s.currency === 'USD' ? sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)) : sum, 0);
                 const moneyTWD = filteredList.reduce((sum, s) => s.currency === 'TWD' ? sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)) : sum, 0);
                 
@@ -340,9 +339,7 @@
             
             const isWarehouse = () => userRole === 'WAREHOUSE';
             const isDomestic = (data) => data.customsBroker === DOMESTIC_FLAG;
-            
-            // Manager Fee Control (專屬管理層)
-            const canEditManagerFee = () => userRole === 'MANAGER'; 
+            const canEditFlightFee = () => userRole === 'MANAGER'; // V18.0: 機票費專屬權限
 
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
@@ -366,8 +363,8 @@
                 currency: 'USD',
                 paymentTerm: '到港前付款',
                 prepayment: 0,
-                managerFee: 0,        // V18.0 新增
-                managerFeePaid: false // V18.0 新增
+                flightFee: 0,         // V18.1: 機票費
+                flightFeePaid: false // V18.1: 機票費狀態
             };
             const [formData, setFormData] = useState(initialFormState);
 
@@ -489,8 +486,8 @@
                     currency: item.currency || (item.customsBroker === DOMESTIC_FLAG ? 'TWD' : 'USD'),
                     paymentTerm: item.paymentTerm || (item.customsBroker === DOMESTIC_FLAG ? PAYMENT_TERMS_DOMESTIC[0] : '到港前付款'),
                     prepayment: item.prepayment || 0,
-                    managerFee: item.managerFee || 0, // V18.0
-                    managerFeePaid: item.managerFeePaid || false // V18.0
+                    flightFee: item.flightFee || 0,
+                    managerFeePaid: item.managerFeePaid || false
                 }); 
                 setEditingId(item.id);
                 setView('form'); 
@@ -502,7 +499,7 @@
                 const {id, ...d} = s; 
                 const merged = { ...initialFormState, ...d };
                 const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()})); 
-                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, managerFee: 0, managerFeePaid: false}); 
+                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, flightFee: 0, managerFeePaid: false}); 
                 setEditingId(null); setView('form'); window.scrollTo(0,0); 
             };
 
@@ -514,12 +511,12 @@
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert("權限不足"); 
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,管理層費用,管理層費用已付"; // V18.0
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,机票費,机票費已付";
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
 
                 const rows = filteredShipments.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.managerFee || 0, s.managerFeePaid ? '已付' : '未付']; // V18.0
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付'];
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
                 })).join("\n");
@@ -640,6 +637,7 @@
                                 <th className="text-right">總數 (件)</th>
                                 <th className="text-right">總重 (kg)</th>
                                 {canSeePrice() && <th className="text-right">總金額</th>}
+                                {canManage() && <th className="text-right">機票費</th>}
                                 <th className="text-center">匯款狀態</th>
                             </tr>
                         </thead>
@@ -657,6 +655,7 @@
                                         <td className="text-right text-blue-600 font-bold">{(item.totalQuantity||0).toLocaleString()}</td>
                                         <td className="text-right text-orange-500 font-bold">{(item.totalWeight||0).toLocaleString()}</td>
                                         {canSeePrice() && <td className="text-right text-emerald-600 font-bold whitespace-nowrap">{curr} {totalAmt.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})}</td>}
+                                        {canManage() && <td className={`text-right font-bold whitespace-nowrap ${item.flightFeePaid ? 'text-purple-600' : 'text-red-600'}`}>{item.flightFee || 0} USD</td>}
                                         <td className="text-center">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${item.isPaid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                 {item.isPaid ? '已匯' : '未匯'}
@@ -731,11 +730,10 @@
                                     </span>
                                     
                                     {canSeePrice() && item.prepayment > 0 && <span className="tag-badge bg-yellow-100 text-yellow-700">預付 {item.prepayment.toLocaleString()} {item.currency === 'USD' ? 'USD' : 'TWD'}</span>}
-                                    
-                                    {/* V18.0: 管理層費用標籤 */}
-                                    {canManage() && item.managerFee > 0 && (
-                                        <span className={`tag-badge border ${item.managerFeePaid ? 'bg-purple-100 text-purple-700' : 'bg-red-200 text-red-700'}`}>
-                                            機密費用: {item.managerFeePaid ? '已結清' : '待付款'}
+
+                                    {canManage() && item.flightFee > 0 && (
+                                        <span className={`tag-badge border ${item.flightFeePaid ? 'bg-purple-100 text-purple-700' : 'bg-red-200 text-red-700'}`}>
+                                            機票費: {item.flightFeePaid ? '已結清' : '待付款'}
                                         </span>
                                     )}
 
@@ -913,7 +911,7 @@
                                         else if (tab === 'DEVANED') list = devannedForeign;
                                         else list = notDevannedForeign;
                                         
-                                        const un = list.filter(i => !i.warehouseConfirmed).length;
+                                        const un = list.filter(i => !list.warehouseConfirmed).length;
                                         const tabName = tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : '國內採購';
                                         
                                         return (
@@ -1029,16 +1027,16 @@
                                             {/* V18.0: 管理層費用區塊 */}
                                             {canManage() && (
                                             <div className="pt-3 border-t border-gray-100">
-                                                <h3 className="font-bold text-lg text-red-600 mb-3">💰 機密費用 (MANAGER ONLY)</h3>
+                                                <h3 className="font-bold text-lg text-red-600 mb-3">✈️ 機票費 (MANAGER ONLY)</h3>
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
-                                                        <label className="block text-sm font-bold text-gray-400 mb-1">機密費用金額 (USD)</label>
-                                                        <input type="number" name="managerFee" step="0.01" value={formData.managerFee} onChange={handleInputChange} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500" placeholder="0.00" />
+                                                        <label className="block text-sm font-bold text-gray-400 mb-1">機票費用 (USD)</label>
+                                                        <input type="number" name="flightFee" step="0.01" value={formData.flightFee} onChange={handleInputChange} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500" placeholder="0.00" />
                                                     </div>
                                                     <div className="flex items-end pb-1">
                                                         <div className="flex items-center gap-2">
-                                                            <input type="checkbox" name="managerFeePaid" checked={formData.managerFeePaid || false} onChange={handleInputChange} id="managerFeePaid" className="custom-checkbox" />
-                                                            <label htmlFor="managerFeePaid" className="text-sm font-bold text-red-600 cursor-pointer select-none">已結清</label>
+                                                            <input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid || false} onChange={handleInputChange} id="flightFeePaid" className="custom-checkbox" />
+                                                            <label htmlFor="flightFeePaid" className="text-sm font-bold text-red-600 cursor-pointer select-none">已結清</label>
                                                         </div>
                                                     </div>
                                                 </div>
