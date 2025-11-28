@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v17.1 終極穩定版)</title>
+    <title>貨櫃管理系統 (v18.0 終極安全版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -187,6 +187,7 @@
                 const items = filteredList.reduce((sum, s) => sum + (Number(s.totalQuantity) || 0), 0);
                 const w = filteredList.reduce((sum, s) => sum + (Number(s.totalWeight) || 0), 0);
                 
+                // Dashboard 不計入 ManagerFee
                 const moneyUSD = filteredList.reduce((sum, s) => s.currency === 'USD' ? sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)) : sum, 0);
                 const moneyTWD = filteredList.reduce((sum, s) => s.currency === 'TWD' ? sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)) : sum, 0);
                 
@@ -339,6 +340,9 @@
             
             const isWarehouse = () => userRole === 'WAREHOUSE';
             const isDomestic = (data) => data.customsBroker === DOMESTIC_FLAG;
+            
+            // Manager Fee Control (專屬管理層)
+            const canEditManagerFee = () => userRole === 'MANAGER'; 
 
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
@@ -361,7 +365,9 @@
                 isPaid: false,
                 currency: 'USD',
                 paymentTerm: '到港前付款',
-                prepayment: 0
+                prepayment: 0,
+                managerFee: 0,        // V18.0 新增
+                managerFeePaid: false // V18.0 新增
             };
             const [formData, setFormData] = useState(initialFormState);
 
@@ -482,7 +488,9 @@
                     attachments: atts,
                     currency: item.currency || (item.customsBroker === DOMESTIC_FLAG ? 'TWD' : 'USD'),
                     paymentTerm: item.paymentTerm || (item.customsBroker === DOMESTIC_FLAG ? PAYMENT_TERMS_DOMESTIC[0] : '到港前付款'),
-                    prepayment: item.prepayment || 0
+                    prepayment: item.prepayment || 0,
+                    managerFee: item.managerFee || 0, // V18.0
+                    managerFeePaid: item.managerFeePaid || false // V18.0
                 }); 
                 setEditingId(item.id);
                 setView('form'); 
@@ -494,7 +502,7 @@
                 const {id, ...d} = s; 
                 const merged = { ...initialFormState, ...d };
                 const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()})); 
-                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0}); 
+                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, managerFee: 0, managerFeePaid: false}); 
                 setEditingId(null); setView('form'); window.scrollTo(0,0); 
             };
 
@@ -506,12 +514,12 @@
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert("權限不足"); 
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款";
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,管理層費用,管理層費用已付"; // V18.0
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
 
                 const rows = filteredShipments.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0];
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.managerFee || 0, s.managerFeePaid ? '已付' : '未付']; // V18.0
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
                 })).join("\n");
@@ -544,8 +552,8 @@
                 window.open("https://line.me/R/msg/text/?" + encodeURIComponent(text), '_blank');
             };
 
-            const handleWarehouseConfirm = async (e, item) => {
-                e.stopPropagation(); 
+            const handleWarehouseConfirm = async (evt, item) => {
+                evt.stopPropagation(); 
                 if (!canEditWarehouseFields()) return alert("權限不足"); 
                 try {
                     await db.collection('shipments').doc(item.id).update({ warehouseConfirmed: !item.warehouseConfirmed });
@@ -723,6 +731,13 @@
                                     </span>
                                     
                                     {canSeePrice() && item.prepayment > 0 && <span className="tag-badge bg-yellow-100 text-yellow-700">預付 {item.prepayment.toLocaleString()} {item.currency === 'USD' ? 'USD' : 'TWD'}</span>}
+                                    
+                                    {/* V18.0: 管理層費用標籤 */}
+                                    {canManage() && item.managerFee > 0 && (
+                                        <span className={`tag-badge border ${item.managerFeePaid ? 'bg-purple-100 text-purple-700' : 'bg-red-200 text-red-700'}`}>
+                                            機密費用: {item.managerFeePaid ? '已結清' : '待付款'}
+                                        </span>
+                                    )}
 
                                     {isDomestic(item) ? (
                                         <>
@@ -939,7 +954,7 @@
                         </div>
 
                         <main className="max-w-3xl mx-auto px-4 mt-4">
-                            {view === 'list' && (
+                            {view === 'list' ? (
                                 <div className="space-y-4">
                                     <div className="grid gap-4">
                                         {displayMode === 'card' ? (
@@ -952,9 +967,7 @@
                                         )}
                                     </div>
                                 </div>
-                            )}
-                            {view === 'stats' && <Dashboard shipments={shipments} canSeePrice={canSeePrice()} />}
-                            {view === 'form' && (
+                            ) : view === 'stats' ? <Dashboard shipments={shipments} canSeePrice={canSeePrice()} /> : (
                                 <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
                                     <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg text-gray-900">{editingId?'編輯':'新增'}貨櫃</h2><button onClick={()=>setView('list')} className="text-gray-400"><div className="w-6"><Icons.X /></div></button></div>
                                     <form onSubmit={handleSubmit} className="space-y-5">
@@ -1013,6 +1026,25 @@
                                                 )}
                                             </div>
 
+                                            {/* V18.0: 管理層費用區塊 */}
+                                            {canManage() && (
+                                            <div className="pt-3 border-t border-gray-100">
+                                                <h3 className="font-bold text-lg text-red-600 mb-3">💰 機密費用 (MANAGER ONLY)</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-sm font-bold text-gray-400 mb-1">機密費用金額 (USD)</label>
+                                                        <input type="number" name="managerFee" step="0.01" value={formData.managerFee} onChange={handleInputChange} className="w-full input-bg-style rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500" placeholder="0.00" />
+                                                    </div>
+                                                    <div className="flex items-end pb-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <input type="checkbox" name="managerFeePaid" checked={formData.managerFeePaid || false} onChange={handleInputChange} id="managerFeePaid" className="custom-checkbox" />
+                                                            <label htmlFor="managerFeePaid" className="text-sm font-bold text-red-600 cursor-pointer select-none">已結清</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            )}
+
                                             <div>
                                                 <label className="block text-sm font-bold text-gray-400 mb-1">附件 (多檔)</label>
                                                 <div className="relative w-full input-bg-style rounded-lg px-3 py-2.5 flex items-center justify-between hover:bg-gray-300 transition">
@@ -1034,7 +1066,7 @@
                                         </div>
 
                                         <div className="pt-3 border-t border-gray-100">
-                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-900 text-base">產品明細</h3>{!canEditDomesticFull() && <button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button>}</div>
+                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-900">產品明細</h3>{!canEditDomesticFull() && <button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button>}</div>
                                             <div className="space-y-4">
                                                 {formData.products.map((p, idx) => (
                                                     <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
