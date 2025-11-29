@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v22.3 財務極簡版)</title>
+    <title>貨櫃管理系統 (v24.1 終極成功版)</title>
     
     <script>
         // 1. 系統錯誤攔截
@@ -11,7 +11,7 @@
             if (msg && msg.toLowerCase().indexOf("script error") > -1) return false;
             var div = document.createElement("div");
             div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
-            div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;margin-bottom:10px">⚠️ 系統發生錯誤</h2><p style="color:#666">請截圖此畫面：Line ${line}</p><pre style="background:#f3f4f6;padding:10px;margin-top:10px;border:1px solid #ddd;font-size:11px;text-align:left">${msg}</pre><button onclick="window.location.reload()" style="margin-top:20px;padding:10px 20px;background:#2563eb;color:white;border:none;border-radius:5px;font-weight:bold">重新整理</button>`;
+            div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;margin-bottom:10px">⚠️ 系統發生錯誤</h2><p style="color:#666">請截圖此畫面：Line ${line}</p><pre style="background:#f3f4f6;padding:10px;margin-top:10px;border:1px solid #ddd;font-size:11px;text-align:left;max-width:90%;overflow:auto">${msg}</pre><button onclick="window.location.reload()" style="margin-top:20px;padding:10px 20px;background:#2563eb;color:white;border:none;border-radius:5px;font-weight:bold">重新整理</button>`;
             document.body.appendChild(div);
             return false;
         };
@@ -29,26 +29,27 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
     <style>
-        body { background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1f2937; }
+        body { background-color: #F3F4F6; font-family: system-ui, -apple-system, sans-serif; color: #1f2937; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-        .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; border: 1px solid #f3f4f6; }
+        .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; border: 1px solid #f3f4f6; transition: all 0.2s ease; }
+        .ios-card:active { transform: scale(0.99); }
         
-        /* 極簡表格樣式 */
         .reconcile-table { width: 100%; border-collapse: collapse; font-size: 12px; background: white; }
         .reconcile-table th { background: #f9fafb; color: #6b7280; font-weight: 600; padding: 8px 4px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
         .reconcile-table td { padding: 8px 4px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
         .reconcile-table tr:hover { background-color: #f9fafb; cursor: pointer; }
         
-        /* 金額狀態樣式 */
         .amt-paid { color: #111827; font-weight: 800; padding: 2px 4px; }
         .amt-unpaid { background-color: white; color: #dc2626; border: 1px solid #ef4444; border-radius: 4px; padding: 2px 6px; font-weight: 600; white-space: nowrap; display: inline-block; }
 
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
         .input-bg-style { background-color: #E5E7EB; border: 1px solid #D1D5DB; color: #1F2937; }
-        .input-bg-style:focus { background-color: white; }
+        .input-bg-style:focus { background-color: white; outline: 2px solid #3b82f6; }
         .product-grid-cols { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
+        .bell-shake { animation: shake 0.5s ease-in-out infinite; }
+        @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
     </style>
 </head>
 <body>
@@ -61,7 +62,7 @@
             static getDerivedStateFromError(error) { return { hasError: true, error }; }
             componentDidCatch(error, errorInfo) { console.error("React Error:", error, errorInfo); }
             render() {
-                if (this.state.hasError) return <div className="p-8 text-center"><h1 className="text-xl font-bold text-red-600">⚠️ 應用程式錯誤</h1><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">重整</button></div>;
+                if (this.state.hasError) return <div className="p-8 text-center"><h1 className="text-xl font-bold text-red-600">⚠️ 應用程式錯誤</h1><p className="text-sm text-gray-500 mt-2">{this.state.error && this.state.error.toString()}</p><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">重整</button></div>;
                 return this.props.children;
             }
         }
@@ -92,16 +93,15 @@
         } catch (ex) { console.error("Firebase Init Error:", ex); }
 
         const { useState, useEffect, useMemo } = React;
-        const Recharts = window.Recharts || {};
-        const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = Recharts;
-        const hasRecharts = !!window.Recharts;
 
         // --- 2. 輔助函式 ---
         const parseDate = (dateStr) => {
-            if (!dateStr) return new Date(0);
-            const parts = dateStr.split('-');
-            if (parts.length !== 3) return new Date(0);
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); 
+            if (!dateStr || typeof dateStr !== 'string') return new Date(0);
+            try {
+                const parts = dateStr.split('-');
+                if (parts.length !== 3) return new Date(0);
+                return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); 
+            } catch (e) { return new Date(0); }
         };
         
         const getStatusStyle = (date) => { 
@@ -119,7 +119,7 @@
         const isDomestic = (data) => data && data.customsBroker === DOMESTIC_FLAG;
         const isForeign = (data) => !isDomestic(data);
 
-        // V19.0: 列表過濾 (全域)
+        // V24.0: 列表過濾 (全域)
         const getFilteredAndSortedList = (shipments, filterFn, currentTab, todayStr, searchTerm) => {
             const t = (searchTerm || '').toLowerCase();
             let filteredBySearch = shipments.filter(s => (
@@ -170,10 +170,32 @@
             Grid: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         };
 
-        // 5. Dashboard
-        const Dashboard = ({ shipments, canSeePrice }) => {
-            if (!hasRecharts) return <div className="p-8 text-center text-gray-400">圖表載入中...</div>;
+        // --- 4. 安全圖表元件 (防止白屏關鍵) ---
+        const SafeChart = ({ data }) => {
+            // 檢查 window.Recharts 是否存在，若無則不渲染圖表部分，避免崩潰
+            if (!window.Recharts) return <div className="h-64 flex items-center justify-center text-gray-400 text-sm">圖表載入中或不可用...</div>;
             
+            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = window.Recharts;
+            return (
+                <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" tick={{fontSize: 10}} />
+                            <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
+                            <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
+                            <Tooltip />
+                            <Legend />
+                            <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4, 4, 0, 0]} />
+                            <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            );
+        };
+
+        // 5. Dashboard (Safe)
+        const Dashboard = ({ shipments, canSeePrice }) => {
             const [tf, setTf] = useState('YEAR');
             const [search, setSearch] = useState('');
             
@@ -189,17 +211,19 @@
                     );
                 }
 
-                if (tf === 'MONTH') {
-                    filteredList = filteredList.filter(s => {
-                        const d = parseDate(s.arrivalDate);
-                        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                    });
-                } else if (tf === 'YEAR') {
-                    filteredList = filteredList.filter(s => {
-                        const d = parseDate(s.arrivalDate);
-                        return d.getFullYear() === now.getFullYear();
-                    });
-                }
+                try {
+                    if (tf === 'MONTH') {
+                        filteredList = filteredList.filter(s => {
+                            const d = parseDate(s.arrivalDate);
+                            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                        });
+                    } else if (tf === 'YEAR') {
+                        filteredList = filteredList.filter(s => {
+                            const d = parseDate(s.arrivalDate);
+                            return d.getFullYear() === now.getFullYear();
+                        });
+                    }
+                } catch (e) { console.warn("Date filter error", e); }
 
                 const count = filteredList.length;
                 const items = filteredList.reduce((sum, s) => sum + (Number(s.totalQuantity) || 0), 0);
@@ -212,20 +236,20 @@
                 filteredList.forEach(s => { const n = s.supplier || '未填'; supps[n] = (supps[n] || 0) + 1; });
                 const top = Object.entries(supps).sort((a, b) => b[1] - a[1]).slice(0, 5);
                 
-                const chartDataMap = {};
+                const chartMap = {};
                 filteredList.forEach(s => {
                     if(!s.arrivalDate) return;
                     const d = parseDate(s.arrivalDate);
-                    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-                    if (!chartDataMap[key]) chartDataMap[key] = { name: key, TWD: 0, USD: 0 };
+                    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                    if (!chartMap[k]) chartMap[k] = { name: k, TWD: 0, USD: 0 };
                     
                     const amt = (s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0);
-                    if(s.currency === 'USD') chartDataMap[key].USD += amt;
-                    else chartDataMap[key].TWD += amt;
+                    if(s.currency === 'USD') chartMap[k].USD += amt;
+                    else chartMap[k].TWD += amt;
                 });
                 
-                const chartData = Object.values(chartDataMap).sort((a,b) => a.name.localeCompare(b.name)).slice(-6);
-                const maxVal = (top.length > 0 && top[0][1] > 0) ? top[0][1] : 1; 
+                const chartData = Object.values(chartMap).sort((a,b) => a.name.localeCompare(b.name)).slice(-6);
+                const maxVal = (top.length > 0 && top[0][1] > 0) ? top[0][1] : 1;
 
                 return { count, items, w, moneyUSD, moneyTWD, top, chartData, maxVal };
             }, [shipments, tf, search]);
@@ -255,24 +279,7 @@
                      {canSeePrice() && (
                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-sm font-bold text-gray-800 mb-4">📈 月度採購金額趨勢</h3>
-                        <div className="h-64 w-full">
-                            {window.Recharts ? (
-                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats.chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" tick={{fontSize: 10}} />
-                                    <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
-                                    <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4, 4, 0, 0]} />
-                                    <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                            ) : (
-                                <div className="text-center py-10 text-gray-400 text-sm">無法載入圖表庫</div>
-                            )}
-                        </div>
+                        <SafeChart data={stats.chartData} />
                      </div>
                      )}
 
@@ -303,7 +310,7 @@
             }, []);
 
             useEffect(() => {
-                if (!user || !db) return;
+                if (!user || !db || !db.collection) { setLoading(false); return; } 
                 
                 const unsubscribeDB = db.collection('shipments').onSnapshot(
                     (snapshot) => {
@@ -533,12 +540,12 @@
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert("權限不足"); 
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,机票費,机票費已付";
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付"; // V23.0 修改標題
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
 
                 const rows = filteredShipments.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付'];
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付']; // V23.0
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
                 })).join("\n");
@@ -592,7 +599,7 @@
             
             const urgentCount = urgentShipments.length;
 
-            // V22.2: 安全的列表過濾和排序邏輯 (提升到外部)
+            // V23.0 修正: 安全的列表過濾 (提升到外部)
             const getFilteredAndSortedList = (shipments, filterFn, currentTab, todayStr, searchTerm) => {
                 const t = (searchTerm || '').toLowerCase();
                 let filteredBySearch = shipments.filter(s => (
@@ -601,7 +608,7 @@
                     (s.shippingCompany || "").toLowerCase().includes(t) || 
                     (s.origin || "").toLowerCase().includes(t) || 
                     (s.devanningLocation || "").toLowerCase().includes(t) || 
-                    (s.products || []).some(p => (p.name || "").toLowerCase().includes(t) || (p.spec || "").toLowerCase().includes(t) || (p.batchNumber || "").toLowerCase().includes(t))
+                    (s.products || []).some(p => (p.name || "").toLowerCase().includes(t))
                 ));
                 
                 let list = filterFn ? filteredBySearch.filter(filterFn) : filteredBySearch;
@@ -615,7 +622,7 @@
                 return list;
             };
             
-            // 確保 filteredShipments 始終存在，避免 undefined 錯誤
+            // 確保 filteredShipments 始終存在
             const filteredShipments = useMemo(() => {
                 const t = searchTerm.toLowerCase(); 
                 return shipments.filter(s => (
@@ -667,7 +674,7 @@
 
             const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
             
-            // V22.3: 極簡表格模式 (8欄，整合狀態)
+            // V23.0: 極簡表格模式 (8欄，整合狀態，旅費)
             const renderTableView = () => (
                 <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                     <table className="reconcile-table">
@@ -680,7 +687,7 @@
                                 <th className="text-right">總數</th>
                                 <th className="text-right">總重</th>
                                 {canSeePrice() && <th className="text-right">貨款金額</th>}
-                                {canEditFlightFee() && <th className="text-right">機票費</th>}
+                                {canEditFlightFee() && <th className="text-right">旅費</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -708,7 +715,7 @@
                                             </td>
                                         )}
                                         
-                                        {/* 機票費 + 狀態融合 */}
+                                        {/* 旅費 + 狀態融合 */}
                                         {canEditFlightFee() && (
                                             <td className="text-right whitespace-nowrap">
                                                 {showFlightFee ? (
@@ -726,6 +733,7 @@
                 </div>
             );
 
+            // V23.0: 卡片產品佈局優化 (修正：加入複製按鈕)
             const renderShipmentCard = (item) => {
                 const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
                 const mainDate = item.arrivalDate ? new Date(item.arrivalDate) : null; 
@@ -790,7 +798,7 @@
                                     
                                     {canSeePrice() && (
                                         <span className={`tag-badge ${flightPaidStyle}`}>
-                                            機票: {item.flightFeePaid ? '已付' : '未付'}
+                                            旅費: {item.flightFeePaid ? '已付' : '未付'}
                                         </span>
                                     )}
 
@@ -813,23 +821,34 @@
                         <div className="p-4">
                             <div className="space-y-3">
                                 {(item.products || []).map((p, idx) => (
-                                    <div key={idx} className="flex justify-between items-start pb-2 border-b border-gray-50 last:border-0 last:pb-0">
-                                        <div className="flex-1 mr-2">
-                                            <div className="flex items-baseline gap-2 flex-wrap">
-                                                <span className="text-sm font-bold text-slate-800 leading-tight break-words">{p.name}</span>
-                                                {p.spec && (<span className="text-sm text-slate-500 font-medium"> {p.spec}</span>)}
-                                            </div>
-                                            <div className="flex gap-2 mt-1">
-                                                {p.batchNumber && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">批:{p.batchNumber}</span>}
-                                                {p.expiryDate && <span className="text-xs font-mono bg-gray-100 px-1.5 rounded text-gray-600 font-medium">效:{p.expiryDate}</span>}
-                                            </div>
-                                            <div className="mt-1 text-xs text-gray-400">
+                                    <div key={idx} className="flex flex-col border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                                        {/* V23.0: 行1 - 品名 + 規格 + 財務/重量資訊 */}
+                                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                            <span className="font-bold text-gray-900 text-base">{p.name}</span>
+                                            {p.spec && <span className="text-sm text-gray-500 font-medium">{p.spec}</span>}
+                                            <div className="flex items-center gap-2 text-xs ml-auto sm:ml-0">
                                                 {p.pricingMode === 'weight' ? <span className="text-orange-500 font-bold">[重]</span> : <span className="text-blue-500 font-bold">[數]</span>}
-                                                {p.weight > 0 && <span className="ml-1">重:{p.weight}kg</span>}
-                                                {canSeePrice() && <span className="ml-2">單價:{currSymbol}{(p.unitPrice||0).toLocaleString()} / 金額:{currSymbol}{(p.amount||0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})}</span>}
+                                                <span className="text-gray-600 font-mono">{p.quantity.toLocaleString()}件</span>
+                                                <span className="text-gray-400">/</span>
+                                                <span className="text-gray-600 font-mono">{p.weight}kg</span>
+                                                {canSeePrice() && (
+                                                    <>
+                                                        <span className="text-gray-400">/</span>
+                                                        <span className="text-gray-600 font-mono">${p.unitPrice}</span>
+                                                        <span className="text-gray-400">/</span>
+                                                        <span className="text-emerald-600 font-bold font-mono">${p.amount.toLocaleString()}</span>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="text-right font-mono font-bold text-base text-gray-700">{p.quantity && p.quantity.toLocaleString()} 件</div>
+                                        
+                                        {/* V23.0: 行2 - 批號 + 效期 */}
+                                        {(p.batchNumber || p.expiryDate) && (
+                                            <div className="flex gap-3 mt-1 text-xs text-gray-400 font-mono">
+                                                {p.batchNumber && <span className="bg-gray-100 px-1.5 rounded">批:{p.batchNumber}</span>}
+                                                {p.expiryDate && <span className="bg-gray-100 px-1.5 rounded">效:{p.expiryDate}</span>}
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -884,7 +903,7 @@
                     {/* Desktop Sidebar */}
                     <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full z-20 left-0 top-0">
                         <div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800">
-                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v22.3</span>
+                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v24.1</span>
                         </div>
                         <nav className="flex-1 px-4 space-y-2">
                             <button onClick={() => setView('list')} className={`sidebar-link w-full ${view === 'list' ? 'active' : ''}`}>
@@ -918,7 +937,7 @@
                                     <div className="max-h-[60vh] overflow-y-auto p-2">
                                         {urgentShipments.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">無急件</div> : urgentShipments.map(s => (
                                             <div key={s.id} className="p-3 mb-2 bg-white rounded-xl border border-gray-100 shadow-sm">
-                                                <div className="flex justify-between mb-1"><span className="font-bold text-blue-600">{s.containerNumber}</span><span className="text-xs font-bold text-red-500">{Math.ceil((new Date(s.arrivalDate)-new Date().setHours(0,0,0,0))/86400000)}天後</span></div>
+                                                <div className="flex justify-between mb-1"><span className="font-bold text-blue-600">{s.containerNumber}</span><span className="text-xs font-bold text-red-500">{Math.ceil(((parseDate(s.arrivalDate) - new Date())/86400000))}天後</span></div>
                                                 <div className="text-xs text-gray-500 mb-3">{s.importCompany} / {s.supplier}</div>
                                                 <button onClick={() => handleShareToLine(s)} className="w-full py-2 bg-[#06C755] text-white rounded-lg text-xs font-bold ios-btn"><Icons.MessageCircle /> 通知 LINE 群組</button>
                                             </div>
@@ -951,7 +970,7 @@
                                             <button key="UNPAID" onClick={() => setCurrentTab('UNPAID')} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'UNPAID' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
                                                 <div className="flex items-center justify-center gap-1">
                                                     <span>待付款</span>
-                                                    {unpaidList.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${currentTab === 'UNPAID' ? 'bg-yellow-200 text-red-500' : 'bg-red-500 text-white'}`}>({unpaidList.length})</span>}
+                                                    {unpaidList.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${currentTab === 'UNPAID' ? 'bg-white/30 text-red-500' : 'bg-red-500 text-white'}`}>({unpaidList.length})</span>}
                                                 </div>
                                             </button>
                                             )}
@@ -968,7 +987,7 @@
                                                     <button key={tab} onClick={() => setCurrentTab(tab)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === tab ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
                                                         <div className="flex items-center justify-center gap-1">
                                                             <span>{tabName}</span>
-                                                            {un > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${currentTab === tab ? 'bg-yellow-200 text-red-500' : 'bg-red-500 text-white'}`}>({un})</span>}
+                                                            {un > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${currentTab === tab ? 'bg-white/30 text-red-500' : 'bg-red-500 text-white'}`}>({un})</span>}
                                                         </div>
                                                     </button>
                                                 );
@@ -1074,7 +1093,7 @@
 
                                             {canEditFlightFee() && isForeign(formData) && (
                                             <div className="pt-3 border-t border-gray-100">
-                                                <h3 className="font-bold text-lg text-red-600 mb-3">✈️ 機票費</h3>
+                                                <h3 className="font-bold text-lg text-red-600 mb-3">✈️ 旅費 (TWD)</h3>
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
                                                         <label className="block text-sm font-bold text-gray-400 mb-1">費用金額 (TWD)</label>
@@ -1111,7 +1130,7 @@
                                         </div>
 
                                         <div className="pt-3 border-t border-gray-100">
-                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-900">產品明細</h3>{!canEditDomesticFull() && <button type="button" onClick={addProductRow} className="text-blue-600 text-sm font-bold">+ 新增</button>}</div>
+                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-900">產品明細</h3><button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm">+ 新增產品</button></div>
                                             <div className="space-y-4">
                                                 {formData.products.map((p, idx) => (
                                                     <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
@@ -1143,7 +1162,13 @@
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        {!canEditDomesticFull() && <div className="absolute top-2 right-2 flex gap-2"><button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5"><Icons.X /></button>}</div>}
+                                                        {/* 產品行操作按鈕：複製與刪除 */}
+                                                        {!canEditDomesticFull() && (
+                                                            <div className="absolute top-2 right-2 flex gap-2">
+                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5 hover:text-blue-500" title="複製"><Icons.Copy /></button>
+                                                                {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5 hover:text-red-500" title="刪除"><Icons.Trash2 /></button>}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
