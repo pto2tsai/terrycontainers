@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v24.1 終極成功版)</title>
+    <title>貨櫃管理系統 (v25.0 旅費與UI完美版)</title>
     
     <script>
-        // 1. 系統錯誤攔截
         window.onerror = function(msg, url, line, col, error) {
             if (msg && msg.toLowerCase().indexOf("script error") > -1) return false;
             var div = document.createElement("div");
-            div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
-            div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;margin-bottom:10px">⚠️ 系統發生錯誤</h2><p style="color:#666">請截圖此畫面：Line ${line}</p><pre style="background:#f3f4f6;padding:10px;margin-top:10px;border:1px solid #ddd;font-size:11px;text-align:left;max-width:90%;overflow:auto">${msg}</pre><button onclick="window.location.reload()" style="margin-top:20px;padding:10px 20px;background:#2563eb;color:white;border:none;border-radius:5px;font-weight:bold">重新整理</button>`;
+            div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.98); color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
+            div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統發生錯誤</h2><p style="color:#666">請截圖此畫面：Line ${line}</p><pre style="background:#f3f4f6;padding:15px;margin-top:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto">${msg}</pre><button onclick="window.location.reload()" style="margin-top:20px;padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;box-shadow:0 4px 6px rgba(37,99,235,0.2)">重新整理</button>`;
             document.body.appendChild(div);
             return false;
         };
@@ -29,25 +28,29 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
     <style>
-        body { background-color: #F3F4F6; font-family: system-ui, -apple-system, sans-serif; color: #1f2937; }
+        body { background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1f2937; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-        .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; border: 1px solid #f3f4f6; transition: all 0.2s ease; }
-        .ios-card:active { transform: scale(0.99); }
         
+        .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 16px; border: 1px solid #e5e7eb; transition: transform 0.1s; }
+        .ios-card:active { transform: scale(0.995); }
+        
+        /* 財務表格樣式 */
         .reconcile-table { width: 100%; border-collapse: collapse; font-size: 12px; background: white; }
-        .reconcile-table th { background: #f9fafb; color: #6b7280; font-weight: 600; padding: 8px 4px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
-        .reconcile-table td { padding: 8px 4px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
+        .reconcile-table th { background: #f9fafb; color: #6b7280; font-weight: 600; padding: 10px 6px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+        .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
         .reconcile-table tr:hover { background-color: #f9fafb; cursor: pointer; }
         
-        .amt-paid { color: #111827; font-weight: 800; padding: 2px 4px; }
-        .amt-unpaid { background-color: white; color: #dc2626; border: 1px solid #ef4444; border-radius: 4px; padding: 2px 6px; font-weight: 600; white-space: nowrap; display: inline-block; }
+        /* 金額狀態樣式 (V23.0) */
+        .amt-paid { color: #111827; font-weight: 800; font-family: monospace; font-size: 13px; } /* 純黑粗體 */
+        .amt-unpaid { background-color: white; color: #dc2626; border: 1px solid #ef4444; border-radius: 4px; padding: 1px 6px; font-weight: 700; font-family: monospace; font-size: 13px; white-space: nowrap; display: inline-block; }
 
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
-        .input-bg-style { background-color: #E5E7EB; border: 1px solid #D1D5DB; color: #1F2937; }
-        .input-bg-style:focus { background-color: white; outline: 2px solid #3b82f6; }
+        .input-bg-style { background-color: #f3f4f6; border: 1px solid #d1d5db; color: #111827; transition: all 0.2s; }
+        .input-bg-style:focus { background-color: white; border-color: #3b82f6; outline: 2px solid #bfdbfe; }
         .product-grid-cols { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
+        
         .bell-shake { animation: shake 0.5s ease-in-out infinite; }
         @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
     </style>
@@ -62,7 +65,7 @@
             static getDerivedStateFromError(error) { return { hasError: true, error }; }
             componentDidCatch(error, errorInfo) { console.error("React Error:", error, errorInfo); }
             render() {
-                if (this.state.hasError) return <div className="p-8 text-center"><h1 className="text-xl font-bold text-red-600">⚠️ 應用程式錯誤</h1><p className="text-sm text-gray-500 mt-2">{this.state.error && this.state.error.toString()}</p><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">重整</button></div>;
+                if (this.state.hasError) return <div className="p-8 text-center"><h1 className="text-xl font-bold text-red-600">⚠️ 應用程式錯誤</h1><p className="text-sm text-gray-500 mt-2 mb-4">{this.state.error && this.state.error.toString()}</p><button onClick={()=>window.location.reload()} className="px-6 py-2 bg-blue-600 text-white rounded-full font-bold shadow-lg">重整頁面</button></div>;
                 return this.props.children;
             }
         }
@@ -94,7 +97,7 @@
 
         const { useState, useEffect, useMemo } = React;
 
-        // --- 2. 輔助函式 ---
+        // --- 2. 輔助函式 (Global Scope) ---
         const parseDate = (dateStr) => {
             if (!dateStr || typeof dateStr !== 'string') return new Date(0);
             try {
@@ -119,7 +122,7 @@
         const isDomestic = (data) => data && data.customsBroker === DOMESTIC_FLAG;
         const isForeign = (data) => !isDomestic(data);
 
-        // V24.0: 列表過濾 (全域)
+        // 列表過濾 (全域)
         const getFilteredAndSortedList = (shipments, filterFn, currentTab, todayStr, searchTerm) => {
             const t = (searchTerm || '').toLowerCase();
             let filteredBySearch = shipments.filter(s => (
@@ -170,34 +173,14 @@
             Grid: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         };
 
-        // --- 4. 安全圖表元件 (防止白屏關鍵) ---
-        const SafeChart = ({ data }) => {
-            // 檢查 window.Recharts 是否存在，若無則不渲染圖表部分，避免崩潰
-            if (!window.Recharts) return <div className="h-64 flex items-center justify-center text-gray-400 text-sm">圖表載入中或不可用...</div>;
-            
-            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = window.Recharts;
-            return (
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" tick={{fontSize: 10}} />
-                            <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
-                            <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
-                            <Tooltip />
-                            <Legend />
-                            <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4, 4, 0, 0]} />
-                            <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            );
-        };
-
-        // 5. Dashboard (Safe)
+        // 5. Dashboard (Safe Version)
         const Dashboard = ({ shipments, canSeePrice }) => {
             const [tf, setTf] = useState('YEAR');
             const [search, setSearch] = useState('');
+            
+            // V23.0 防白屏：確保 window.Recharts 存在，否則顯示替代文字
+            if (!window.Recharts) return <div className="p-8 text-center text-gray-400">圖表模組載入中...</div>;
+            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = window.Recharts;
             
             const stats = useMemo(() => {
                 const now = new Date();
@@ -240,12 +223,12 @@
                 filteredList.forEach(s => {
                     if(!s.arrivalDate) return;
                     const d = parseDate(s.arrivalDate);
-                    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-                    if (!chartMap[k]) chartMap[k] = { name: k, TWD: 0, USD: 0 };
+                    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                    if (!chartMap[key]) chartMap[key] = { name: key, TWD: 0, USD: 0 };
                     
                     const amt = (s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0);
-                    if(s.currency === 'USD') chartMap[k].USD += amt;
-                    else chartMap[k].TWD += amt;
+                    if(s.currency === 'USD') chartMap[key].USD += amt;
+                    else chartMap[key].TWD += amt;
                 });
                 
                 const chartData = Object.values(chartMap).sort((a,b) => a.name.localeCompare(b.name)).slice(-6);
@@ -279,7 +262,20 @@
                      {canSeePrice() && (
                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-sm font-bold text-gray-800 mb-4">📈 月度採購金額趨勢</h3>
-                        <SafeChart data={stats.chartData} />
+                        <div className="h-64 w-full">
+                             <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stats.chartData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" tick={{fontSize: 10}} />
+                                    <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
+                                    <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                    <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                      </div>
                      )}
 
@@ -310,7 +306,7 @@
             }, []);
 
             useEffect(() => {
-                if (!user || !db || !db.collection) { setLoading(false); return; } 
+                if (!user || !db) return;
                 
                 const unsubscribeDB = db.collection('shipments').onSnapshot(
                     (snapshot) => {
@@ -330,8 +326,8 @@
                     (doc) => {
                         if (doc.exists) {
                             const data = doc.data();
-                            if (data.user_roles && user && user.email) { 
-                                setUserRole(data.user_roles[user.email] || 'GUEST');
+                            if (data.user_roles && user && user.email) {
+                                setUserRole(data.user_roles[user.email]);
                             } else if (data.admin_emails && user && data.admin_emails.includes(user.email)) {
                                 setUserRole('MANAGER');
                             } else {
@@ -362,13 +358,11 @@
             const canDelete = () => ['MANAGER', 'PURCHASING'].includes(userRole); 
             const canUpload = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole); 
             const canSeePrice = () => ['MANAGER', 'PURCHASING', 'ACCOUNTING'].includes(userRole); 
-            
-            const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole); 
-            const canEditDomesticFull = () => ['MANAGER', 'PURCHASING'].includes(userRole); 
-            const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole); 
-            
-            const isWarehouse = () => userRole === 'WAREHOUSE';
             const canEditFlightFee = () => userRole === 'MANAGER' || userRole === 'ACCOUNTING';
+            const canEditDomesticFull = () => ['MANAGER', 'PURCHASING'].includes(userRole);
+            const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole);
+            const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole);
+            const isWarehouse = () => userRole === 'WAREHOUSE';
 
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
@@ -599,7 +593,7 @@
             
             const urgentCount = urgentShipments.length;
 
-            // V23.0 修正: 安全的列表過濾 (提升到外部)
+            // V23.0 修正: 安全的列表過濾和排序邏輯 (提升到外部)
             const getFilteredAndSortedList = (shipments, filterFn, currentTab, todayStr, searchTerm) => {
                 const t = (searchTerm || '').toLowerCase();
                 let filteredBySearch = shipments.filter(s => (
@@ -608,7 +602,7 @@
                     (s.shippingCompany || "").toLowerCase().includes(t) || 
                     (s.origin || "").toLowerCase().includes(t) || 
                     (s.devanningLocation || "").toLowerCase().includes(t) || 
-                    (s.products || []).some(p => (p.name || "").toLowerCase().includes(t))
+                    (s.products || []).some(p => (p.name || "").toLowerCase().includes(t) || (p.spec || "").toLowerCase().includes(t) || (p.batchNumber || "").toLowerCase().includes(t))
                 ));
                 
                 let list = filterFn ? filteredBySearch.filter(filterFn) : filteredBySearch;
@@ -622,7 +616,7 @@
                 return list;
             };
             
-            // 確保 filteredShipments 始終存在
+            // 確保 filteredShipments 始終存在，避免 undefined 錯誤
             const filteredShipments = useMemo(() => {
                 const t = searchTerm.toLowerCase(); 
                 return shipments.filter(s => (
@@ -840,6 +834,8 @@
                                                     </>
                                                 )}
                                             </div>
+                                            {/* 數量放到最後，大字 */}
+                                            <span className="ml-auto text-base font-bold text-blue-600">{p.quantity.toLocaleString()}</span>
                                         </div>
                                         
                                         {/* V23.0: 行2 - 批號 + 效期 */}
@@ -903,7 +899,7 @@
                     {/* Desktop Sidebar */}
                     <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full z-20 left-0 top-0">
                         <div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800">
-                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v24.1</span>
+                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v25.0</span>
                         </div>
                         <nav className="flex-1 px-4 space-y-2">
                             <button onClick={() => setView('list')} className={`sidebar-link w-full ${view === 'list' ? 'active' : ''}`}>
@@ -1162,11 +1158,10 @@
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        {/* 產品行操作按鈕：複製與刪除 */}
                                                         {!canEditDomesticFull() && (
                                                             <div className="absolute top-2 right-2 flex gap-2">
-                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5 hover:text-blue-500" title="複製"><Icons.Copy /></button>
-                                                                {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5 hover:text-red-500" title="刪除"><Icons.Trash2 /></button>}
+                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5 hover:text-blue-500"><Icons.Copy /></button>
+                                                                {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5 hover:text-red-500"><Icons.Trash2 /></button>}
                                                             </div>
                                                         )}
                                                     </div>
