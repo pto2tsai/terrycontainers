@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v25.0 旅費與UI完美版)</title>
+    <title>貨櫃管理系統 (v26.0 終極修復版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
             if (msg && msg.toLowerCase().indexOf("script error") > -1) return false;
-            var div = document.createElement("div");
-            div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.98); color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
-            div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統發生錯誤</h2><p style="color:#666">請截圖此畫面：Line ${line}</p><pre style="background:#f3f4f6;padding:15px;margin-top:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto">${msg}</pre><button onclick="window.location.reload()" style="margin-top:20px;padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;box-shadow:0 4px 6px rgba(37,99,235,0.2)">重新整理</button>`;
-            document.body.appendChild(div);
+            // 延遲顯示錯誤，避免 React 初始化時的假警報
+            setTimeout(() => {
+                var root = document.getElementById('root');
+                if (root && root.innerHTML.indexOf('系統載入中') === -1) return; // 如果 React 已成功掛載則不顯示
+                
+                var div = document.createElement("div");
+                div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.98); color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
+                div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統啟動失敗</h2><p style="color:#666">請截圖此畫面：Line ${line}</p><pre style="background:#f3f4f6;padding:15px;margin-top:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto">${msg}</pre><button onclick="window.location.reload()" style="margin-top:20px;padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;box-shadow:0 4px 6px rgba(37,99,235,0.2)">重新整理</button>`;
+                document.body.appendChild(div);
+            }, 2000);
             return false;
         };
     </script>
@@ -53,6 +59,15 @@
         
         .bell-shake { animation: shake 0.5s ease-in-out infinite; }
         @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+
+        /* 確保載入時有畫面 */
+        #root:empty::before {
+            content: '系統載入中...';
+            display: block;
+            text-align: center;
+            padding: 50px;
+            color: #6b7280;
+        }
     </style>
 </head>
 <body>
@@ -97,7 +112,13 @@
 
         const { useState, useEffect, useMemo } = React;
 
-        // --- 2. 輔助函式 (Global Scope) ---
+        // --- 2. 輔助函式 (Global) ---
+        const safeNum = (val) => {
+            const n = parseFloat(val);
+            return isNaN(n) ? 0 : n;
+        };
+        
+        // 安全的日期解析
         const parseDate = (dateStr) => {
             if (!dateStr || typeof dateStr !== 'string') return new Date(0);
             try {
@@ -122,13 +143,15 @@
         const isDomestic = (data) => data && data.customsBroker === DOMESTIC_FLAG;
         const isForeign = (data) => !isDomestic(data);
 
-        // 列表過濾 (全域)
+        // 列表過濾
         const getFilteredAndSortedList = (shipments, filterFn, currentTab, todayStr, searchTerm) => {
             const t = (searchTerm || '').toLowerCase();
             let filteredBySearch = shipments.filter(s => (
                 (s.containerNumber && s.containerNumber.toLowerCase().includes(t)) || 
                 (s.supplier || "").toLowerCase().includes(t) || 
                 (s.shippingCompany || "").toLowerCase().includes(t) || 
+                (s.origin || "").toLowerCase().includes(t) || 
+                (s.devanningLocation || "").toLowerCase().includes(t) || 
                 (s.products || []).some(p => (p.name || "").toLowerCase().includes(t))
             ));
             
@@ -173,14 +196,35 @@
             Grid: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         };
 
-        // 5. Dashboard (Safe Version)
+        // 5. 安全圖表元件 (防白屏關鍵)
+        const SafeChart = ({ data }) => {
+            if (!window.Recharts) return <div className="p-8 text-center text-gray-400 text-sm">統計模組載入中...</div>;
+            
+            // 延遲解構，確保執行到這裡時 window.Recharts 已經存在
+            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = window.Recharts;
+            
+            return (
+                <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" tick={{fontSize: 10}} />
+                            <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
+                            <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
+                            <Tooltip />
+                            <Legend />
+                            <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4, 4, 0, 0]} />
+                            <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            );
+        };
+
+        // 6. Dashboard 邏輯
         const Dashboard = ({ shipments, canSeePrice }) => {
             const [tf, setTf] = useState('YEAR');
             const [search, setSearch] = useState('');
-            
-            // V23.0 防白屏：確保 window.Recharts 存在，否則顯示替代文字
-            if (!window.Recharts) return <div className="p-8 text-center text-gray-400">圖表模組載入中...</div>;
-            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = window.Recharts;
             
             const stats = useMemo(() => {
                 const now = new Date();
@@ -209,11 +253,11 @@
                 } catch (e) { console.warn("Date filter error", e); }
 
                 const count = filteredList.length;
-                const items = filteredList.reduce((sum, s) => sum + (Number(s.totalQuantity) || 0), 0);
-                const w = filteredList.reduce((sum, s) => sum + (Number(s.totalWeight) || 0), 0);
+                const items = filteredList.reduce((sum, s) => sum + safeNum(s.totalQuantity), 0);
+                const w = filteredList.reduce((sum, s) => sum + safeNum(s.totalWeight), 0);
                 
-                const moneyUSD = filteredList.reduce((sum, s) => s.currency === 'USD' ? sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)) : sum, 0);
-                const moneyTWD = filteredList.reduce((sum, s) => s.currency === 'TWD' ? sum + ((s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0)) : sum, 0);
+                const moneyUSD = filteredList.reduce((sum, s) => s.currency === 'USD' ? sum + ((s.products||[]).reduce((a, p) => a + safeNum(p.amount), 0)) : sum, 0);
+                const moneyTWD = filteredList.reduce((sum, s) => s.currency === 'TWD' ? sum + ((s.products||[]).reduce((a, p) => a + safeNum(p.amount), 0)) : sum, 0);
                 
                 const supps = {}; 
                 filteredList.forEach(s => { const n = s.supplier || '未填'; supps[n] = (supps[n] || 0) + 1; });
@@ -226,7 +270,7 @@
                     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
                     if (!chartMap[key]) chartMap[key] = { name: key, TWD: 0, USD: 0 };
                     
-                    const amt = (s.products||[]).reduce((a, p) => a + (Number(p.amount)||0), 0);
+                    const amt = (s.products||[]).reduce((a, p) => a + safeNum(p.amount), 0);
                     if(s.currency === 'USD') chartMap[key].USD += amt;
                     else chartMap[key].TWD += amt;
                 });
@@ -262,20 +306,8 @@
                      {canSeePrice() && (
                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-sm font-bold text-gray-800 mb-4">📈 月度採購金額趨勢</h3>
-                        <div className="h-64 w-full">
-                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats.chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" tick={{fontSize: 10}} />
-                                    <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
-                                    <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize: 10}} tickFormatter={(val)=>`$${val/1000}k`} />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4, 4, 0, 0]} />
-                                    <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
+                        {/* V24.1: 呼叫安全圖表元件 */}
+                        <SafeChart data={stats.chartData} />
                      </div>
                      )}
 
@@ -284,7 +316,7 @@
             );
         };
 
-        // 6. 主程式
+        // 7. 主程式
         function ContainerApp() {
             const [user, setUser] = useState(null);
             const [shipments, setShipments] = useState([]);
@@ -306,7 +338,7 @@
             }, []);
 
             useEffect(() => {
-                if (!user || !db) return;
+                if (!user || !db || !db.collection) { setLoading(false); return; }
                 
                 const unsubscribeDB = db.collection('shipments').onSnapshot(
                     (snapshot) => {
@@ -326,8 +358,8 @@
                     (doc) => {
                         if (doc.exists) {
                             const data = doc.data();
-                            if (data.user_roles && user && user.email) {
-                                setUserRole(data.user_roles[user.email]);
+                            if (data.user_roles && user && user.email) { 
+                                setUserRole(data.user_roles[user.email] || 'GUEST');
                             } else if (data.admin_emails && user && data.admin_emails.includes(user.email)) {
                                 setUserRole('MANAGER');
                             } else {
@@ -358,11 +390,13 @@
             const canDelete = () => ['MANAGER', 'PURCHASING'].includes(userRole); 
             const canUpload = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole); 
             const canSeePrice = () => ['MANAGER', 'PURCHASING', 'ACCOUNTING'].includes(userRole); 
-            const canEditFlightFee = () => userRole === 'MANAGER' || userRole === 'ACCOUNTING';
-            const canEditDomesticFull = () => ['MANAGER', 'PURCHASING'].includes(userRole);
-            const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole);
-            const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole);
+            
+            const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole); 
+            const canEditDomesticFull = () => ['MANAGER', 'PURCHASING'].includes(userRole); 
+            const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole); 
+            
             const isWarehouse = () => userRole === 'WAREHOUSE';
+            const canEditFlightFee = () => userRole === 'MANAGER' || userRole === 'ACCOUNTING';
 
             const initialFormState = { 
                 importCompany: IMPORT_COMPANIES[0], 
@@ -435,8 +469,8 @@
                 setFormData(prev => ({ 
                     ...prev, 
                     products: np, 
-                    totalQuantity: np.reduce((s, i) => s + (Number(i.quantity)||0), 0),
-                    totalWeight: np.reduce((s, i) => s + (Number(i.weight)||0), 0)
+                    totalQuantity: np.reduce((s, i) => s + safeNum(i.quantity), 0),
+                    totalWeight: np.reduce((s, i) => s + safeNum(i.weight), 0)
                 })); 
             };
 
@@ -534,12 +568,12 @@
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert("權限不足"); 
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付"; // V23.0 修改標題
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付"; 
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
 
                 const rows = filteredShipments.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付']; // V23.0
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付'];
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
                 })).join("\n");
@@ -593,7 +627,7 @@
             
             const urgentCount = urgentShipments.length;
 
-            // V23.0 修正: 安全的列表過濾和排序邏輯 (提升到外部)
+            // V23.0 修正: 安全的列表過濾 (提升到外部)
             const getFilteredAndSortedList = (shipments, filterFn, currentTab, todayStr, searchTerm) => {
                 const t = (searchTerm || '').toLowerCase();
                 let filteredBySearch = shipments.filter(s => (
@@ -602,7 +636,7 @@
                     (s.shippingCompany || "").toLowerCase().includes(t) || 
                     (s.origin || "").toLowerCase().includes(t) || 
                     (s.devanningLocation || "").toLowerCase().includes(t) || 
-                    (s.products || []).some(p => (p.name || "").toLowerCase().includes(t) || (p.spec || "").toLowerCase().includes(t) || (p.batchNumber || "").toLowerCase().includes(t))
+                    (s.products || []).some(p => (p.name || "").toLowerCase().includes(t))
                 ));
                 
                 let list = filterFn ? filteredBySearch.filter(filterFn) : filteredBySearch;
@@ -668,7 +702,7 @@
 
             const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
             
-            // V23.0: 極簡表格模式 (8欄，整合狀態，旅費)
+            // V24.0: 極簡表格模式 (8欄，整合狀態，旅費)
             const renderTableView = () => (
                 <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                     <table className="reconcile-table">
@@ -727,20 +761,20 @@
                 </div>
             );
 
-            // V23.0: 卡片產品佈局優化 (修正：加入複製按鈕)
+            // V24.1: 卡片產品佈局優化 (修正：加入複製與刪除按鈕)
             const renderShipmentCard = (item) => {
                 const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
                 const mainDate = item.arrivalDate ? new Date(item.arrivalDate) : null; 
                 const mainDateStatus = isDevanned ? { text: '已拆櫃', color: 'text-green-600', bg: 'bg-green-100' } : getStatusStyle(item.arrivalDate);
                 const hasAttachments = (item.attachments && item.attachments.length > 0) || item.docUrl;
-                const totalAmount = (item.products || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-                const currSymbol = item.currency === 'USD' ? 'US$' : 'NT$'
+                
                 const paidStyle = item.isPaid ? 'bg-gray-600 text-white' : 'bg-white border border-red-500 text-red-600';
                 const flightPaidStyle = item.flightFeePaid ? 'bg-gray-600 text-white' : 'bg-white border border-red-500 text-red-600';
 
                 return (
                     <div key={item.id} className="ios-card" onClick={() => handleEdit(item)}>
                         <div className="p-4 border-b border-gray-50 flex gap-4">
+                            {/* 日期與資訊 */}
                             <div className={`flex-shrink-0 w-14 flex flex-col items-center justify-center rounded-xl border ${mainDateStatus.bg} h-16`}>
                                 <span className="text-[10px] font-bold uppercase text-gray-500">{mainDate && mainDate.toLocaleString('default', { month: 'short' })}</span>
                                 <span className="text-xl font-bold text-gray-800 leading-none my-0.5">{mainDate && mainDate.getDate()}</span>
@@ -750,7 +784,6 @@
                                 <div className="flex justify-between items-start mb-1">
                                     <div className="flex-1 min-w-0">
                                         <span className={`inline-block px-2 py-1 rounded text-base font-bold mb-1 ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
-                                        
                                         <div className="flex items-center gap-2">
                                             <span className="text-lg font-bold text-gray-900 font-mono tracking-tight whitespace-nowrap">{item.containerNumber}</span>
                                             {item.shippingCompany && (
@@ -766,48 +799,15 @@
                                         {canEdit() && <button onClick={(e) => { e.stopPropagation(); handleEdit(item); }} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-600"><Icons.Edit /></button>}
                                     </div>
                                 </div>
-                                
                                 <div className="flex flex-wrap gap-2 mt-2 items-center">
                                     <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-indigo-500"><Icons.FileCheck /></div>{item.customsBroker || '未指定'}</div>
                                     {item.supplier && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-gray-500"><Icons.Factory /></div>{item.supplier}</div>}
-                                    {item.origin && <div className="tag-badge bg-gray-100 text-gray-600"><div className="w-3 h-3 text-emerald-500"><Icons.Globe /></div>{item.origin}</div>}
-                                    
-                                    <label 
-                                        className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}
-                                        onClick={e => e.stopPropagation()}
-                                    >
-                                        <input 
-                                            type="checkbox"
-                                            className="w-3 h-3 rounded border-gray-300 text-green-600 focus:ring-green-500 mr-1 cursor-pointer"
-                                            checked={item.warehouseConfirmed || false}
-                                            onChange={(e) => handleWarehouseConfirm(e, item)}
-                                            disabled={!canEditWarehouseFields()}
-                                        />
+                                    <label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`} onClick={e => e.stopPropagation()}>
+                                        <input type="checkbox" className="w-3 h-3 rounded mr-1 cursor-pointer" checked={item.warehouseConfirmed || false} onChange={(e) => handleWarehouseConfirm(e, item)} disabled={!canEditWarehouseFields()} />
                                         <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
                                     </label>
-
-                                    <span className={`tag-badge ${paidStyle}`}>
-                                        貨款: {item.isPaid ? '已付' : '未付'}
-                                    </span>
-                                    
-                                    {canSeePrice() && (
-                                        <span className={`tag-badge ${flightPaidStyle}`}>
-                                            旅費: {item.flightFeePaid ? '已付' : '未付'}
-                                        </span>
-                                    )}
-
-                                    {canSeePrice() && item.prepayment > 0 && <span className="tag-badge bg-yellow-100 text-yellow-700">預付 {item.prepayment.toLocaleString()} {item.currency === 'USD' ? 'USD' : 'TWD'}</span>}
-
-                                    {isDomestic(item) ? (
-                                        <>
-                                            {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>交貨地: {item.devanningLocation}</div>}
-                                        </>
-                                    ) : (
-                                        <>
-                                            {item.devanningLocation && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Briefcase /></div>{item.devanningLocation}</div>}
-                                            {item.devanningDate && <div className="tag-badge bg-red-100 text-red-600"><div className="w-3 h-3 text-red-500"><Icons.Calendar /></div>拆櫃日: {item.devanningDate}</div>}
-                                        </>
-                                    )}
+                                    <span className={`tag-badge ${paidStyle}`}>貨款: {item.isPaid ? '已付' : '未付'}</span>
+                                    {canSeePrice() && <span className={`tag-badge ${flightPaidStyle}`}>旅費: {item.flightFeePaid ? '已付' : '未付'}</span>}
                                 </div>
                             </div>
                         </div>
@@ -816,29 +816,32 @@
                             <div className="space-y-3">
                                 {(item.products || []).map((p, idx) => (
                                     <div key={idx} className="flex flex-col border-b border-gray-50 pb-2 last:border-0 last:pb-0">
-                                        {/* V23.0: 行1 - 品名 + 規格 + 財務/重量資訊 */}
-                                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                        {/* V24.1: 行1 - 品名 + 規格 + 財務/重量資訊 */}
+                                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
                                             <span className="font-bold text-gray-900 text-base">{p.name}</span>
-                                            {p.spec && <span className="text-sm text-gray-500 font-medium">{p.spec}</span>}
-                                            <div className="flex items-center gap-2 text-xs ml-auto sm:ml-0">
-                                                {p.pricingMode === 'weight' ? <span className="text-orange-500 font-bold">[重]</span> : <span className="text-blue-500 font-bold">[數]</span>}
-                                                <span className="text-gray-600 font-mono">{p.quantity.toLocaleString()}件</span>
-                                                <span className="text-gray-400">/</span>
-                                                <span className="text-gray-600 font-mono">{p.weight}kg</span>
+                                            {p.spec && <span className="text-gray-500">{p.spec}</span>}
+                                            
+                                            <div className="flex items-center gap-2 ml-auto sm:ml-0 flex-wrap justify-end sm:justify-start">
+                                                {/* 計價模式 14px */}
+                                                <span className="text-sm text-gray-400">{p.pricingMode === 'weight' ? '[重]' : '[數]'}</span>
+                                                
+                                                {/* 重量/單價/金額 16px */}
+                                                <span className="text-base text-gray-600 font-mono">{safeNum(p.weight).toLocaleString()}kg</span>
                                                 {canSeePrice() && (
                                                     <>
-                                                        <span className="text-gray-400">/</span>
-                                                        <span className="text-gray-600 font-mono">${p.unitPrice}</span>
-                                                        <span className="text-gray-400">/</span>
-                                                        <span className="text-emerald-600 font-bold font-mono">${p.amount.toLocaleString()}</span>
+                                                        <span className="text-gray-300">|</span>
+                                                        <span className="text-base text-gray-600 font-mono">${safeNum(p.unitPrice).toLocaleString()}</span>
+                                                        <span className="text-gray-300">|</span>
+                                                        <span className="text-base text-emerald-600 font-bold font-mono">${safeNum(p.amount).toLocaleString()}</span>
                                                     </>
                                                 )}
+                                                
+                                                {/* 數量 16px 粗體 靠右 */}
+                                                <span className="ml-2 text-base font-bold text-blue-600 font-mono">{safeNum(p.quantity).toLocaleString()} 件</span>
                                             </div>
-                                            {/* 數量放到最後，大字 */}
-                                            <span className="ml-auto text-base font-bold text-blue-600">{p.quantity.toLocaleString()}</span>
                                         </div>
                                         
-                                        {/* V23.0: 行2 - 批號 + 效期 */}
+                                        {/* V24.1: 行2 - 批號 + 效期 */}
                                         {(p.batchNumber || p.expiryDate) && (
                                             <div className="flex gap-3 mt-1 text-xs text-gray-400 font-mono">
                                                 {p.batchNumber && <span className="bg-gray-100 px-1.5 rounded">批:{p.batchNumber}</span>}
@@ -899,7 +902,7 @@
                     {/* Desktop Sidebar */}
                     <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full z-20 left-0 top-0">
                         <div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800">
-                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v25.0</span>
+                            <div className="w-8 h-8 text-blue-600"><Icons.Ship /></div>貨櫃管理 <span className="text-xs text-gray-400">v24.1</span>
                         </div>
                         <nav className="flex-1 px-4 space-y-2">
                             <button onClick={() => setView('list')} className={`sidebar-link w-full ${view === 'list' ? 'active' : ''}`}>
@@ -966,7 +969,7 @@
                                             <button key="UNPAID" onClick={() => setCurrentTab('UNPAID')} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === 'UNPAID' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
                                                 <div className="flex items-center justify-center gap-1">
                                                     <span>待付款</span>
-                                                    {unpaidList.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${currentTab === 'UNPAID' ? 'bg-white/30 text-red-500' : 'bg-red-500 text-white'}`}>({unpaidList.length})</span>}
+                                                    {unpaidList.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${currentTab === 'UNPAID' ? 'bg-yellow-200 text-red-500' : 'bg-red-500 text-white'}`}>({unpaidList.length})</span>}
                                                 </div>
                                             </button>
                                             )}
@@ -1126,7 +1129,10 @@
                                         </div>
 
                                         <div className="pt-3 border-t border-gray-100">
-                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-900">產品明細</h3><button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm">+ 新增產品</button></div>
+                                            <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-900">產品明細</h3>
+                                                {/* V25.0 修正：新增按鈕功能 */}
+                                                {!canEditDomesticFull() && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm cursor-pointer hover:text-blue-800">+ 新增產品</button>}
+                                            </div>
                                             <div className="space-y-4">
                                                 {formData.products.map((p, idx) => (
                                                     <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 relative shadow-sm">
@@ -1158,10 +1164,11 @@
                                                                 </div>
                                                             )}
                                                         </div>
+                                                        {/* V25.0 修正: 恢復複製與刪除功能 */}
                                                         {!canEditDomesticFull() && (
                                                             <div className="absolute top-2 right-2 flex gap-2">
-                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5 hover:text-blue-500"><Icons.Copy /></button>
-                                                                {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5 hover:text-red-500"><Icons.Trash2 /></button>}
+                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 p-1.5 hover:text-blue-500" title="複製"><Icons.Copy /></button>
+                                                                {formData.products.length > 1 && <button type="button" onClick={() => removeProductRow(idx)} className="text-gray-400 p-1.5 hover:text-red-500" title="刪除"><Icons.Trash2 /></button>}
                                                             </div>
                                                         )}
                                                     </div>
