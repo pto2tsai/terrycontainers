@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v18.4 財務表格精簡版)</title>
+    <title>貨櫃管理系統 (v18.5 最終穩定版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -338,7 +338,6 @@
             const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole); 
             
             const isWarehouse = () => userRole === 'WAREHOUSE';
-            const isDomestic = (data) => data.customsBroker === DOMESTIC_FLAG;
             const canEditFlightFee = () => userRole === 'MANAGER' || userRole === 'ACCOUNTING';
 
             const initialFormState = { 
@@ -625,6 +624,7 @@
 
             const availableOrigins = useMemo(() => Array.from(new Set([...DEFAULT_ORIGINS, ...shipments.map(s => s.origin).filter(Boolean), DOMESTIC_FLAG])).sort(), [shipments]);
             
+            // V18.4: 表格模式，修正欄位順序與標題
             const renderTableView = () => (
                 <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                     <table className="reconcile-table">
@@ -647,6 +647,8 @@
                                 const totalAmt = (item.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
                                 const prodSummary = (item.products || []).map(p => p.name).join(', ');
                                 const curr = item.currency === 'USD' ? 'US$' : 'NT$';
+                                const showFlightFee = isForeign(item) || canManage(); 
+
                                 return (
                                     <tr key={item.id} onClick={() => handleEdit(item)} className="cursor-pointer hover:bg-gray-50">
                                         <td className="whitespace-nowrap">{item.arrivalDate}</td>
@@ -661,7 +663,11 @@
                                                 {item.isPaid ? '已付' : '未付'}
                                             </span>
                                         </td>
-                                        {canEditFlightFee() && <td className={`text-right font-bold whitespace-nowrap ${item.flightFeePaid ? 'text-green-600' : 'text-red-600'}`}>{item.flightFee || 0}</td>}
+                                        {canEditFlightFee() && (
+                                            <td className={`text-right font-bold whitespace-nowrap ${item.flightFeePaid ? 'text-green-600' : 'text-red-600'}`}>
+                                                {showFlightFee && (item.flightFee || 0).toLocaleString()}
+                                            </td>
+                                        )}
                                         {canEditFlightFee() && <td className="text-center">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${item.flightFeePaid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                 {item.flightFeePaid ? '已付' : '未付'}
@@ -911,11 +917,10 @@
                                                 const tabName = tab === 'NOT_DEVANED' ? '未拆櫃' : tab === 'DEVANED' ? '已拆櫃' : '國內採購';
                                                 
                                                 return (
-                                                    <button key={tab} onClick={() => setView('list')} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${view === 'list' ? 'active' : ''}`} // 修復跳轉錯誤
-                                                    >
+                                                    <button key={tab} onClick={() => setCurrentTab(tab)} className={`flex-1 py-2 px-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${currentTab === tab ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}>
                                                         <div className="flex items-center justify-center gap-1">
                                                             <span>{tabName} ({list.length})</span>
-                                                            {un > 0 && <span className={`w-2 h-2 rounded-full bg-red-500 ml-1`}></span>}
+                                                            {un > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${currentTab === tab ? 'bg-yellow-200 text-red-500' : 'bg-red-500 text-white'}`}>({un})</span>}
                                                         </div>
                                                     </button>
                                                 );
@@ -1114,7 +1119,7 @@
                                         </div>
 
                                         <div className="flex gap-3 pt-2">
-                                            <button type="button" onClick={() => setView('list')} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold ios-btn">取消</button>
+                                            <button onClick={() => setView('list')} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold ios-btn">取消</button>
                                             <button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold ios-btn shadow-lg shadow-blue-200">{isSubmitting ? '...' : '儲存'}</button>
                                         </div>
                                     </form>
