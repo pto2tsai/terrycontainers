@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v45.0 穩定與優化版)</title>
+    <title>貨櫃管理系統 (v46.0 智慧填寫版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -11,7 +11,6 @@
             setTimeout(function() {
                 var root = document.getElementById('root');
                 if (root && root.innerHTML.trim().length > 0 && root.innerHTML.indexOf('系統啟動中') === -1) return;
-                
                 var div = document.createElement("div");
                 div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:white; color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
                 div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統載入異常</h2><div style="background:#f3f4f6;padding:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto;margin-bottom:20px">Line: ${line}<br>${msg}</div><button onclick="window.location.reload()" style="padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;cursor:pointer;">重新整理</button>`;
@@ -51,17 +50,19 @@
         .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
         .reconcile-table tr:hover { background-color: #f9fafb; cursor: pointer; }
         
+        /* 狀態 */
         .amt-paid { color: #111827; font-weight: 800; font-family: monospace; font-size: 16px; }
         .amt-unpaid { background-color: white; color: #dc2626; border: 1px solid #ef4444; border-radius: 4px; padding: 0 6px; font-weight: 700; font-family: monospace; font-size: 16px; white-space: nowrap; display: inline-block; }
 
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
         .company-tag { font-size: 16px; font-weight: 800; padding: 4px 10px; border-radius: 6px; display: inline-block; }
         
-        /* V44.0: 輸入框樣式 (白底) */
-        .input-bg-style { background-color: #ffffff; border: 1px solid #d1d5db; color: #111827; transition: all 0.2s; }
+        /* V46.0: 輸入框統一樣式 (白底、黑字、Placeholder灰色) */
+        .input-bg-style { background-color: #ffffff; border: 1px solid #d1d5db; color: #111827; transition: all 0.2s; height: 40px; padding: 0 10px; }
         .input-bg-style:focus { border-color: #3b82f6; outline: 2px solid #bfdbfe; }
+        .input-bg-style::placeholder { color: #9ca3af; font-weight: bold; font-size: 13px; }
         
-        /* V44.0: 隱藏數字框箭頭 */
+        /* 隱藏數字框箭頭 */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
@@ -167,7 +168,7 @@
         const isDomestic = (d) => d && d.customsBroker === DOMESTIC_FLAG;
         const isForeign = (d) => !isDomestic(d);
 
-        // --- 3. Icons (V45.0 安全分散定義) ---
+        // --- 3. Icons ---
         const Icons = {};
         Icons.Ship=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>;
         Icons.Anchor=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>;
@@ -196,6 +197,10 @@
         Icons.Dollar=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
         Icons.Calendar=()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
         Icons.Line=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z"/><path d="M8 12h8"/></svg>;
+        
+        const IconsProxy = new Proxy(Icons, {
+            get: (target, prop) => target[prop] || (() => <span style={{color:'red'}}>?</span>)
+        });
 
         // 4. SafeChart
         const SafeChart = ({ data }) => {
@@ -235,6 +240,7 @@
                 return Array.from(months).sort().reverse();
             }, [shipments]);
 
+            const [tf, setTf] = useState('YEAR');
             const [filterMonth, setFilterMonth] = useState('ALL');
             const [search, setSearch] = useState('');
             
@@ -244,7 +250,6 @@
                     const t = search.toLowerCase();
                     list = list.filter(s => (s.supplier||'').toLowerCase().includes(t) || (s.products||[]).some(p=>p.name.toLowerCase().includes(t)));
                 }
-                
                 if (filterMonth !== 'ALL') {
                      list = list.filter(s => s.arrivalDate && s.arrivalDate.startsWith(filterMonth));
                 }
@@ -379,7 +384,7 @@
                 } catch(err){ alert(err.message); } finally { setIsSubmitting(false); }
             };
 
-            // --- Form Handlers ---
+            // --- V46.0: Logic Update ---
             const handleInputChange = (e) => {
                 const {name,value,type,checked}=e.target;
                 setFormData(p => ({...p, [name]: type==='checkbox'?checked:value}));
@@ -388,19 +393,38 @@
             const handleProductChange = (idx, f, v) => {
                 const np = [...formData.products]; np[idx] = {...np[idx], [f]:v};
                 const p = np[idx];
-                if(p.pricingMode==='weight') p.amount = Math.round(safeNum(p.weight)*safeNum(p.unitPrice));
-                else p.amount = Math.round(safeNum(p.quantity)*safeNum(p.boxCapacity)*safeNum(p.unitPrice));
+
+                // V46.0 智慧偵測箱容
+                if (f === 'spec') {
+                    const match = v.match(/(\d+)\s*(?:盒|包|塊|片)/);
+                    if (match) {
+                        p.boxCapacity = parseFloat(match[1]);
+                    }
+                }
+
+                // V46.0 計算邏輯
+                const q = safeNum(p.quantity);
+                const b = safeNum(p.boxCapacity) || 1;
+                const w = safeNum(p.weight);
+                const u = safeNum(p.unitPrice);
+
+                if(p.pricingMode==='weight') {
+                    p.amount = Math.round(w * u);
+                } else {
+                    // quantity mode: q * boxCapacity * unitPrice
+                    p.amount = Math.round(q * b * u);
+                }
+
                 setFormData(prev => ({...prev, products:np, totalQuantity:np.reduce((s,i)=>s+safeNum(i.quantity),0), totalWeight:np.reduce((s,i)=>s+safeNum(i.weight),0)}));
             };
 
             const addProductRow = (e) => {
                 if(e) e.preventDefault();
-                setFormData(p => ({...p, products:[...(p.products||[]), {id:Date.now(), name:'', quantity:0, weight:0, unitPrice:0, amount:0, pricingMode:'quantity'}]}));
+                // V46.0 Default boxCapacity = 1
+                setFormData(p => ({...p, products:[...(p.products||[]), {id:Date.now(), name:'', quantity:0, weight:0, unitPrice:0, amount:0, pricingMode:'quantity', boxCapacity: 1}]}));
             };
             const duplicateProductRow = (idx) => { const p=formData.products[idx]; setFormData(prev=>({...prev, products:[...prev.products.slice(0,idx+1), {...p, id:Date.now()}, ...prev.products.slice(idx+1)]})); };
             const removeProductRow = (idx) => { const np=formData.products.filter((_,i)=>i!==idx); setFormData(prev=>({...prev, products:np})); };
-            
-            // V42.0: 多檔案上傳
             const handleFileUpload = async (evt) => {
                 const files = Array.from(evt.target.files);
                 if (files.length === 0) return;
@@ -418,7 +442,6 @@
                     setFormData(prev => ({ ...prev, attachments: [...(prev.attachments||[]), ...newAttachments] }));
                 } catch (error) { alert("上傳失敗: " + error.message); } finally { setUploading(false); evt.target.value = ''; }
             };
-            
             const handleDeleteFile = async (index) => { 
                 if(!confirm("確定要刪除此附件嗎？")) return;
                 if (!canUpload()) return alert("權限不足");
@@ -488,7 +511,10 @@
             const unpaidCount = useMemo(() => shipments.filter(s => !s.isPaid).length, [shipments]);
 
             if(loading) return <div className="flex h-screen items-center justify-center text-gray-500">Loading...</div>;
-            if(!user) return <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full"><div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 text-3xl"><Icons.Ship /></div><h1 className="text-2xl font-bold mb-8">貨櫃管理系統</h1><button onClick={handleAdminLogin} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow mb-3 flex justify-center gap-2"><Icons.Google /> 員工登入</button><button onClick={handleGuestLogin} className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-bold flex justify-center gap-2"><Icons.User /> 訪客登入</button></div></div>;
+            if(!user) return <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full"><div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 text-3xl"><IconsProxy.Ship /></div><h1 className="text-2xl font-bold mb-8">貨櫃管理系統</h1><button onClick={handleAdminLogin} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow mb-3 flex justify-center gap-2"><IconsProxy.Google /> 員工登入</button><button onClick={handleGuestLogin} className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-bold flex justify-center gap-2"><IconsProxy.User /> 訪客登入</button></div></div>;
+
+            // IconsProxy
+            const IconsProxy = new Proxy(Icons, { get: (t, p) => t[p] || (() => <span className="text-red-500">?</span>) });
 
             return (
                 <ErrorBoundary>
@@ -508,28 +534,28 @@
                         </div>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><Icons.Ship /></span>貨櫃管理 v45.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><Icons.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><Icons.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><Icons.LogOut /> 登出</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><IconsProxy.Ship /></span>貨櫃管理 v46.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><IconsProxy.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><IconsProxy.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><IconsProxy.LogOut /> 登出</button></div></aside>
 
-                    <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><Icons.Ship /></span> {view==='list'?'貨櫃列表':'統計分析'}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><Icons.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><Icons.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><Icons.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><Icons.LogOut /></button></div></div>
+                    <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><IconsProxy.Ship /></span> {view==='list'?'貨櫃列表':'統計分析'}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><IconsProxy.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><IconsProxy.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><IconsProxy.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><IconsProxy.LogOut /></button></div></div>
 
                     <main className="p-4 max-w-4xl mx-auto">
                         {view === 'list' && (
                             <div className="space-y-4">
                                 <div className="sticky top-0 z-20 bg-[#F3F4F6] -mt-4 pt-4 pb-2 space-y-3">
                                     <div className="flex gap-2 items-center">
-                                        <div className="relative flex-1"><span className="absolute left-3 top-3 text-gray-400"><Icons.Search /></span><input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="搜尋..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border-none shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                                        <div className="relative flex-1"><span className="absolute left-3 top-3 text-gray-400"><IconsProxy.Search /></span><input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="搜尋..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border-none shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                         {canSeePrice() && (
                                             <button onClick={()=>setCurrentTab(currentTab==='UNPAID'?'NOT_DEVANED':'UNPAID')} className={`relative p-2.5 rounded-xl shadow-sm transition-colors ${currentTab==='UNPAID'?'bg-red-500 text-white':'bg-white text-gray-600'}`}>
-                                                <div className="flex items-center gap-1 font-bold"><Icons.Dollar />{unpaidCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}</div>
+                                                <div className="flex items-center gap-1 font-bold"><IconsProxy.Dollar />{unpaidCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}</div>
                                             </button>
                                         )}
-                                        <button onClick={()=>setDisplayMode(displayMode==='card'?'table':'card')} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600"><Icons.List /></button>
+                                        <button onClick={()=>setDisplayMode(displayMode==='card'?'table':'card')} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600"><IconsProxy.List /></button>
                                         
                                         {/* 電腦版四大天王 */}
                                         <div className="hidden md:flex gap-2">
-                                            <div onClick={()=>setShowNotifications(true)} className="relative p-2.5 bg-white rounded-xl shadow-sm text-gray-600 cursor-pointer hover:bg-gray-50"><Icons.Bell />{urgentCount>0&&<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}</div>
-                                            <button onClick={handleExport} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600 hover:bg-gray-50"><Icons.Download /></button>
-                                            {canCreate() && <button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="p-2.5 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50"><Icons.Plus /></button>}
+                                            <div onClick={()=>setShowNotifications(true)} className="relative p-2.5 bg-white rounded-xl shadow-sm text-gray-600 cursor-pointer hover:bg-gray-50"><IconsProxy.Bell />{urgentCount>0&&<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}</div>
+                                            <button onClick={handleExport} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600 hover:bg-gray-50"><IconsProxy.Download /></button>
+                                            {canCreate() && <button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="p-2.5 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50"><IconsProxy.Plus /></button>}
                                         </div>
                                     </div>
                                     <div className="flex overflow-x-auto gap-2 pb-1">
@@ -569,7 +595,7 @@
                                             const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
                                             const mainDate = parseDate(item.arrivalDate);
                                             
-                                            // V43.0: 迴紋針圖示 (a 標籤 + z-index)
+                                            // V43.0: 檢查附件
                                             const hasAttachments = (item.attachments && item.attachments.length > 0) || item.docUrl;
                                             const firstAtt = (item.attachments && item.attachments.length > 0) ? item.attachments[0].url : item.docUrl;
 
@@ -581,23 +607,23 @@
                                                         <div className="mb-1"><span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span></div>
                                                         <div className="text-2xl font-black text-gray-900 tracking-tight mb-2">{item.containerNumber}</div>
                                                         <div className="flex flex-wrap gap-1 mb-2">
-                                                            {item.customsBroker && <span className="tag-badge bg-gray-100 text-gray-600"><Icons.FileCheck />{item.customsBroker}</span>}
-                                                            <span className="tag-badge bg-gray-100 text-gray-600"><Icons.Factory />{item.supplier}</span>
-                                                            {item.origin && <span className="tag-badge bg-gray-100 text-gray-600"><Icons.Globe />{item.origin}</span>}
+                                                            {item.customsBroker && <span className="tag-badge bg-gray-100 text-gray-600"><IconsProxy.FileCheck />{item.customsBroker}</span>}
+                                                            <span className="tag-badge bg-gray-100 text-gray-600"><IconsProxy.Factory />{item.supplier}</span>
+                                                            {item.origin && <span className="tag-badge bg-gray-100 text-gray-600"><IconsProxy.Globe />{item.origin}</span>}
                                                         </div>
                                                         <div className="flex flex-wrap gap-1">
-                                                            {item.devanningLocation && <span className="tag-badge bg-blue-50 text-blue-600"><Icons.Briefcase />{item.devanningLocation}</span>}
-                                                            {item.devanningDate && <span className="tag-badge bg-blue-50 text-blue-600"><Icons.Calendar />{item.devanningDate}</span>}
+                                                            {item.devanningLocation && <span className="tag-badge bg-blue-50 text-blue-600"><IconsProxy.Briefcase />{item.devanningLocation}</span>}
+                                                            {item.devanningDate && <span className="tag-badge bg-blue-50 text-blue-600"><IconsProxy.Calendar />{item.devanningDate}</span>}
                                                         </div>
                                                     </div>
                                                     {/* 右側操作區 */}
                                                     <div className="flex flex-col items-end gap-2">
                                                          <div className="flex gap-1 relative z-20">
-                                                            {hasAttachments && <a href={firstAtt} target="_blank" onClick={(e)=>e.stopPropagation()} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full"><Icons.Paperclip /></a>}
-                                                            {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><Icons.Edit /></button>}
-                                                            <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-1.5"><Icons.MessageCircle /></button>
-                                                            {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><Icons.Copy /></button>}
-                                                            {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-1.5"><Icons.Trash2 /></button>}
+                                                            {hasAttachments && <a href={firstAtt} target="_blank" onClick={(e)=>e.stopPropagation()} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full"><IconsProxy.Paperclip /></a>}
+                                                            {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><IconsProxy.Edit /></button>}
+                                                            <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-1.5"><IconsProxy.MessageCircle /></button>
+                                                            {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><IconsProxy.Copy /></button>}
+                                                            {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-1.5"><IconsProxy.Trash2 /></button>}
                                                         </div>
                                                         <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl border ${isDevanned?'bg-green-50 border-green-200 text-green-700':'bg-white border-gray-200 text-gray-700'}`}><span className="text-[10px] font-bold uppercase">{mainDate.toLocaleString('default',{month:'short'})}</span><span className="text-xl font-bold leading-none">{mainDate.getDate()}</span></div>
                                                     </div>
@@ -651,34 +677,29 @@
 
                         {view === 'form' && (
                             <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
-                                <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><Icons.X /></button></div>
+                                <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><IconsProxy.X /></button></div>
                                 <form onSubmit={handleSubmit} className="space-y-4">
-                                    {/* V44.0 編輯頁面：純白底色輸入框 */}
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-xs font-bold text-gray-500 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" /></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">日期</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div></div>
+                                    {/* V46.0: 統一高度與 Placeholder */}
+                                    <div className="grid grid-cols-2 gap-3"><div><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg font-mono uppercase" placeholder="櫃號" /></div></div>
+                                    <div className="grid grid-cols-2 gap-3"><div><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg" /></div><div><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
+                                    <div className="grid grid-cols-2 gap-3"><div><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg" placeholder="廠商" /></div><div><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div></div>
+                                    <div className="grid grid-cols-2 gap-3"><div><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg" placeholder="地點" /></div><div><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg" /></div></div>
                                     
-                                    {canSeePrice() && <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">付款條件</label><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded p-2 text-xs" /></div><label className="flex items-center gap-2 pt-4 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700">貨款已付</span></label>{canEditFlightFee() && isForeign(formData) && <><div className="col-span-2 border-t my-1"></div><div><label className="block text-xs font-bold text-gray-500 mb-1">旅費 (TWD)</label><input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded p-2" /></div><label className="flex items-center gap-2 pt-4 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700">旅費已付</span></label></>}</div>}
+                                    {canSeePrice() && <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 grid grid-cols-2 gap-3"><div><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" /></div><label className="flex items-center gap-2 pt-2 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700">貨款已付</span></label>{canEditFlightFee() && isForeign(formData) && <><div className="col-span-2 border-t my-1"></div><div><input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded input-bg-style" placeholder="旅費" /></div><label className="flex items-center gap-2 pt-2 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700">旅費已付</span></label></>}</div>}
                                     
                                     <div className="pt-2">
                                         <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-700">產品明細</h3>{(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}</div>
-                                        {/* V45.0: 深色欄位說明列 */}
-                                        <div className="grid gap-2 mb-2 px-3 py-1 bg-gray-700 text-white text-xs font-bold rounded-lg" style={{gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr"}}>
-                                            <div className="col-span-5">品名 / 規格 / 計價</div>
-                                            <div>數量</div><div>重量</div><div>單價</div><div>批號</div><div>效期</div>
-                                        </div>
-                                        <div className="space-y-3">{formData.products.map((p, idx) => (<div key={p.id} className="bg-white border rounded-xl p-3 relative shadow-sm"><div className="grid gap-2"><input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="font-bold border-b pb-1 w-full outline-none input-bg-style rounded p-1" placeholder="品名" /><div className="grid grid-cols-2 gap-2"><input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-xs" placeholder="規格" /><select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-xs"><option value="quantity">計件</option><option value="weight">計重</option></select></div><div className="grid grid-cols-3 gap-2"><input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="數量" /><input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" /><input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" /></div><div className="grid grid-cols-2 gap-2"><input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-xs" placeholder="批號" /><input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" /></div></div>{(canEditDomesticFull() || canManage()) && (<div className="absolute top-2 right-2 flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="p-1 text-gray-400 hover:text-blue-600"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-1 text-gray-400 hover:text-red-600"><Icons.Trash2 /></button>}</div>)}</div>))}</div>
+                                        <div className="space-y-3">{formData.products.map((p, idx) => (<div key={p.id} className="bg-white border rounded-xl p-3 relative shadow-sm"><div className="grid gap-2"><input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="font-bold border-b pb-1 w-full outline-none input-bg-style rounded" placeholder="品名" /><div className="grid grid-cols-2 gap-2"><input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded text-xs" placeholder="規格" /><select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded text-xs"><option value="quantity">計件</option><option value="weight">計重</option></select></div><div className="grid grid-cols-3 gap-2"><input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded text-right font-bold text-blue-600" placeholder="數量" /><input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded text-right font-bold text-orange-500" placeholder="重量" /><input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded text-right" placeholder="單價" /></div><div className="grid grid-cols-2 gap-2"><input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded text-sm" placeholder="批號" /><input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded text-sm" /></div></div>{(canEditDomesticFull() || canManage()) && (<div className="absolute top-2 right-2 flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="p-1 text-gray-400 hover:text-blue-600"><IconsProxy.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-1 text-gray-400 hover:text-red-600"><IconsProxy.Trash2 /></button>}</div>)}</div>))}</div>
                                     </div>
                                     
-                                    {/* V42.0: 多檔案上傳 */}
+                                    {/* 多檔案上傳 */}
                                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                                         <label className="block text-xs font-bold text-gray-500 mb-2">附件 ({formData.attachments?.length || 0})</label>
                                         <div className="space-y-2">
                                             {(formData.attachments || []).map((file, idx) => (
                                                 <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border">
                                                     <a href={file.url} target="_blank" className="text-blue-600 text-xs underline truncate flex-1 mr-2">{file.name}</a>
-                                                    {canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><Icons.Trash2 /></button>}
+                                                    {canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><IconsProxy.Trash2 /></button>}
                                                 </div>
                                             ))}
                                         </div>
@@ -686,7 +707,7 @@
                                             <div className="mt-2 relative">
                                                 <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                                                 <button type="button" className="w-full py-2 bg-white border border-dashed border-gray-400 rounded text-gray-500 text-sm font-bold flex items-center justify-center gap-2">
-                                                    {uploading ? '上傳中...' : <><Icons.Paperclip /> 選擇檔案 (可多選)</>}
+                                                    {uploading ? '上傳中...' : <><IconsProxy.Paperclip /> 選擇檔案 (可多選)</>}
                                                 </button>
                                             </div>
                                         )}
@@ -697,7 +718,7 @@
                             </div>
                         )}
                     </main>
-                    <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex z-40 pb-safe h-14"><button onClick={()=>setView('list')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='list'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><Icons.List /></div><span className="text-xs font-bold">列表</span></button><button onClick={()=>setView('stats')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='stats'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><Icons.Chart /></div><span className="text-xs font-bold">統計</span></button></div>
+                    <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex z-40 pb-safe h-14"><button onClick={()=>setView('list')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='list'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><IconsProxy.List /></div><span className="text-xs font-bold">列表</span></button><button onClick={()=>setView('stats')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='stats'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><IconsProxy.Chart /></div><span className="text-xs font-bold">統計</span></button></div>
                 </div>
                 </ErrorBoundary>
             );
