@@ -3,28 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v50.0 手機修復版)</title>
+    <title>貨櫃管理系統 (v47.0 智慧附件版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
-            // 忽略腳本載入的雜訊
             if (msg && msg.toLowerCase().indexOf("script error") > -1) return false;
-            
-            // 強制移除載入畫面
-            var loader = document.getElementById('loading-screen');
-            if(loader) loader.style.display = 'none';
-
-            // 手機版直接彈窗顯示錯誤，方便除錯
-            alert("⚠️ 系統錯誤 (Line " + line + "):\n" + msg);
-            
+            setTimeout(function() {
+                var root = document.getElementById('root');
+                if (root && root.innerHTML.trim().length > 0 && root.innerHTML.indexOf('系統啟動中') === -1) return;
+                var div = document.createElement("div");
+                div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:white; color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
+                div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統載入異常</h2><div style="background:#f3f4f6;padding:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto;margin-bottom:20px">Line: ${line}<br>${msg}</div><button onclick="window.location.reload()" style="padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;cursor:pointer;">重新整理</button>`;
+                document.body.appendChild(div);
+                var loader = document.getElementById('loading-screen');
+                if(loader) loader.style.display = 'none';
+            }, 3000);
             return false;
         };
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -33,7 +34,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
     <style>
-        body { background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; }
+        body { background-color: #F3F4F6; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; margin: 0; }
         
         /* Loading */
         #loading-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; pointer-events: none; }
@@ -56,17 +57,13 @@
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
         .company-tag { font-size: 16px; font-weight: 800; padding: 4px 10px; border-radius: 6px; display: inline-block; }
         
-        /* 輸入框 */
+        /* 輸入框樣式 */
         .input-bg-style { background-color: #ffffff; border: 1px solid #d1d5db; color: #111827; transition: all 0.2s; height: 42px; padding: 0 12px; font-size: 16px; border-radius: 8px; width: 100%; }
         .input-bg-style:focus { border-color: #3b82f6; outline: 2px solid #bfdbfe; }
         .input-bg-style::placeholder { color: #9ca3af; font-weight: 700; font-size: 16px; }
-        
-        /* Label */
         label { font-size: 12px; font-weight: 800; color: #6b7280; margin-bottom: 2px; display: block; }
 
-        /* 隱藏數字框箭頭 */
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
         
         .product-grid-cols { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
@@ -75,7 +72,7 @@
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
 
         /* 彈窗 */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
         .modal-content { background: white; width: 90%; max-width: 400px; max-height: 80vh; border-radius: 20px; padding: 20px; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -170,36 +167,35 @@
         const isDomestic = (d) => d && d.customsBroker === DOMESTIC_FLAG;
         const isForeign = (d) => !isDomestic(d);
 
-        // --- 3. Icons (V50.0: 移除 Proxy，改為標準物件) ---
-        const Icons = {
-            Ship: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
-            Anchor: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
-            Plus: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
-            Search: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
-            Trash2: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
-            Edit: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>,
-            Copy: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
-            FileCheck: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>,
-            Globe: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
-            Factory: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>,
-            Paperclip: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,
-            ArrowRight: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
-            Download: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-3-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
-            LogOut: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
-            Google: ()=><svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>,
-            X: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>,
-            Check: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,
-            Bell: ()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>,
-            MessageCircle: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>,
-            User: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-            Briefcase: ()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
-            List: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
-            Chart: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>,
-            Grid: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
-            Dollar: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-            Calendar: ()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
-            Line: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z"/><path d="M8 12h8"/></svg>
-        };
+        // --- 3. Icons ---
+        const Icons = {};
+        Icons.Ship=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>;
+        Icons.Anchor=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>;
+        Icons.Plus=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
+        Icons.Search=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+        Icons.Trash2=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+        Icons.Edit=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
+        Icons.Copy=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        Icons.FileCheck=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>;
+        Icons.Globe=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>;
+        Icons.Factory=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>;
+        Icons.Paperclip=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
+        Icons.ArrowRight=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>;
+        Icons.Download=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-3-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
+        Icons.LogOut=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
+        Icons.Google=()=><svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>;
+        Icons.X=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>;
+        Icons.Check=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>;
+        Icons.Bell=()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
+        Icons.MessageCircle=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>;
+        Icons.User=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+        Icons.Briefcase=()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
+        Icons.List=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>;
+        Icons.Chart=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>;
+        Icons.Grid=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>;
+        Icons.Dollar=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+        Icons.Calendar=()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
+        Icons.Line=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z"/><path d="M8 12h8"/></svg>;
 
         // 4. SafeChart
         const SafeChart = ({ data }) => {
@@ -320,6 +316,8 @@
             const [formData, setFormData] = useState(initialFormState);
             const [showNotifications, setShowNotifications] = useState(false);
             const [uploading, setUploading] = useState(false);
+            const [showFileModal, setShowFileModal] = useState(false);
+            const [fileList, setFileList] = useState([]);
 
             // Actions
             const handleLogout = useCallback(() => { if(auth) auth.signOut(); else window.location.reload(); }, []);
@@ -349,6 +347,30 @@
                 let text = `${isDom ? "🚚 到貨通知" : "🚢 到港通知"}\n日期：${s.arrivalDate}\n櫃號：${s.containerNumber}\n廠商：${s.supplier}\n\n`;
                 (s.products || []).forEach((p, i) => { text += `${i+1}. ${p.name} ${p.spec ? p.spec : ''} - ${p.quantity}件\n`; });
                 window.open("https://line.me/R/msg/text/?" + encodeURIComponent(text), '_blank');
+            };
+            
+            // V47.0: 智慧附件處理
+            const handleAttachmentClick = (e, item) => {
+                e.stopPropagation();
+                const files = item.attachments || [];
+                
+                // 1. 無附件但有舊連結 -> 開連結
+                if (files.length === 0 && item.docUrl) {
+                    window.open(item.docUrl, '_blank');
+                    return;
+                }
+                
+                // 2. 單一附件 -> 直接開
+                if (files.length === 1) {
+                    window.open(files[0].url, '_blank');
+                    return;
+                }
+                
+                // 3. 多個附件 -> 開彈窗
+                if (files.length > 1) {
+                    setFileList(files);
+                    setShowFileModal(true);
+                }
             };
 
             const handleEdit = (item) => {
@@ -384,6 +406,7 @@
                 } catch(err){ alert(err.message); } finally { setIsSubmitting(false); }
             };
 
+            // --- Form Handlers ---
             const handleInputChange = (e) => {
                 const {name,value,type,checked}=e.target;
                 setFormData(p => ({...p, [name]: type==='checkbox'?checked:value}));
@@ -392,21 +415,13 @@
             const handleProductChange = (idx, f, v) => {
                 const np = [...formData.products]; np[idx] = {...np[idx], [f]:v};
                 const p = np[idx];
-
-                // V46.1 智慧偵測箱容
-                if (f === 'spec') {
-                    const match = v.match(/(\d+)\s*(?:盒|包|塊|片)/);
-                    if (match) { p.boxCapacity = parseFloat(match[1]); }
-                }
-
+                if (f === 'spec') { const match = v.match(/(\d+)\s*(?:盒|包|塊|片)/); if (match) { p.boxCapacity = parseFloat(match[1]); } }
                 const q = safeNum(p.quantity);
                 const b = safeNum(p.boxCapacity) || 1;
                 const w = safeNum(p.weight);
                 const u = safeNum(p.unitPrice);
-
                 if(p.pricingMode==='weight') { p.amount = Math.round(w * u); } 
                 else { p.amount = Math.round(q * b * u); }
-
                 setFormData(prev => ({...prev, products:np, totalQuantity:np.reduce((s,i)=>s+safeNum(i.quantity),0), totalWeight:np.reduce((s,i)=>s+safeNum(i.weight),0)}));
             };
 
@@ -522,7 +537,24 @@
                         </div>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><Icons.Ship /></span>貨櫃管理 v50.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><Icons.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><Icons.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><Icons.LogOut /> 登出</button></div></aside>
+                    {/* V47.0: File List Modal */}
+                    {showFileModal && (
+                        <div className="modal-overlay" onClick={()=>setShowFileModal(false)}>
+                            <div className="modal-content" onClick={e=>e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-2"><h3 className="font-bold text-lg text-gray-800">附件列表 ({fileList.length})</h3><button onClick={()=>setShowFileModal(false)}><Icons.X /></button></div>
+                                <div className="space-y-2">
+                                    {fileList.map((f, i) => (
+                                        <a key={i} href={f.url} target="_blank" className="flex items-center justify-between p-3 bg-gray-50 rounded hover:bg-blue-50 border border-gray-200 text-blue-600 group">
+                                            <span className="truncate font-bold text-sm mr-2">{f.name}</span>
+                                            <span className="text-gray-400 group-hover:text-blue-600"><Icons.Download /></span>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><Icons.Ship /></span>貨櫃管理 v47.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><Icons.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><Icons.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><Icons.LogOut /> 登出</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><Icons.Ship /></span> {view==='list'?'貨櫃列表':'統計分析'}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><Icons.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><Icons.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><Icons.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><Icons.LogOut /></button></div></div>
 
@@ -579,16 +611,16 @@
                                             const totalWeight = (item.products || []).reduce((sum, p) => sum + (Number(p.weight) || 0), 0);
                                             const totalQty = (item.products || []).reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
                                             const currSymbol = item.currency === 'USD' ? 'US$' : 'NT$';
+                                            
                                             const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
                                             const mainDate = parseDate(item.arrivalDate);
                                             
-                                            // V43.0: 檢查附件
+                                            // V47.0: 智慧附件判斷
                                             const hasAttachments = (item.attachments && item.attachments.length > 0) || item.docUrl;
-                                            const firstAtt = (item.attachments && item.attachments.length > 0) ? item.attachments[0].url : item.docUrl;
+                                            const attCount = item.attachments ? item.attachments.length : (item.docUrl ? 1 : 0);
 
                                             return (
                                             <div key={item.id} className="ios-card p-4" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
-                                                {/* V40.0: 卡片排版 */}
                                                 <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="mb-1"><span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span></div>
@@ -604,8 +636,15 @@
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-col items-end gap-2">
-                                                         <div className="flex gap-1 relative z-20">
-                                                            {hasAttachments && <a href={firstAtt} target="_blank" onClick={(e)=>e.stopPropagation()} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full"><Icons.Paperclip /></a>}
+                                                         <div className="flex gap-1 relative z-10">
+                                                            {/* V47.0: 智慧附件按鈕 */}
+                                                            {hasAttachments && (
+                                                                <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative">
+                                                                    <Icons.Paperclip />
+                                                                    {attCount > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{attCount}</span>}
+                                                                </button>
+                                                            )}
+                                                            
                                                             {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><Icons.Edit /></button>}
                                                             <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-1.5"><Icons.MessageCircle /></button>
                                                             {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><Icons.Copy /></button>}
@@ -615,7 +654,6 @@
                                                     </div>
                                                 </div>
 
-                                                {/* 產品明細 */}
                                                 <div className="space-y-3">
                                                     {(item.products || []).map((p,i)=>(
                                                         <div key={i} className="flex flex-col border-b border-gray-50 pb-2 last:border-0 last:pb-0">
@@ -664,16 +702,38 @@
                             <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
                                 <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><Icons.X /></button></div>
                                 <form onSubmit={handleSubmit} className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-xs font-bold text-gray-500 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" /></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">日期</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div></div>
+                                    <div className="grid grid-cols-2 gap-3"><div><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" placeholder="櫃號" /></div></div>
+                                    <div className="grid grid-cols-2 gap-3"><div><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div><div><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
+                                    <div className="grid grid-cols-2 gap-3"><div><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="廠商" /></div><div><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div></div>
+                                    <div className="grid grid-cols-2 gap-3"><div><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div><div><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div></div>
                                     
-                                    {canSeePrice() && <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">付款條件</label><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded p-2 text-xs" /></div><label className="flex items-center gap-2 pt-4 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700">貨款已付</span></label>{canEditFlightFee() && isForeign(formData) && <><div className="col-span-2 border-t my-1"></div><div><label className="block text-xs font-bold text-gray-500 mb-1">旅費 (TWD)</label><input type="number" name="flightFee" value={formData.flightFee} onChange={handleInputChange} className="w-full bg-white border rounded p-2" /></div><label className="flex items-center gap-2 pt-4 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700">旅費已付</span></label></>}</div>}
+                                    {canSeePrice() && <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 mb-3 flex flex-wrap items-end gap-3"><div className="flex-1 min-w-[140px]"><label>付款條件</label><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" /></div>{canEditFlightFee() && isForeign(formData) && (<div className="w-24"><label>旅費</label><input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded input-bg-style" placeholder="0" /></div>)}<div className="flex items-center gap-3 pb-2 ml-auto"><label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>{canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}</div></div>}
                                     
                                     <div className="pt-2">
                                         <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-700">產品明細</h3>{(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}</div>
-                                        <div className="space-y-3">{formData.products.map((p, idx) => (<div key={p.id} className="bg-white border rounded-xl p-3 relative shadow-sm"><div className="grid gap-2"><input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="font-bold border-b pb-1 w-full outline-none input-bg-style rounded p-1" placeholder="品名" /><div className="grid grid-cols-2 gap-2"><input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-xs" placeholder="規格" /><select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-xs"><option value="quantity">計件</option><option value="weight">計重</option></select></div><div className="grid grid-cols-3 gap-2"><input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="數量" /><input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" /><input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" /></div><div className="grid grid-cols-3 gap-2 items-center"><input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-xs" placeholder="批號" /><input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />{canSeePrice() && <div className="text-right font-bold text-emerald-600 text-sm bg-gray-50 rounded p-2 border border-gray-200">${safeNum(p.amount).toLocaleString()}</div>}</div></div>{(canEditDomesticFull() || canManage()) && (<div className="absolute top-2 right-2 flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="p-1 text-gray-400 hover:text-blue-600"><Icons.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-1 text-gray-400 hover:text-red-600"><Icons.Trash2 /></button>}</div>)}</div>))}</div>
+                                        <div className="space-y-3">{formData.products.map((p, idx) => (
+                                            <div key={p.id} className="bg-white border rounded-xl p-3 relative shadow-sm">
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="input-bg-style rounded p-1 font-bold" placeholder="品名" />
+                                                    <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
+                                                    <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="quantity">計件</option><option value="weight">計重</option></select>
+                                                    <input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="件數" />
+                                                    <input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" />
+                                                    <input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" />
+                                                    <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
+                                                    <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
+                                                    <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">
+                                                        {canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${safeNum(p.amount).toLocaleString()}</span> : <span></span>}
+                                                        {(canEditDomesticFull() || canManage()) && (
+                                                            <div className="flex gap-1">
+                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><Icons.Copy /></button>
+                                                                {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><Icons.Trash2 /></button>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}</div>
                                     </div>
                                     
                                     {/* 多檔案上傳 */}
