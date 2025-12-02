@@ -1,774 +1,957 @@
 ﻿<!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v47.0 智慧附件版)</title>
-    
-    <script>
-        window.onerror = function(msg, url, line, col, error) {
-            if (msg && msg.toLowerCase().indexOf("script error") > -1) return false;
-            setTimeout(function() {
-                var root = document.getElementById('root');
-                if (root && root.innerHTML.trim().length > 0 && root.innerHTML.indexOf('系統啟動中') === -1) return;
-                var div = document.createElement("div");
-                div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:white; color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
-                div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統載入異常</h2><div style="background:#f3f4f6;padding:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto;margin-bottom:20px">Line: ${line}<br>${msg}</div><button onclick="window.location.reload()" style="padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;cursor:pointer;">重新整理</button>`;
-                document.body.appendChild(div);
-                var loader = document.getElementById('loading-screen');
-                if(loader) loader.style.display = 'none';
-            }, 3000);
-            return false;
-        };
-    </script>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
-
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MES Lite 簡易工時採集</title>
     <style>
-        body { background-color: #F3F4F6; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; margin: 0; }
+        /* ---------------------------------- */
+        /* CSS: 響應式極簡風格 (V1.6 Fixed) */
+        /* ---------------------------------- */
+        :root {
+            --bg-color: #0b1a2c;
+            --text-color: #ffffff;
+            --primary-color: #00bcd4;
+            --btn-bg: #1a3449;
+            --btn-active: #007bff;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --error-color: #ff5722;
+            --panel-bg: #112233;
+            --nav-width: 70px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0; padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            text-align: center;
+            display: flex; flex-direction: row;
+            overflow: hidden;
+        }
+
+        /* 導航列 */
+        .nav-bar {
+            width: var(--nav-width);
+            height: 100vh;
+            background-color: #050b14;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+            z-index: 1000;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+        }
+
+        .nav-icons {
+            display: flex; flex-direction: column; gap: 25px; margin-bottom: auto;
+        }
+
+        .nav-btn {
+            background: none; border: none; cursor: pointer; padding: 12px;
+            color: var(--primary-color); display: flex; align-items: center; justify-content: center;
+            border-radius: 12px; transition: background 0.2s, transform 0.1s;
+            touch-action: manipulation;
+        }
+        .nav-btn:active { background-color: rgba(255,255,255,0.1); transform: scale(0.95); }
+        .nav-btn svg { width: 36px; height: 36px; fill: currentColor; }
+
+        .version-tag {
+            font-size: 0.7rem; color: #555; margin-bottom: 10px; writing-mode: vertical-lr;
+        }
+
+        .container {
+            flex-grow: 1; padding: 10px;
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
+            position: relative; display: flex; flex-direction: column;
+        }
+
+        .screen { display: none; min-height: 90vh; padding-bottom: 50px; width: 100%; }
+
+        h1 { font-size: 1.5rem; color: var(--primary-color); margin: 5px 0; }
         
+        /* 按鈕優化 */
+        .large-btn {
+            padding: 12px; margin: 4px; font-size: 1.3rem; font-weight: bold;
+            cursor: pointer; border: 2px solid var(--primary-color); border-radius: 8px;
+            background-color: var(--btn-bg); color: white; transition: all 0.1s;
+            line-height: 1.2; user-select: none; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            touch-action: manipulation;
+        }
+        .large-btn:active { background-color: var(--btn-active); transform: scale(0.96); }
+        .large-btn.disabled { background-color: #555; border-color: #777; cursor: not-allowed; opacity: 0.6; }
+
+        .large-select {
+            width: 98%; font-size: 1.1rem; padding: 10px; margin-bottom: 10px;
+            background-color: var(--btn-bg); color: white; border: 2px solid var(--primary-color);
+            border-radius: 8px; appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2300bcd4%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat; background-position: right 15px top 50%; background-size: 16px auto;
+        }
+
+        /* 工單列表 */
+        #queue-list-container { display: grid; gap: 8px; padding: 2px; }
+        .queue-item {
+            text-align: left; border-color: var(--success-color); position: relative;
+            padding: 12px 15px; /* 稍微增加內距以容納明細 */
+            min-height: auto; display: flex; flex-direction: column; justify-content: center;
+            border-radius: 8px; border: 1px solid var(--success-color);
+            background-color: var(--btn-bg); cursor: pointer;
+            touch-action: manipulation;
+        }
+        .queue-item:active { transform: scale(0.98); }
+        .queue-item.active-job {
+            background-color: #1b5e20; border-color: #66bb6a; border-width: 2px;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+        }
+        .status-badge {
+            position: absolute; top: 8px; right: 8px; background-color: #00e676;
+            color: #000; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold;
+            display: none;
+        }
+        .queue-item.active-job .status-badge { display: block; }
+
+        .q-num { font-size: 1.3rem; font-weight: bold; color: var(--primary-color); margin-right: 8px; float: left;}
+        .main-lang { font-size: 1.1rem; font-weight: bold; display: block; margin-bottom: 4px; }
+        .aux-lang { font-size: 0.9rem; color: #ccc; display: block; margin-bottom: 4px;}
+        /* 新增：明細樣式 */
+        .wo-details { font-size: 0.85rem; color: #8bc34a; border-top: 1px solid #333; margin-top: 5px; padding-top: 5px; }
+
+        .pin-display {
+            font-size: 3rem; letter-spacing: 5px; margin: 10px auto;
+            height: 50px; line-height: 50px; border-bottom: 3px dashed var(--primary-color);
+            color: #ffd700; max-width: 250px;
+        }
+        .error { color: var(--error-color); font-size: 1.1rem; margin-top: 5px; font-weight: bold; min-height: 1.2em; }
+
+        .keypad-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+            width: 100%; max-width: 400px; margin: 5px auto;
+        }
+        .keypad-grid .large-btn { font-size: 1.5rem; padding: 15px; margin: 0; }
+
+        .btn-confirm { background-color: var(--success-color); border-color: var(--success-color); font-size: 1.3rem; }
+        .btn-back { background-color: #607d8b; border-color: #78909c; }
+        .btn-adjust { background-color: #3f51b5; border-color: #5c6bc0; }
+        .btn-reset { background-color: #d32f2f; border-color: #b71c1c; font-size: 1rem; width: 100%; margin-top: 10px;}
+
+        .diagnostic-info { font-size: 0.6rem; color: #555; margin-top: 5px; }
+        .url-alert { background-color: #581515; border: 2px solid var(--error-color); padding: 10px; margin-bottom: 10px; border-radius: 5px; font-size: 0.9rem; color: white; text-align: left; font-weight: bold; display: none; }
+
+        /* 生管表格 */
+        .admin-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9rem; }
+        .admin-table th, .admin-table td { border: 1px solid #444; padding: 6px; text-align: left; }
+        .admin-table th { background-color: var(--primary-color); color: black; }
+        .admin-table tr:nth-child(even) { background-color: #1a3449; }
+        .admin-panel { 
+            background-color: var(--panel-bg); padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: left; 
+            max-height: 65vh; overflow-y: auto;
+            border: 1px solid #333;
+        }
+        .admin-input { width: 100%; padding: 10px; margin: 5px 0 10px 0; background: #000; border: 1px solid #555; color: white; font-size: 1rem; border-radius: 5px;}
+        .sub-item-row { display: grid; grid-template-columns: 1fr 1fr 40px; gap: 5px; margin-bottom: 5px; align-items: center; }
+        .btn-delete { background-color: #e91e63; border: none; color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+        .btn-add-line { background-color: #4caf50; border: none; color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-top: 5px; width: 100%; }
+        .summary-box { background-color: var(--success-color); color: black; padding: 10px; border-radius: 10px; margin-top: 15px; font-weight: bold; font-size: 1.1rem; }
+        .history-section { border-top: 1px solid #444; margin-top: 10px; padding-top: 10px; }
+
         /* Loading */
-        #loading-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; pointer-events: none; }
-        .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); z-index: 2000;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+        }
+        .spinner {
+            border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color);
+            border-radius: 50%; width: 60px; height: 60px;
+            animation: spin 1s linear infinite;
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { color: white; margin-top: 20px; font-size: 1.2rem; font-weight: bold; }
 
-        /* UI */
-        .ios-card { background: #ffffff; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 16px; border: 1px solid #e5e7eb; overflow: hidden; }
-        .ios-card:active { transform: scale(0.995); transition: transform 0.1s; }
-        
-        .reconcile-table { width: 100%; border-collapse: collapse; font-size: 12px; background: white; }
-        .reconcile-table th { background: #f9fafb; color: #6b7280; font-weight: 600; padding: 10px 6px; text-align: left; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
-        .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
-        .reconcile-table tr:hover { background-color: #f9fafb; cursor: pointer; }
-        
-        /* 狀態 */
-        .amt-paid { color: #111827; font-weight: 800; font-family: monospace; font-size: 16px; }
-        .amt-unpaid { background-color: white; color: #dc2626; border: 1px solid #ef4444; border-radius: 4px; padding: 0 6px; font-weight: 700; font-family: monospace; font-size: 16px; white-space: nowrap; display: inline-block; }
+        /* --- 響應式設計 --- */
+        @media (min-width: 768px) {
+            body { background-color: #2b2b2b; align-items: center; justify-content: center;}
+            .nav-bar {
+                position: absolute; left: 0; top: 0; height: 100%; width: 80px;
+                border-radius: 20px 0 0 20px;
+            }
+            .container {
+                max-width: 750px; background-color: var(--bg-color);
+                box-shadow: 0 0 30px rgba(0,0,0,0.8); margin: 20px 0;
+                height: calc(100vh - 40px); border-radius: 20px;
+                overflow: hidden; padding-left: 80px;
+                width: 100%;
+            }
+            h1 { font-size: 2rem; }
+            .keypad-grid { gap: 10px; max-width: 450px; }
+            .admin-table { font-size: 1rem; }
+            #queue-list-container { grid-template-columns: repeat(2, 1fr); }
+        }
 
-        .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
-        .company-tag { font-size: 16px; font-weight: 800; padding: 4px 10px; border-radius: 6px; display: inline-block; }
-        
-        /* 輸入框樣式 */
-        .input-bg-style { background-color: #ffffff; border: 1px solid #d1d5db; color: #111827; transition: all 0.2s; height: 42px; padding: 0 12px; font-size: 16px; border-radius: 8px; width: 100%; }
-        .input-bg-style:focus { border-color: #3b82f6; outline: 2px solid #bfdbfe; }
-        .input-bg-style::placeholder { color: #9ca3af; font-weight: 700; font-size: 16px; }
-        label { font-size: 12px; font-weight: 800; color: #6b7280; margin-bottom: 2px; display: block; }
-
-        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
-        
-        .product-grid-cols { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
-
-        /* 彈窗 */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        .modal-content { background: white; width: 90%; max-width: 400px; max-height: 80vh; border-radius: 20px; padding: 20px; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { opacity: 1; transform: translateY(0); } }
+        @media (max-width: 767px) {
+            body { flex-direction: column; }
+            .nav-bar {
+                width: 100%; height: 50px; flex-direction: row; padding: 0 10px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            }
+            .nav-icons { flex-direction: row; gap: 15px; margin-bottom: 0; }
+            .version-tag { writing-mode: horizontal-tb; margin-bottom: 0; margin-left: auto; }
+            
+            .container { padding: 5px; padding-top: 55px; height: 100vh; margin: 0; border-radius: 0; width: 100%; }
+            #queue-list-container { grid-template-columns: 1fr; }
+            .sub-item-row { grid-template-columns: 1fr; }
+            .keypad-grid .large-btn { padding: 12px; font-size: 1.4rem; }
+        }
     </style>
 </head>
 <body>
-    <div id="loading-screen"><div class="spinner"></div><div style="margin-top:15px;color:#666;font-weight:bold">系統啟動中...</div></div>
-    <div id="root"></div>
+    <!-- 導航列 -->
+    <div id="nav-bar" class="nav-bar" style="display:none;">
+        <div class="nav-icons">
+            <button class="nav-btn" onclick="backToQueue()" title="返回列表">
+                <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </button>
+            <button class="nav-btn" onclick="goHome()" title="回到主畫面">
+                <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            </button>
+            <button class="nav-btn" onclick="logout()" title="登出">
+                <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+            </button>
+        </div>
+        <div class="version-tag">V1.6</div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">處理中 / Processing...</div>
+    </div>
+
+    <div class="container">
+        <!-- 畫面 1: 登入 -->
+        <div id="screen-login" class="screen" style="display: block;">
+            <div class="login-wrapper">
+                <h1>MES LITE <span style="font-size:0.8rem; color:#aaa;">V1.6</span></h1>
+                <div style="font-size: 1rem; margin-bottom: 5px;">
+                    <span data-i18n="login_prompt">請輸入 PIN</span> <span style="color:#aaa;">(生管:9999)</span>
+                </div>
+                <div class="pin-display" id="pin-input"></div>
+                <div id="login-error" class="error"></div>
+                
+                <div id="keypad" class="keypad-grid"></div>
+                
+                <div id="url-alert-box" class="url-alert">🚨 請設定 GAS URL</div>
+                <div class="diagnostic-info">GAS: <span id="api-base-url-display">N/A</span></div>
+            </div>
+        </div>
+
+        <!-- 畫面 1.5: 生管主頁面 -->
+        <div id="screen-planner" class="screen">
+            <h1>📋 生管控制台</h1>
+            <div class="planner-tabs">
+                <button class="tab-btn active" id="btn-tab-queue" onclick="switchPlannerTab('tab-queue')">工單編輯</button>
+                <button class="tab-btn" id="btn-tab-report" onclick="switchPlannerTab('tab-report')">報表輸出</button>
+            </div>
+            <!-- Tab 1 -->
+            <div id="tab-queue" class="planner-tab-content">
+                <div class="admin-panel">
+                    <h3>➕ 建立總工單</h3>
+                    <div class="history-section">
+                        <label style="color: #aaa;">📂 範本 (Templates):</label>
+                        <div style="display:flex; gap:5px;">
+                            <select id="mwo-history-select" class="large-select" style="font-size:1rem; padding:8px; margin-bottom:5px;" onchange="loadMWOFromHistory()">
+                                <option value="">-- 選擇範本 --</option>
+                            </select>
+                            <button class="btn-delete" style="height:40px;" onclick="deleteTemplate()" title="刪除範本">🗑️</button>
+                        </div>
+                    </div>
+                    <label>總工單 ID:</label>
+                    <input type="text" id="batch-mwo" class="admin-input" placeholder="例如: MWO-A">
+                    <h4>子工單項目</h4>
+                    <div id="sub-items-container"></div>
+                    <button class="btn-add-line" onclick="addSubItemRow()">+ 新增項目</button>
+                    <div style="margin-top: 20px; display: flex; gap: 10px;">
+                        <button class="large-btn" style="width:50%; font-size:1.1rem; background-color:#607d8b; border-color:#78909c;" onclick="saveBatchTemplateOnly()">僅儲存範本</button>
+                        <button class="large-btn btn-confirm" style="width:50%; font-size:1.1rem;" onclick="saveBatchWorkOrder()">確認送出</button>
+                    </div>
+                    <button class="large-btn btn-reset" onclick="resetAllData()">⚠️ 重置所有資料 (修復空白問題)</button>
+                </div>
+                <h3>目前排程</h3>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table" id="admin-queue-table">
+                        <thead><tr><th>總工單</th><th>產品</th><th>工序</th><th>操作</th></tr></thead>
+                        <tbody id="admin-queue-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Tab 2 -->
+            <div id="tab-report" class="planner-tab-content" style="display:none;">
+                <div class="admin-panel">
+                    <h3>📊 已完成紀錄</h3>
+                    <button class="large-btn" style="width:100%; font-size:1.2rem; background-color:#2196f3;" onclick="calculateReport()">計算選取總工時</button>
+                </div>
+                <div id="report-summary" class="summary-box" style="display:none;">
+                    總人時: <span id="sum-manhours">0</span> 小時<br>良品: <span id="sum-good">0</span> | 損耗: <span id="sum-reject">0</span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table" id="admin-report-table">
+                        <thead><tr><th><input type="checkbox" onclick="toggleAllReports(this)"></th><th>時間</th><th>工單</th><th>工序</th><th>人時</th></tr></thead>
+                        <tbody id="admin-report-body"></tbody>
+                    </table>
+                </div>
+                <button class="large-btn btn-back" style="margin-top:20px;" onclick="clearCompletedLogs()">清除紀錄</button>
+            </div>
+        </div>
+
+        <!-- 畫面 2: 待辦排隊 -->
+        <div id="screen-queue" class="screen">
+            <h1 id="queue-title"></h1>
+            <div style="font-size: 1rem; color: #00bcd4; margin-bottom: 5px;" data-i18n="select_job_prompt">👆 請點擊欲開始的工單</div>
+            <select id="master-wo-select" class="large-select" onchange="filterQueue()">
+                <option value="ALL">全部顯示</option>
+            </select>
+            <div id="queue-list-container"></div>
+        </div>
+
+        <!-- 畫面 2.5: 輸入人數 -->
+        <div id="screen-manpower" class="screen">
+            <h1 style="color: #ffd700;" data-i18n="manpower_input_title">輸入人數</h1>
+            <div style="font-size: 1.2rem;">
+                <span data-i18n="working_wo">工單</span>: <span id="manpower-woid" style="font-weight: bold; color: #00bcd4;"></span>
+            </div>
+            <div style="margin: 20px auto; max-width: 400px;">
+                <div class="pin-display" id="manpower-input-display" style="letter-spacing: normal; color: #ffd700;">0</div>
+            </div>
+            <div id="manpower-keypad-container" class="keypad-grid"></div>
+        </div>
+
+        <!-- 畫面 3: 正在計時 -->
+        <div id="screen-working" class="screen">
+            <h1 class="working-status">🟢 <span data-i18n="working_in_progress">正在進行中</span></h1>
+            <div style="font-size: 1.5rem; margin-top: 10px;">
+                <span data-i18n="working_wo">工單</span>: <span id="working-woid" style="font-weight: bold;"></span>
+            </div>
+            <div style="font-size: 2.5rem; color: #ffd700; margin: 20px 0;">
+                <span data-i18n="manpower_count">人數</span>: <span id="manpower-display"></span>
+            </div>
+            <div style="font-size: 3.5rem; color: #00bcd4;">
+                <span data-i18n="elapsed_time">已耗時</span>: <span id="elapsed-time">00:00:00</span>
+            </div>
+            <div style="margin-top: 20px; display: flex; flex-direction: column; align-items: center;">
+                <button class="large-btn btn-adjust" style="width: 90%; margin-bottom: 10px;" onclick="adjustManpower()">
+                    <span data-i18n="btn_adjust_manpower">👥 調整人數</span>
+                </button>
+                <button class="large-btn btn-back" style="width: 90%; margin-bottom: 10px;" onclick="backToQueue()">
+                    <span data-i18n="btn_back_list">⬅ 暫離 / 返回列表</span>
+                </button>
+                <button class="large-btn btn-confirm" style="background-color: orange; width: 90%; font-size: 1.8rem;" onclick="endJob()">
+                    <span data-i18n="btn_finish">完成工單</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 畫面 4: 數量輸入 -->
+        <div id="screen-finish" class="screen">
+            <h1 style="color: #ff9800;" data-i18n="finish_prompt">步驟 4: 輸入數量</h1>
+            <div style="font-size: 1.2rem;">
+                <span data-i18n="finish_wo">工單</span>: <span id="finish-woid" style="font-weight: bold; color: #ffd700;"></span>
+            </div>
+            <div style="margin: 10px auto; max-width: 400px;">
+                <div id="finish-instruction" style="font-size: 1.5rem; color: #00bcd4; margin-bottom: 10px; min-height: 40px; white-space: pre-line;"></div>
+                <div class="pin-display" id="qty-input-display" style="letter-spacing: normal; color: #ffd700;">0</div>
+            </div>
+            <div id="finish-keypad-container" class="keypad-grid"></div>
+        </div>
+    </div>
 
     <script>
-        setTimeout(function() {
-            var loader = document.getElementById('loading-screen');
-            if(loader) loader.remove();
-        }, 3500);
-    </script>
+        // 🚨 關鍵：請將此處替換為您部署的 Google Apps Script Webhook URL
+        const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbyP9sYjwQ3pM7MMkrbiWTaUKmIeUcWhtWzPEqyhBlpHds7NfK6I49TTbEg4DWGsutBytA/exec'; 
+        const SECURITY_TOKEN = "MES_LITE_2025"; 
+        const VERSION = "V1.6";
 
-    <script type="text/babel">
-        // --- 0. Error Boundary ---
-        class ErrorBoundary extends React.Component {
-            constructor(props) { super(props); this.state = { hasError: false }; }
-            static getDerivedStateFromError(error) { return { hasError: true }; }
-            render() {
-                if (this.state.hasError) return <div className="p-8 text-center"><h1 className="text-xl font-bold text-red-600">⚠️ 發生錯誤</h1><button onClick={()=>window.location.reload()} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">重整</button></div>;
-                return this.props.children;
+        let state = {
+            currentScreen: 'login', currentPIN: '', currentUser: null, language: 'zh',
+            activeSessions: {}, currentViewingWoId: null, currentWoOperationName: null, 
+            currentManpower: 0, finishStep: 0, 
+            finishData: { qty_reject: 0, actual_collar_qty: 0, actual_tail_qty: 0, qty_good: 0 },
+            currentTypedValue: '0', startTimeISO: null, isSubmitting: false 
+        };
+
+        let timerInterval = null;
+        let appQueue = []; let completedLogs = []; let mwoHistory = [];
+
+        const defaultQueue = [{ wo_id: 'WC001-Q1', master_wo_id: 'MWO-A', product_name_zh: '鮭魚分切', product_name_vn: 'Cá hồi lô A', operation_name_zh: '分切/分料', operation_name_vn: 'Cắt lát', queue_rank: 1, standard_time_hr: 1.2 }];
+
+        const i18n = {
+            zh: {
+                login_prompt: '請輸入 4 位識別碼', pin_error: 'PIN 碼錯誤！', select_job_prompt: '👆 請點擊欲開始的工單', job_start_error: '啟動失敗', working_wo: '工單', manpower_count: '人數', elapsed_time: '已耗時', working_in_progress: '正在進行中', 
+                manpower_input_title: '步驟 2: 輸入人數', manpower_error: '人數必須大於 0',
+                finish_prompt: '步驟 4: 輸入數量', finish_wo: '工單', finish_step1: '❌ 不良品/損耗重量 (KG)', finish_step2: '下巴重量 (KG)', finish_step3: '尾段重量 (KG)', finish_step4: '✅ 中後段總重 (KG)', finish_step5_good: '✅ 良品數量 (PCS/KG)', finish_step5_reject: '❌ 不良品數量 (PCS/KG)', btn_finish: '完成工單', btn_confirm_submit: '確認提交', missing_data: '數據不完整', api_error: '連線錯誤', no_job_in_queue: '目前沒有待辦工單', btn_back_list: '⬅ 暫離 / 返回列表', running_status: '進行中',
+                btn_adjust_manpower: '👥 調整人數', confirm_summary_title: '📋 請確認資料:', confirm_btn_text: '確認送出'
+            },
+            vn: {
+                login_prompt: 'NHẬP MÃ PIN', pin_error: 'Sai mã PIN!', select_job_prompt: '👆 CHỌN CÔNG VIỆC', job_start_error: 'Lỗi!', working_wo: 'Đơn hàng', manpower_count: 'Số người', elapsed_time: 'Đã chạy giờ', working_in_progress: 'ĐANG THỰC HIỆN', 
+                manpower_input_title: 'NHẬP SỐ NGƯỜI', manpower_error: 'Số người > 0',
+                finish_prompt: 'NHẬP SỐ LƯỢNG', finish_wo: 'Đơn hàng', finish_step1: '❌ CÂN NẶNG HỎNG', finish_step2: 'CÂN NẶNG CẰM', finish_step3: 'CÂN NẶNG ĐUÔI', finish_step4: '✅ TỔNG CÂN NẶNG', finish_step5_good: '✅ Số lượng tốt', finish_step5_reject: '❌ Số lượng hỏng', btn_finish: 'Hoàn thành', btn_confirm_submit: 'XÁC NHẬN GỬI', missing_data: 'Thiếu dữ liệu', api_error: 'Lỗi kết nối', no_job_in_queue: 'Không có đơn hàng', btn_back_list: '⬅ Quay lại', running_status: 'Running',
+                btn_adjust_manpower: '👥 Thay đổi nhân lực', confirm_summary_title: '📋 Xác nhận dữ liệu:', confirm_btn_text: 'Nhấn Xác nhận'
+            }
+        };
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // --- Loading Overlay ---
+        function showLoading() { document.getElementById('loading-overlay').style.display = 'flex'; }
+        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+
+        // --- Init & Storage ---
+        function saveQueueToStorage() {
+            localStorage.setItem('mes_lite_queue', JSON.stringify(appQueue));
+        }
+        function saveLogsToStorage() {
+            localStorage.setItem('mes_lite_logs', JSON.stringify(completedLogs));
+        }
+        function saveMWOHistoryToStorage() {
+            localStorage.setItem('mes_mwo_history', JSON.stringify(mwoHistory));
+        }
+        function saveSessionsToStorage() {
+            localStorage.setItem('mes_active_sessions', JSON.stringify(state.activeSessions));
+        }
+        function saveAppStateToStorage() {
+            localStorage.setItem('mes_app_state', JSON.stringify({
+                currentViewingWoId: state.currentViewingWoId,
+                currentWoOperationName: state.currentWoOperationName,
+                currentManpower: state.currentManpower
+            }));
+        }
+
+        function initApp() {
+            const storedQueue = localStorage.getItem('mes_lite_queue');
+            if (storedQueue) { 
+                const parsed = JSON.parse(storedQueue);
+                // 如果儲存的是空陣列，則載入預設值
+                if (parsed.length === 0) { appQueue = [...defaultQueue]; saveQueueToStorage(); } 
+                else { appQueue = parsed; }
+            } else { 
+                appQueue = [...defaultQueue]; saveQueueToStorage(); 
+            }
+            
+            const storedLogs = localStorage.getItem('mes_lite_logs');
+            if (storedLogs) completedLogs = JSON.parse(storedLogs);
+
+            const storedMWOHistory = localStorage.getItem('mes_mwo_history');
+            if (storedMWOHistory) mwoHistory = JSON.parse(storedMWOHistory);
+
+            const storedSessions = localStorage.getItem('mes_active_sessions');
+            if (storedSessions) state.activeSessions = JSON.parse(storedSessions);
+
+            const storedAppState = localStorage.getItem('mes_app_state');
+            if (storedAppState) {
+                const savedState = JSON.parse(storedAppState);
+                if (savedState.currentViewingWoId) state.currentViewingWoId = savedState.currentViewingWoId;
+                if (savedState.currentWoOperationName) state.currentWoOperationName = savedState.currentWoOperationName;
+                if (savedState.currentManpower) state.currentManpower = savedState.currentManpower;
+            }
+
+            document.getElementById('api-base-url-display').textContent = GAS_WEBHOOK_URL; 
+            if (GAS_WEBHOOK_URL === 'YOUR_GAS_WEBHOOK_URL') document.getElementById('url-alert-box').style.display = 'block';
+            
+            renderKeypad('keypad', 'PIN'); 
+            updateUI();
+        }
+
+        function saveAll() {
+            saveQueueToStorage();
+            saveLogsToStorage();
+            saveMWOHistoryToStorage();
+            saveSessionsToStorage();
+            saveAppStateToStorage();
+        }
+
+        function resetAllData() {
+            if(confirm("確定要重置所有資料？這會刪除本機所有工單、紀錄和設定。")) {
+                localStorage.clear();
+                location.reload();
             }
         }
 
-        // --- 1. Config ---
-        const DOMESTIC_FLAG = '國內採購';
-        const IMPORT_COMPANIES = ['崇文冷凍', '八方環球'];
-        const CUSTOMS_BROKERS = ['原碩', '尚鴻', DOMESTIC_FLAG];
-        const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
-        const PAYMENT_TERMS_DOMESTIC = ['現金', '月結 30 天', '月結 45 天', '月結 60 天', '其他'];
-        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
-
-        const initialFormState = { 
-            importCompany: IMPORT_COMPANIES[0], 
-            customsBroker: CUSTOMS_BROKERS[0], 
-            origin: '', 
-            supplier: '', 
-            arrivalDate: new Date().toISOString().split('T')[0], 
-            containerNumber: '', 
-            shippingCompany: '', 
-            products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }], 
-            totalQuantity: 0, 
-            totalWeight: 0, 
-            docUrl: '', 
-            docName: '', 
-            docRefPath: '', 
-            devanningLocation: '', 
-            devanningDate: '', 
-            warehouseConfirmed: false,
-            attachments: [],
-            isPaid: false,
-            currency: 'USD',
-            paymentTerm: '到港前付款',
-            prepayment: 0,
-            flightFee: 0,         
-            flightFeePaid: false 
-        };
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDvMBng2Zhbk6sVaZLSuER2KT6qqeoCdnw",
-            authDomain: "containersystem-6342f.firebaseapp.com",
-            projectId: "containersystem-6342f",
-            storageBucket: "containersystem-6342f.firebasestorage.app",
-            messagingSenderId: "27658303054",
-            appId: "1:27658303054:web:d7a3710054ede268cdf51f"
-        };
-
-        let db, auth, storage;
-        try {
-            if (typeof firebase !== 'undefined' && firebase.apps.length === 0) { firebase.initializeApp(firebaseConfig); }
-            if (typeof firebase !== 'undefined') { db = firebase.firestore(); auth = firebase.auth(); storage = firebase.storage(); }
-        } catch (e) { console.error("Firebase Init Failed:", e); }
-
-        const { useState, useEffect, useMemo, useCallback } = React;
-
-        // --- 2. Helpers ---
-        const safeNum = (val) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
-        const parseDate = (dateStr) => {
-            if (!dateStr || typeof dateStr !== 'string') return new Date(0);
-            try { const p = dateStr.split('-'); if (p.length !== 3) return new Date(0); return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])); } catch (e) { return new Date(0); }
-        };
-        const getStatusStyle = (date) => { 
-            if (!date) return { bg: 'bg-gray-100', text: '未定', color: 'text-gray-400' };
-            const diff = Math.round((parseDate(date) - parseDate(new Date().toISOString().split('T')[0])) / 86400000);
-            if (diff < 0) return { text: '已到港', color: 'bg-gray-100 text-gray-500' };
-            if (diff === 0) return { text: '今日到港', color: 'bg-red-100 text-red-600 animate-pulse' };
-            return { text: diff + ' 天後', color: 'bg-blue-100 text-blue-600' };
-        };
-        const getCompanyColor = (n) => n === '崇文冷凍' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700';
-        const isDomestic = (d) => d && d.customsBroker === DOMESTIC_FLAG;
-        const isForeign = (d) => !isDomestic(d);
-
-        // --- 3. Icons ---
-        const Icons = {};
-        Icons.Ship=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>;
-        Icons.Anchor=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>;
-        Icons.Plus=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
-        Icons.Search=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
-        Icons.Trash2=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
-        Icons.Edit=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
-        Icons.Copy=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
-        Icons.FileCheck=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>;
-        Icons.Globe=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>;
-        Icons.Factory=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>;
-        Icons.Paperclip=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
-        Icons.ArrowRight=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>;
-        Icons.Download=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-3-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
-        Icons.LogOut=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
-        Icons.Google=()=><svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>;
-        Icons.X=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>;
-        Icons.Check=()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>;
-        Icons.Bell=()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
-        Icons.MessageCircle=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>;
-        Icons.User=()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-        Icons.Briefcase=()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
-        Icons.List=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>;
-        Icons.Chart=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>;
-        Icons.Grid=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>;
-        Icons.Dollar=()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
-        Icons.Calendar=()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
-        Icons.Line=()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z"/><path d="M8 12h8"/></svg>;
-
-        // 4. SafeChart
-        const SafeChart = ({ data }) => {
-            const [loaded, setLoaded] = useState(false);
-            useEffect(() => {
-                if(window.Recharts) { setLoaded(true); return; }
-                const t = setInterval(() => { if(window.Recharts) { setLoaded(true); clearInterval(t); } }, 500);
-                return () => clearInterval(t);
-            }, []);
-            if(!loaded) return <div className="p-12 text-center text-gray-400 text-sm">圖表載入中...</div>;
-            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = window.Recharts;
-            return (
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" tick={{fontSize:10}} />
-                            <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize:10}} tickFormatter={v=>`$${v/1000}k`} />
-                            <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize:10}} tickFormatter={v=>`$${v/1000}k`} />
-                            <Tooltip />
-                            <Legend />
-                            <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4,4,0,0]} />
-                            <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4,4,0,0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            );
-        };
-
-        // 5. Dashboard
-        const Dashboard = ({ shipments, canSeePrice }) => {
-            const availableMonths = useMemo(() => {
-                const months = new Set();
-                shipments.forEach(s => {
-                    if(s.arrivalDate) months.add(s.arrivalDate.substring(0, 7));
-                });
-                return Array.from(months).sort().reverse();
-            }, [shipments]);
-
-            const [tf, setTf] = useState('YEAR');
-            const [filterMonth, setFilterMonth] = useState('ALL');
-            const [search, setSearch] = useState('');
+        // --- UI ---
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => screen.style.display = 'none');
+            document.getElementById(screenId).style.display = 'block';
+            state.currentScreen = screenId.replace('screen-', '');
             
-            const stats = useMemo(() => {
-                let list = Array.isArray(shipments) ? shipments : [];
-                if (search) {
-                    const t = search.toLowerCase();
-                    list = list.filter(s => (s.supplier||'').toLowerCase().includes(t) || (s.products||[]).some(p=>p.name.toLowerCase().includes(t)));
-                }
-                
-                if (filterMonth !== 'ALL') {
-                     list = list.filter(s => s.arrivalDate && s.arrivalDate.startsWith(filterMonth));
-                }
+            const navBar = document.getElementById('nav-bar');
+            if (state.currentScreen === 'login') {
+                navBar.style.display = 'none';
+                renderKeypad('keypad', 'PIN');
+                state.currentPIN = '';
+                document.getElementById('pin-input').textContent = '';
+            } else {
+                navBar.style.display = 'flex';
+                let title = "MES Lite";
+                if(state.currentScreen === 'queue') title = "待辦排程";
+                if(state.currentScreen === 'planner') title = "生管控制台";
+                if(state.currentScreen === 'working') title = "計時中";
+                document.getElementById('nav-title-display').textContent = title;
+            }
 
-                const count = list.length;
-                const items = list.reduce((s,i) => s + safeNum(i.totalQuantity), 0);
-                const w = list.reduce((s,i) => s + safeNum(i.totalWeight), 0);
-                const moneyUSD = list.reduce((s,i) => i.currency==='USD' ? s + (i.products||[]).reduce((a,p)=>a+safeNum(p.amount),0) : s, 0);
-                const moneyTWD = list.reduce((s,i) => i.currency==='TWD' ? s + (i.products||[]).reduce((a,p)=>a+safeNum(p.amount),0) : s, 0);
-                
-                const supps = {}; list.forEach(s=>{ const n=s.supplier||'未填'; supps[n]=(supps[n]||0)+1; });
-                const top = Object.entries(supps).sort((a,b)=>b[1]-a[1]).slice(0,5);
-                
-                const chartMap = {};
-                list.forEach(s => {
-                    const d = parseDate(s.arrivalDate);
-                    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-                    if(!chartMap[k]) chartMap[k] = {name:k, TWD:0, USD:0};
-                    const amt = (s.products||[]).reduce((a,p)=>a+safeNum(p.amount),0);
-                    if(s.currency==='USD') chartMap[k].USD += amt; else chartMap[k].TWD += amt;
-                });
-                const chartData = Object.values(chartMap).sort((a,b)=>a.name.localeCompare(b.name)).slice(-6);
-
-                return { count, items, w, moneyUSD, moneyTWD, top, chartData };
-            }, [shipments, filterMonth, search]);
-            
-            return (
-                <div className="space-y-6 animate-[fade-in_0.3s_ease-out] pb-20">
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-gray-800">統計儀表板</h2>
-                            <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1 text-sm outline-none font-bold text-gray-700">
-                                <option value="ALL">全部月份</option>
-                                {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                        </div>
-                        <input placeholder="搜尋產品、廠商..." value={search} onChange={e=>setSearch(e.target.value)} className="w-full bg-white text-gray-900 rounded-xl py-2 px-4 outline-none shadow-sm text-sm border border-gray-100" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總筆數</div><div className="text-2xl font-black text-gray-800">{stats.count}</div></div>
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總件數</div><div className="text-2xl font-black text-blue-600">{stats.items.toLocaleString()}</div></div>
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm col-span-2"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{parseInt(stats.w).toLocaleString()}</div></div>
-                        {canSeePrice() && (
-                            <>
-                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyUSD.toLocaleString()}</div></div>
-                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyTWD.toLocaleString()}</div></div>
-                            </>
-                        )}
-                    </div>
-                    {canSeePrice() && <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">📈 月度採購金額趨勢</h3><SafeChart data={stats.chartData} /></div>}
-                     <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">🏆 前五大廠商</h3><div className="space-y-3">{stats.top.map(([n,c],i)=><div key={n} className="flex items-center gap-3"><div className="w-6 text-xs font-bold text-gray-400">#{i+1}</div><div className="flex-1"><div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">{n}</span><span className="text-gray-500">{c} 筆</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{width:`${(c/5)*100}%`}}></div></div></div></div>)}</div></div>
-                </div>
-            );
-        };
-
-        // 6. Main App
-        function ContainerApp() {
-            const [user, setUser] = useState(null);
-            const [shipments, setShipments] = useState([]);
-            const [view, setView] = useState('list'); 
-            const [displayMode, setDisplayMode] = useState('card');
-            const [editingId, setEditingId] = useState(null);
-            const [searchTerm, setSearchTerm] = useState('');
-            const [loading, setLoading] = useState(true);
-            const [isSubmitting, setIsSubmitting] = useState(false);
-            const [currentTab, setCurrentTab] = useState('NOT_DEVANED'); 
-            const [userRole, setUserRole] = useState('GUEST');
-            const [formData, setFormData] = useState(initialFormState);
-            const [showNotifications, setShowNotifications] = useState(false);
-            const [uploading, setUploading] = useState(false);
-            const [showFileModal, setShowFileModal] = useState(false);
-            const [fileList, setFileList] = useState([]);
-
-            // Actions
-            const handleLogout = useCallback(() => { if(auth) auth.signOut(); else window.location.reload(); }, []);
-            const handleAdminLogin = async () => { try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch (error) { alert("登入失敗: " + error.message); } };
-            const handleGuestLogin = async () => { try { await auth.signInAnonymously(); } catch (error) { alert("訪客登入失敗"); } };
-            const handleDelete = async (id) => { if(confirm("確定刪除?")) await db.collection('shipments').doc(id).delete(); };
-            const handleWarehouseConfirm = async (e, item) => { e.stopPropagation(); if (!canEditWarehouseFields()) return alert("權限不足"); try { await db.collection('shipments').doc(item.id).update({ warehouseConfirmed: !item.warehouseConfirmed }); } catch (err) { alert(err.message); } };
-            
-            const handleExport = () => { 
-                if (userRole === 'GUEST') return alert("權限不足"); 
-                const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付"; 
-                if (showPrice) header += ",單價,金額";
-                header += "\n";
-                const rows = filteredList.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付'];
-                    if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
-                    return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
-                })).join("\n");
-                const link = document.createElement("a"); 
-                link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); 
-                link.download='貨櫃_'+new Date().toISOString().slice(0,10)+'.csv'; link.click(); 
-            };
-
-            const handleShareToLine = (s) => {
-                const isDom = isDomestic(s);
-                let text = `${isDom ? "🚚 到貨通知" : "🚢 到港通知"}\n日期：${s.arrivalDate}\n櫃號：${s.containerNumber}\n廠商：${s.supplier}\n\n`;
-                (s.products || []).forEach((p, i) => { text += `${i+1}. ${p.name} ${p.spec ? p.spec : ''} - ${p.quantity}件\n`; });
-                window.open("https://line.me/R/msg/text/?" + encodeURIComponent(text), '_blank');
-            };
-            
-            // V47.0: 智慧附件處理
-            const handleAttachmentClick = (e, item) => {
-                e.stopPropagation();
-                const files = item.attachments || [];
-                
-                // 1. 無附件但有舊連結 -> 開連結
-                if (files.length === 0 && item.docUrl) {
-                    window.open(item.docUrl, '_blank');
-                    return;
-                }
-                
-                // 2. 單一附件 -> 直接開
-                if (files.length === 1) {
-                    window.open(files[0].url, '_blank');
-                    return;
-                }
-                
-                // 3. 多個附件 -> 開彈窗
-                if (files.length > 1) {
-                    setFileList(files);
-                    setShowFileModal(true);
-                }
-            };
-
-            const handleEdit = (item) => {
-                if(!canEdit() && !canUpload()) return alert("權限不足"); 
-                let atts = item.attachments || [];
-                if (item.docUrl && atts.length === 0) { atts.push({ name: item.docName || '附件', url: item.docUrl, path: item.docRefPath }); }
-                setFormData({ 
-                    ...initialFormState, ...item, attachments: atts,
-                    currency: item.currency || (item.customsBroker === DOMESTIC_FLAG ? 'TWD' : 'USD'),
-                    paymentTerm: item.paymentTerm || (item.customsBroker === DOMESTIC_FLAG ? PAYMENT_TERMS_DOMESTIC[0] : '到港前付款'),
-                    prepayment: item.prepayment || 0, flightFee: item.flightFee || 0, flightFeePaid: item.flightFeePaid || false
-                }); 
-                setEditingId(item.id); setView('form'); 
-            };
-
-            const handleDuplicateShipment = (s) => { 
-                if(!canCreate()) return alert("權限不足");
-                const {id, ...d} = s; const merged = { ...initialFormState, ...d };
-                const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()})); 
-                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, flightFee: 0, flightFeePaid: false}); 
-                setEditingId(null); setView('form'); 
-            };
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if(!canEdit()) return alert("權限不足");
-                setIsSubmitting(true);
-                try {
-                    const d = {...formData, updatedAt: new Date().toISOString()};
-                    if(editingId) await db.collection('shipments').doc(editingId).update(d);
-                    else await db.collection('shipments').add({...d, createdAt: new Date().toISOString()});
-                    setEditingId(null); setView('list');
-                } catch(err){ alert(err.message); } finally { setIsSubmitting(false); }
-            };
-
-            // --- Form Handlers ---
-            const handleInputChange = (e) => {
-                const {name,value,type,checked}=e.target;
-                setFormData(p => ({...p, [name]: type==='checkbox'?checked:value}));
-            };
-            
-            const handleProductChange = (idx, f, v) => {
-                const np = [...formData.products]; np[idx] = {...np[idx], [f]:v};
-                const p = np[idx];
-                if (f === 'spec') { const match = v.match(/(\d+)\s*(?:盒|包|塊|片)/); if (match) { p.boxCapacity = parseFloat(match[1]); } }
-                const q = safeNum(p.quantity);
-                const b = safeNum(p.boxCapacity) || 1;
-                const w = safeNum(p.weight);
-                const u = safeNum(p.unitPrice);
-                if(p.pricingMode==='weight') { p.amount = Math.round(w * u); } 
-                else { p.amount = Math.round(q * b * u); }
-                setFormData(prev => ({...prev, products:np, totalQuantity:np.reduce((s,i)=>s+safeNum(i.quantity),0), totalWeight:np.reduce((s,i)=>s+safeNum(i.weight),0)}));
-            };
-
-            const addProductRow = (e) => {
-                if(e) e.preventDefault();
-                setFormData(p => ({...p, products:[...(p.products||[]), {id:Date.now(), name:'', quantity:0, weight:0, unitPrice:0, amount:0, pricingMode:'quantity', boxCapacity: 1}]}));
-            };
-            const duplicateProductRow = (idx) => { const p=formData.products[idx]; setFormData(prev=>({...prev, products:[...prev.products.slice(0,idx+1), {...p, id:Date.now()}, ...prev.products.slice(idx+1)]})); };
-            const removeProductRow = (idx) => { const np=formData.products.filter((_,i)=>i!==idx); setFormData(prev=>({...prev, products:np})); };
-            const handleFileUpload = async (evt) => {
-                const files = Array.from(evt.target.files);
-                if (files.length === 0) return;
-                setUploading(true);
-                if (!canUpload()) { alert("權限不足"); setUploading(false); return; }
-
-                try {
-                    const newAttachments = [];
-                    for (const file of files) {
-                        const ref = storage.ref('docs/' + Date.now() + '_' + file.name);
-                        await ref.put(file);
-                        const url = await ref.getDownloadURL();
-                        newAttachments.push({ name: file.name, url: url, path: ref.fullPath });
-                    }
-                    setFormData(prev => ({ ...prev, attachments: [...(prev.attachments||[]), ...newAttachments] }));
-                } catch (error) { alert("上傳失敗: " + error.message); } finally { setUploading(false); evt.target.value = ''; }
-            };
-            const handleDeleteFile = async (index) => { 
-                if(!confirm("確定要刪除此附件嗎？")) return;
-                if (!canUpload()) return alert("權限不足");
-                const target = formData.attachments[index];
-                if (target.path && storage) { try { await storage.ref(target.path).delete(); } catch (error) { console.warn(error); } }
-                const newAttachments = formData.attachments.filter((_, i) => i !== index);
-                setFormData(prev => ({ ...prev, attachments: newAttachments }));
-            };
-
-            // Auth & DB Effects
-            useEffect(() => {
-                const loader = document.getElementById('loading-screen');
-                if(loader) { loader.style.opacity = '0'; setTimeout(()=>loader.style.display='none', 300); }
-                if (!auth) return;
-                const unsub = auth.onAuthStateChanged(u => { setUser(u); if(!u) setLoading(false); });
-                return () => unsub();
-            }, []);
-
-            useEffect(() => {
-                if (!user || !db) return;
-                const unsub = db.collection('shipments').onSnapshot(s => {
-                    const cleanData = s.docs.map(d => {
-                        const dat = d.data();
-                        return { id:d.id, ...dat, products: Array.isArray(dat.products) ? dat.products : [] };
-                    }).sort((a,b)=>b.arrivalDate>a.arrivalDate?1:-1);
-                    setShipments(cleanData);
-                    setLoading(false);
-                });
-                db.collection('settings').doc('config').get().then(doc => {
-                    if(doc.exists) {
-                        const d = doc.data();
-                        if(d.user_roles && d.user_roles[user.email]) setUserRole(d.user_roles[user.email]);
-                        else if(d.admin_emails && d.admin_emails.includes(user.email)) setUserRole('MANAGER');
-                    } else if(ADMIN_EMAILS.includes(user.email)) setUserRole('MANAGER');
-                });
-                return () => unsub();
-            }, [user]);
-
-            // Permissions
-            const canManage = () => userRole === 'MANAGER';
-            const canEdit = () => ['MANAGER','PURCHASING','WAREHOUSE','QC'].includes(userRole);
-            const canCreate = () => ['MANAGER','PURCHASING'].includes(userRole); 
-            const canDelete = () => ['MANAGER','PURCHASING'].includes(userRole); 
-            const canUpload = () => ['MANAGER','PURCHASING','WAREHOUSE','QC'].includes(userRole); 
-            const canSeePrice = () => ['MANAGER','PURCHASING','ACCOUNTING'].includes(userRole);
-            const canEditFlightFee = () => userRole === 'MANAGER' || userRole === 'ACCOUNTING';
-            const canEditDomesticFull = () => ['MANAGER','PURCHASING'].includes(userRole);
-            const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole);
-            const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole);
-
-            // Filter
-            const todayStr = new Date().toISOString().split('T')[0];
-            const filteredList = useMemo(() => {
-                let list = Array.isArray(shipments) ? shipments : [];
-                if(searchTerm) { const t=searchTerm.toLowerCase(); list=list.filter(s=>(s.containerNumber||'').toLowerCase().includes(t)||(s.supplier||'').toLowerCase().includes(t)||(s.products||[]).some(p=>(p.name||'').toLowerCase().includes(t)||(p.spec||'').toLowerCase().includes(t)||(p.batchNumber||'').toLowerCase().includes(t)||(s.importCompany||'').toLowerCase().includes(t)||(s.customsBroker||'').toLowerCase().includes(t)||(s.origin||'').toLowerCase().includes(t))); }
-                
-                if(currentTab==='UNPAID') list=list.filter(s=>!s.isPaid);
-                else if(currentTab==='DOMESTIC') list=list.filter(s=>isDomestic(s));
-                else if(currentTab==='DEVANED') list=list.filter(s=>isForeign(s)&&s.devanningDate&&s.devanningDate<=todayStr);
-                else list=list.filter(s=>isForeign(s)&&(!s.devanningDate||s.devanningDate>todayStr));
-                
-                return list.sort((a,b) => (currentTab==='DEVANED' ? (b.devanningDate>a.devanningDate?1:-1) : (a.arrivalDate>b.arrivalDate?1:-1)));
-            }, [shipments, searchTerm, currentTab]);
-            
-            const urgentCount = useMemo(() => shipments.filter(s => !s.arrivalDate ? false : (Math.round((parseDate(s.arrivalDate)-parseDate(todayStr))/86400000) >= 0 && Math.round((parseDate(s.arrivalDate)-parseDate(todayStr))/86400000) <= 3)).length, [shipments]);
-            const urgentList = useMemo(() => shipments.filter(s => !s.arrivalDate ? false : (Math.round((parseDate(s.arrivalDate)-parseDate(todayStr))/86400000) >= 0 && Math.round((parseDate(s.arrivalDate)-parseDate(todayStr))/86400000) <= 3)).sort((a,b)=>a.arrivalDate>b.arrivalDate?1:-1), [shipments]);
-            const unpaidCount = useMemo(() => shipments.filter(s => !s.isPaid).length, [shipments]);
-
-            if(loading) return <div className="flex h-screen items-center justify-center text-gray-500">Loading...</div>;
-            if(!user) return <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full"><div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 text-3xl"><Icons.Ship /></div><h1 className="text-2xl font-bold mb-8">貨櫃管理系統</h1><button onClick={handleAdminLogin} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow mb-3 flex justify-center gap-2"><Icons.Google /> 員工登入</button><button onClick={handleGuestLogin} className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-bold flex justify-center gap-2"><Icons.User /> 訪客登入</button></div></div>;
-
-            return (
-                <ErrorBoundary>
-                <div className="min-h-screen bg-slate-100 pb-20 md:pb-0 md:pl-64">
-                    {/* Notification Modal */}
-                    {showNotifications && (
-                        <div className="modal-overlay" onClick={()=>setShowNotifications(false)}>
-                            <div className="modal-content" onClick={e=>e.stopPropagation()}>
-                                <div className="flex justify-between items-center mb-4 border-b pb-2"><h3 className="font-bold text-lg text-gray-800">近期到港急件 ({urgentCount})</h3><button onClick={()=>setShowNotifications(false)}><Icons.X /></button></div>
-                                {urgentList.length===0 ? <div className="text-center text-gray-400 py-4">目前無急件</div> : urgentList.map(s=>(
-                                    <div key={s.id} className="mb-3 p-3 bg-red-50 rounded-lg border border-red-100 cursor-pointer" onClick={()=>{setShowNotifications(false); setFormData({...initialFormState, ...s}); setEditingId(s.id); setView('form');}}>
-                                        <div className="flex justify-between font-bold text-sm text-gray-800"><span>{s.containerNumber}</span><span className="text-red-600">{s.arrivalDate}</span></div>
-                                        <div className="text-xs text-gray-500 mt-1">{s.supplier}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* V47.0: File List Modal */}
-                    {showFileModal && (
-                        <div className="modal-overlay" onClick={()=>setShowFileModal(false)}>
-                            <div className="modal-content" onClick={e=>e.stopPropagation()}>
-                                <div className="flex justify-between items-center mb-4 border-b pb-2"><h3 className="font-bold text-lg text-gray-800">附件列表 ({fileList.length})</h3><button onClick={()=>setShowFileModal(false)}><Icons.X /></button></div>
-                                <div className="space-y-2">
-                                    {fileList.map((f, i) => (
-                                        <a key={i} href={f.url} target="_blank" className="flex items-center justify-between p-3 bg-gray-50 rounded hover:bg-blue-50 border border-gray-200 text-blue-600 group">
-                                            <span className="truncate font-bold text-sm mr-2">{f.name}</span>
-                                            <span className="text-gray-400 group-hover:text-blue-600"><Icons.Download /></span>
-                                        </a>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><Icons.Ship /></span>貨櫃管理 v47.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><Icons.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><Icons.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><Icons.LogOut /> 登出</button></div></aside>
-
-                    <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><Icons.Ship /></span> {view==='list'?'貨櫃列表':'統計分析'}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><Icons.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><Icons.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><Icons.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><Icons.LogOut /></button></div></div>
-
-                    <main className="p-4 max-w-4xl mx-auto">
-                        {view === 'list' && (
-                            <div className="space-y-4">
-                                <div className="sticky top-0 z-20 bg-[#F3F4F6] -mt-4 pt-4 pb-2 space-y-3">
-                                    <div className="flex gap-2 items-center">
-                                        <div className="relative flex-1"><span className="absolute left-3 top-3 text-gray-400"><Icons.Search /></span><input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="搜尋..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border-none shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                                        {canSeePrice() && (
-                                            <button onClick={()=>setCurrentTab(currentTab==='UNPAID'?'NOT_DEVANED':'UNPAID')} className={`relative p-2.5 rounded-xl shadow-sm transition-colors ${currentTab==='UNPAID'?'bg-red-500 text-white':'bg-white text-gray-600'}`}>
-                                                <div className="flex items-center gap-1 font-bold"><Icons.Dollar />{unpaidCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}</div>
-                                            </button>
-                                        )}
-                                        <button onClick={()=>setDisplayMode(displayMode==='card'?'table':'card')} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600"><Icons.List /></button>
-                                        
-                                        {/* 電腦版四大天王 */}
-                                        <div className="hidden md:flex gap-2">
-                                            <div onClick={()=>setShowNotifications(true)} className="relative p-2.5 bg-white rounded-xl shadow-sm text-gray-600 cursor-pointer hover:bg-gray-50"><Icons.Bell />{urgentCount>0&&<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}</div>
-                                            <button onClick={handleExport} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600 hover:bg-gray-50"><Icons.Download /></button>
-                                            {canCreate() && <button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="p-2.5 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50"><Icons.Plus /></button>}
-                                        </div>
-                                    </div>
-                                    <div className="flex overflow-x-auto gap-2 pb-1">
-                                        <button onClick={()=>setCurrentTab('NOT_DEVANED')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${currentTab==='NOT_DEVANED'?'bg-blue-600 text-white shadow':'bg-white text-gray-600 border'}`}>未拆櫃 <span className={`ml-1 text-xs ${currentTab==='NOT_DEVANED'?'text-blue-100':'text-gray-400'}`}>{shipments.filter(s=>isForeign(s)&&(!s.devanningDate||s.devanningDate>todayStr)).length}</span></button>
-                                        <button onClick={()=>setCurrentTab('DEVANED')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${currentTab==='DEVANED'?'bg-blue-600 text-white shadow':'bg-white text-gray-600 border'}`}>已拆櫃 <span className={`ml-1 text-xs ${currentTab==='DEVANED'?'text-blue-100':'text-gray-400'}`}>{shipments.filter(s=>isForeign(s)&&s.devanningDate&&s.devanningDate<=todayStr).length}</span></button>
-                                        <button onClick={()=>setCurrentTab('DOMESTIC')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${currentTab==='DOMESTIC'?'bg-blue-600 text-white shadow':'bg-white text-gray-600 border'}`}>國內採購 <span className={`ml-1 text-xs ${currentTab==='DOMESTIC'?'text-blue-100':'text-gray-400'}`}>{shipments.filter(s=>isDomestic(s)).length}</span></button>
-                                    </div>
-                                </div>
-
-                                {displayMode === 'table' ? (
-                                    <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
-                                        <table className="reconcile-table">
-                                            <thead><tr><th>日期</th><th>櫃號</th><th>廠商</th><th>品名摘要</th><th className="text-right">總數</th><th className="text-right">總重</th>{canSeePrice()&&<th className="text-right">貨款金額</th>}{canEditFlightFee()&&<th className="text-right">旅費</th>}</tr></thead>
-                                            <tbody>
-                                                {filteredList.map(item => {
-                                                    const totalAmt = (item.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
-                                                    const curr = item.currency === 'USD' ? 'US$' : 'NT$';
-                                                    const showFlightFee = isForeign(item) || canManage();
-                                                    return (
-                                                    <tr key={item.id} onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
-                                                        <td className="whitespace-nowrap">{item.arrivalDate}</td><td className="font-bold">{item.containerNumber}</td><td className="truncate max-w-[80px]">{item.supplier}</td><td className="truncate max-w-[100px]">{(item.products||[]).map(p=>p.name).join(',')}</td><td className="text-right font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()}</td><td className="text-right text-orange-500">{safeNum(item.totalWeight).toLocaleString()}</td>
-                                                        {canSeePrice()&&<td className="text-right whitespace-nowrap"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {totalAmt.toLocaleString()}</span></td>}
-                                                        {canEditFlightFee()&&<td className="text-right whitespace-nowrap">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{safeNum(item.flightFee).toLocaleString()}</span>:'-'}</td>}
-                                                    </tr>
-                                                )})}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {filteredList.map(item => {
-                                            const totalAmount = (item.products || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-                                            const totalWeight = (item.products || []).reduce((sum, p) => sum + (Number(p.weight) || 0), 0);
-                                            const totalQty = (item.products || []).reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
-                                            const currSymbol = item.currency === 'USD' ? 'US$' : 'NT$';
-                                            
-                                            const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
-                                            const mainDate = parseDate(item.arrivalDate);
-                                            
-                                            // V47.0: 智慧附件判斷
-                                            const hasAttachments = (item.attachments && item.attachments.length > 0) || item.docUrl;
-                                            const attCount = item.attachments ? item.attachments.length : (item.docUrl ? 1 : 0);
-
-                                            return (
-                                            <div key={item.id} className="ios-card p-4" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
-                                                <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="mb-1"><span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span></div>
-                                                        <div className="text-2xl font-black text-gray-900 tracking-tight mb-2">{item.containerNumber}</div>
-                                                        <div className="flex flex-wrap gap-1 mb-2">
-                                                            {item.customsBroker && <span className="tag-badge bg-gray-100 text-gray-600"><Icons.FileCheck />{item.customsBroker}</span>}
-                                                            <span className="tag-badge bg-gray-100 text-gray-600"><Icons.Factory />{item.supplier}</span>
-                                                            {item.origin && <span className="tag-badge bg-gray-100 text-gray-600"><Icons.Globe />{item.origin}</span>}
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {item.devanningLocation && <span className="tag-badge bg-blue-50 text-blue-600"><Icons.Briefcase />{item.devanningLocation}</span>}
-                                                            {item.devanningDate && <span className="tag-badge bg-blue-50 text-blue-600"><Icons.Calendar />{item.devanningDate}</span>}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-2">
-                                                         <div className="flex gap-1 relative z-10">
-                                                            {/* V47.0: 智慧附件按鈕 */}
-                                                            {hasAttachments && (
-                                                                <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative">
-                                                                    <Icons.Paperclip />
-                                                                    {attCount > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{attCount}</span>}
-                                                                </button>
-                                                            )}
-                                                            
-                                                            {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><Icons.Edit /></button>}
-                                                            <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-1.5"><Icons.MessageCircle /></button>
-                                                            {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><Icons.Copy /></button>}
-                                                            {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-1.5"><Icons.Trash2 /></button>}
-                                                        </div>
-                                                        <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl border ${isDevanned?'bg-green-50 border-green-200 text-green-700':'bg-white border-gray-200 text-gray-700'}`}><span className="text-[10px] font-bold uppercase">{mainDate.toLocaleString('default',{month:'short'})}</span><span className="text-xl font-bold leading-none">{mainDate.getDate()}</span></div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    {(item.products || []).map((p,i)=>(
-                                                        <div key={i} className="flex flex-col border-b border-gray-50 pb-2 last:border-0 last:pb-0">
-                                                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-                                                                <span className="font-bold text-gray-900 text-base">{p.name}</span>
-                                                                {p.spec&&<span className="text-gray-500">{p.spec}</span>}
-                                                                <div className="flex items-center gap-2 mr-auto sm:ml-0 flex-wrap justify-start text-gray-600">
-                                                                    <span className="text-xs text-gray-400">{p.pricingMode==='weight'?'[重]':'[數]'}</span>
-                                                                    <span className="font-mono text-base">{safeNum(p.weight).toLocaleString()}kg</span>
-                                                                    {canSeePrice()&&<><span className="text-gray-300">|</span><span className="font-mono text-base">${safeNum(p.unitPrice)}</span><span className="text-gray-300">|</span><span className="font-bold text-emerald-600 font-mono text-base">${safeNum(p.amount).toLocaleString()}</span></>}
-                                                                </div>
-                                                                <span className="ml-auto text-base font-bold text-blue-600 font-mono">{safeNum(p.quantity).toLocaleString()} 件</span>
-                                                            </div>
-                                                            {(p.batchNumber||p.expiryDate)&&<div className="flex gap-2 mt-1 text-xs text-gray-400 font-mono">{p.batchNumber&&<span className="bg-gray-100 px-1.5 rounded">批:{p.batchNumber}</span>}{p.expiryDate&&<span className="bg-gray-100 px-1.5 rounded">效:{p.expiryDate}</span>}</div>}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                
-                                                <div className="mt-3 pt-2 bg-gray-50 -mx-4 -mb-4 p-3 border-t border-gray-200">
-                                                    <div className="grid grid-cols-3 gap-2 text-lg mb-2 font-mono font-bold text-gray-700 border-b border-gray-300 pb-2">
-                                                        <div className="text-left">{totalWeight.toLocaleString()}kg</div>
-                                                        <div className="text-center text-emerald-700">{currSymbol}{totalAmount.toLocaleString()}</div>
-                                                        <div className="text-right text-blue-700">{totalQty.toLocaleString()}件</div>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="flex gap-3 items-center">
-                                                            <span className={item.isPaid?"amt-paid":"amt-unpaid"}>{item.isPaid?'':'未付款'}</span>
-                                                            {canSeePrice() && item.flightFee > 0 && <span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{item.flightFeePaid?'':'未付旅費'}</span>}
-                                                        </div>
-                                                        <label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`} onClick={e => e.stopPropagation()}>
-                                                            <input type="checkbox" className="w-4 h-4 rounded mr-1 cursor-pointer accent-green-600" checked={item.warehouseConfirmed || false} onChange={(e) => handleWarehouseConfirm(e, item)} disabled={!canEditWarehouseFields()} />
-                                                            <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )})}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        
-                        {view === 'stats' && <Dashboard shipments={shipments} canSeePrice={canSeePrice} />}
-
-                        {view === 'form' && (
-                            <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
-                                <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><Icons.X /></button></div>
-                                <form onSubmit={handleSubmit} className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-3"><div><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" placeholder="櫃號" /></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div><div><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="廠商" /></div><div><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div><div><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div></div>
-                                    
-                                    {canSeePrice() && <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 mb-3 flex flex-wrap items-end gap-3"><div className="flex-1 min-w-[140px]"><label>付款條件</label><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" /></div>{canEditFlightFee() && isForeign(formData) && (<div className="w-24"><label>旅費</label><input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded input-bg-style" placeholder="0" /></div>)}<div className="flex items-center gap-3 pb-2 ml-auto"><label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>{canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}</div></div>}
-                                    
-                                    <div className="pt-2">
-                                        <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-700">產品明細</h3>{(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}</div>
-                                        <div className="space-y-3">{formData.products.map((p, idx) => (
-                                            <div key={p.id} className="bg-white border rounded-xl p-3 relative shadow-sm">
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="input-bg-style rounded p-1 font-bold" placeholder="品名" />
-                                                    <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
-                                                    <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="quantity">計件</option><option value="weight">計重</option></select>
-                                                    <input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="件數" />
-                                                    <input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" />
-                                                    <input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" />
-                                                    <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
-                                                    <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
-                                                    <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">
-                                                        {canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${safeNum(p.amount).toLocaleString()}</span> : <span></span>}
-                                                        {(canEditDomesticFull() || canManage()) && (
-                                                            <div className="flex gap-1">
-                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><Icons.Copy /></button>
-                                                                {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><Icons.Trash2 /></button>}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}</div>
-                                    </div>
-                                    
-                                    {/* 多檔案上傳 */}
-                                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                                        <label className="block text-xs font-bold text-gray-500 mb-2">附件 ({formData.attachments?.length || 0})</label>
-                                        <div className="space-y-2">
-                                            {(formData.attachments || []).map((file, idx) => (
-                                                <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border">
-                                                    <a href={file.url} target="_blank" className="text-blue-600 text-xs underline truncate flex-1 mr-2">{file.name}</a>
-                                                    {canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><Icons.Trash2 /></button>}
-                                                </div>
-                                            ))}
-                                        </div>
-                                        {canUpload() && (
-                                            <div className="mt-2 relative">
-                                                <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                                <button type="button" className="w-full py-2 bg-white border border-dashed border-gray-400 rounded text-gray-500 text-sm font-bold flex items-center justify-center gap-2">
-                                                    {uploading ? '上傳中...' : <><Icons.Paperclip /> 選擇檔案 (可多選)</>}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex gap-3 pt-2"><button type="button" onClick={()=>setView('list')} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button><button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">{isSubmitting?'...':'儲存'}</button></div>
-                                </form>
-                            </div>
-                        )}
-                    </main>
-                    <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex z-40 pb-safe h-14"><button onClick={()=>setView('list')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='list'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><Icons.List /></div><span className="text-xs font-bold">列表</span></button><button onClick={()=>setView('stats')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='stats'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><Icons.Chart /></div><span className="text-xs font-bold">統計</span></button></div>
-                </div>
-                </ErrorBoundary>
-            );
+            if (state.currentScreen === 'queue') loadQueue();
+            if (state.currentScreen === 'planner') {
+                renderPlannerQueue(); updateMWOHistoryDropdown();
+                if (document.getElementById('sub-items-container').children.length === 0) addSubItemRow();
+            }
+            saveAll();
         }
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ContainerApp />);
+
+        function updateUI() {
+            const currentLang = state.language;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[currentLang] && i18n[currentLang][key]) el.textContent = i18n[currentLang][key];
+            });
+            if (state.currentUser && state.currentUser.name_zh) {
+                const greeting = currentLang === 'vn' ? `Chào Ông ${state.currentUser.name_vn}` : `你好，${state.currentUser.name_zh}`;
+                document.getElementById('queue-title').textContent = greeting;
+            }
+        }
+
+        function goHome() {
+            if (state.currentUser && state.currentUser.user_pin === '9999') { showScreen('screen-planner'); switchPlannerTab('tab-queue'); } 
+            else { backToQueue(); }
+        }
+
+        // --- Planner ---
+        function switchPlannerTab(tabId) {
+            document.querySelectorAll('.planner-tab-content').forEach(el => el.style.display = 'none');
+            document.getElementById(tabId).style.display = 'block';
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            const activeBtnId = tabId === 'tab-queue' ? 'btn-tab-queue' : 'btn-tab-report';
+            document.getElementById(activeBtnId).classList.add('active');
+
+            if (tabId === 'tab-queue') { renderPlannerQueue(); updateMWOHistoryDropdown(); }
+            if (tabId === 'tab-report') renderPlannerReport();
+        }
+
+        function renderPlannerQueue() {
+            const tbody = document.getElementById('admin-queue-body');
+            tbody.innerHTML = '';
+            appQueue.forEach((job, index) => {
+                tbody.innerHTML += `<tr><td>${escapeHtml(job.master_wo_id)}</td><td>${escapeHtml(job.product_name_zh)}</td><td>${escapeHtml(job.operation_name_zh)}</td><td><button class="btn-delete" onclick="deleteWorkOrder(${index})">刪除</button></td></tr>`;
+            });
+        }
+
+        function addSubItemRow(prod = '', op = '') {
+            const container = document.getElementById('sub-items-container');
+            const div = document.createElement('div');
+            div.className = 'sub-item-row';
+            div.innerHTML = `<input type="text" class="admin-input prod-input" placeholder="產品名稱" value="${escapeHtml(prod)}"><input type="text" class="admin-input op-input" placeholder="工序名稱" value="${escapeHtml(op)}"><button class="btn-delete" onclick="this.parentElement.remove()">X</button>`;
+            container.appendChild(div);
+        }
+
+        function updateMWOHistoryDropdown() {
+            const select = document.getElementById('mwo-history-select');
+            select.innerHTML = '<option value="">-- 選擇範本 --</option>';
+            [...mwoHistory].reverse().forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.mwo_id;
+                option.textContent = `${template.mwo_id} (${template.items.length} 項)`;
+                select.appendChild(option);
+            });
+        }
+
+        function loadMWOFromHistory() {
+            const selectedMWO = document.getElementById('mwo-history-select').value;
+            if (!selectedMWO) return;
+            const template = mwoHistory.find(t => t.mwo_id === selectedMWO);
+            if (!template) return;
+            document.getElementById('batch-mwo').value = template.mwo_id + "-" + Math.floor(Math.random()*1000); 
+            document.getElementById('sub-items-container').innerHTML = '';
+            template.items.forEach(item => addSubItemRow(item.prod, item.op));
+        }
+
+        function deleteTemplate() {
+            const selectedMWO = document.getElementById('mwo-history-select').value;
+            if (!selectedMWO) { alert("請先選擇要刪除的範本"); return; }
+            if (confirm(`確定要刪除範本 ${selectedMWO} 嗎？`)) {
+                mwoHistory = mwoHistory.filter(t => t.mwo_id !== selectedMWO);
+                saveMWOHistoryToStorage();
+                updateMWOHistoryDropdown();
+                document.getElementById('mwo-history-select').value = "";
+            }
+        }
+
+        function saveBatchTemplateOnly() {
+            const mwo = document.getElementById('batch-mwo').value;
+            if (!mwo) { alert("請輸入總工單 ID"); return; }
+            const templateItems = [];
+            document.querySelectorAll('.sub-item-row').forEach((row) => {
+                const prod = row.querySelector('.prod-input').value;
+                const op = row.querySelector('.op-input').value;
+                if (prod && op) templateItems.push({ prod: prod, op: op });
+            });
+            if (templateItems.length > 0) {
+                const existIdx = mwoHistory.findIndex(x => x.mwo_id === mwo);
+                if (existIdx >= 0) {
+                    if(!confirm(`範本 ${mwo} 已存在，覆蓋？`)) return;
+                    mwoHistory[existIdx] = { mwo_id: mwo, items: templateItems };
+                } else {
+                    mwoHistory.push({ mwo_id: mwo, items: templateItems });
+                }
+                saveMWOHistoryToStorage(); updateMWOHistoryDropdown();
+                alert(`範本 ${mwo} 已儲存！`);
+            }
+        }
+
+        function saveBatchWorkOrder() {
+            const mwo = document.getElementById('batch-mwo').value;
+            if (!mwo) { alert("請輸入總工單 ID"); return; }
+            let addedCount = 0; const templateItems = [];
+            document.querySelectorAll('.sub-item-row').forEach((row, index) => {
+                const prod = row.querySelector('.prod-input').value;
+                const op = row.querySelector('.op-input').value;
+                if (prod && op) {
+                    const uniqueId = `${mwo}-Q${Date.now()}-${index}`;
+                    appQueue.push({
+                        wo_id: uniqueId, master_wo_id: mwo, 
+                        product_name_zh: prod, product_name_vn: prod, 
+                        operation_name_zh: op, operation_name_vn: op, 
+                        queue_rank: appQueue.length + 1, standard_time_hr: 1.0
+                    });
+                    templateItems.push({ prod: prod, op: op });
+                    addedCount++;
+                }
+            });
+            if (addedCount > 0) {
+                const existIdx = mwoHistory.findIndex(x => x.mwo_id === mwo);
+                if (existIdx < 0) mwoHistory.push({ mwo_id: mwo, items: templateItems });
+                saveAll(); renderPlannerQueue(); updateMWOHistoryDropdown();
+                alert(`成功新增 ${addedCount} 筆工單！`);
+                document.getElementById('batch-mwo').value = '';
+                document.getElementById('sub-items-container').innerHTML = '';
+                addSubItemRow(); 
+            } else { alert("請至少輸入一個項目"); }
+        }
+
+        function deleteWorkOrder(index) {
+            if (confirm("刪除此工單？")) { appQueue.splice(index, 1); saveAll(); renderPlannerQueue(); }
+        }
+
+        function renderPlannerReport() {
+            const tbody = document.getElementById('admin-report-body');
+            tbody.innerHTML = '';
+            [...completedLogs].reverse().forEach((log, index) => {
+                const time = new Date(log.endTime).toLocaleString();
+                const realIndex = completedLogs.length - 1 - index;
+                tbody.innerHTML += `<tr><td><input type="checkbox" class="report-checkbox" data-index="${realIndex}"></td><td>${time}</td><td>${escapeHtml(log.wo_id)}</td><td>${escapeHtml(log.operation_name)}</td><td>${parseFloat(log.totalManHours).toFixed(2)}</td></tr>`;
+            });
+        }
+
+        function toggleAllReports(source) { document.querySelectorAll('.report-checkbox').forEach(cb => cb.checked = source.checked); }
+
+        function calculateReport() {
+            const checkboxes = document.querySelectorAll('.report-checkbox:checked');
+            if (checkboxes.length === 0) { alert("請先勾選項目"); return; }
+            let totalHours = 0, totalGood = 0, totalReject = 0;
+            checkboxes.forEach(cb => {
+                const log = completedLogs[cb.getAttribute('data-index')];
+                totalHours += parseFloat(log.totalManHours || 0);
+                totalGood += parseFloat(log.qty_good || 0);
+                totalReject += parseFloat(log.qty_reject || 0);
+            });
+            document.getElementById('sum-manhours').textContent = totalHours.toFixed(2);
+            document.getElementById('sum-good').textContent = totalGood.toFixed(2);
+            document.getElementById('sum-reject').textContent = totalReject.toFixed(2);
+            document.getElementById('report-summary').style.display = 'block';
+        }
+
+        function clearCompletedLogs() {
+            if (confirm("清除紀錄？")) { completedLogs = []; saveAll(); renderPlannerReport(); document.getElementById('report-summary').style.display = 'none'; }
+        }
+
+        function logout() { state.currentUser = null; showScreen('screen-login'); }
+
+        // --- Keypad & Input ---
+        function renderKeypad(targetElementId, targetInputType) {
+            state.inputTarget = targetInputType;
+            const layout = ['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '0', 'OK'];
+            const keypadDiv = document.getElementById(targetElementId);
+            keypadDiv.innerHTML = '';
+            layout.forEach(key => {
+                const btn = document.createElement('div');
+                btn.className = 'large-btn';
+                if (key === 'OK') { btn.className += ' btn-confirm'; btn.textContent = '確認'; } 
+                else { btn.textContent = key; }
+                btn.style.width = '100%'; 
+                btn.onclick = () => handleKeypadInput(key);
+                keypadDiv.appendChild(btn);
+            });
+        }
+
+        function handleKeypadInput(key) {
+            if (state.isSubmitting && key === 'OK') return;
+            if (state.finishStep === 7) { if (key === 'OK') handleConfirmKey(); return; }
+
+            let currentInput = (state.currentScreen === 'login') ? state.currentPIN : state.currentTypedValue;
+            let displayEl = document.getElementById((state.currentScreen === 'login') ? 'pin-input' : (state.currentScreen === 'manpower' ? 'manpower-input-display' : 'qty-input-display'));
+            document.getElementById('login-error').textContent = ''; 
+
+            if (key >= '0' && key <= '9') {
+                if (currentInput.length < 8) currentInput = (currentInput === '0' || currentInput === '') ? key : currentInput + key;
+            } else if (key === 'C') {
+                currentInput = (state.currentScreen === 'login') ? '' : '0';
+            } else if (key === 'OK') {
+                if (state.currentScreen === 'login') validateLogin(currentInput);
+                else if (state.currentScreen === 'manpower') confirmManpower(parseInt(currentInput));
+                else if (state.currentScreen === 'finish') processFinishStep(parseFloat(currentInput));
+                return;
+            }
+            
+            if (state.currentScreen === 'login') {
+                state.currentPIN = currentInput;
+                displayEl.textContent = '*'.repeat(currentInput.length);
+            } else {
+                state.currentTypedValue = currentInput;
+                displayEl.textContent = currentInput;
+            }
+        }
+
+        // --- Logic ---
+        function validateLogin(pin) {
+            if (pin === '9999') { showScreen('screen-planner'); switchPlannerTab('tab-queue'); return; }
+            if (pin.length !== 4) { document.getElementById('login-error').textContent = i18n[state.language].pin_error; return; }
+            let user = (pin === '1234') ? { user_pin: pin, name_zh: '阮氏美', name_vn: 'Nguyễn Thị Mỹ', language: 'vn' } : 
+                       (pin === '5678') ? { user_pin: pin, name_zh: '陳經理', name_vn: 'Trần Quản Lý', language: 'zh' } : null;
+            if (!user) { document.getElementById('login-error').textContent = i18n[state.language].pin_error; return; }
+            state.currentUser = user; state.language = user.language; updateUI(); showScreen('screen-queue');
+        }
+
+        function loadQueue() {
+            const masterWOs = [...new Set(appQueue.map(item => item.master_wo_id))];
+            const select = document.getElementById('master-wo-select');
+            const currentSelection = select.value;
+            select.innerHTML = `<option value="ALL">${state.language === 'vn' ? 'Tất cả' : '全部顯示'}</option>`;
+            masterWOs.forEach(mwo => {
+                const option = document.createElement('option');
+                option.value = mwo; option.textContent = mwo; select.appendChild(option);
+            });
+            if (masterWOs.includes(currentSelection)) select.value = currentSelection;
+            filterQueue();
+        }
+
+        function filterQueue() {
+            const selected = document.getElementById('master-wo-select').value;
+            const list = document.getElementById('queue-list-container');
+            list.innerHTML = '';
+            const filtered = appQueue.filter(job => selected === 'ALL' || job.master_wo_id === selected);
+            if (filtered.length > 0) {
+                filtered.forEach(job => {
+                    const prod = state.language === 'vn' ? job.product_name_vn : job.product_name_zh;
+                    const op = state.language === 'vn' ? job.operation_name_vn : job.operation_name_zh;
+                    const isActive = state.activeSessions[job.wo_id] !== undefined;
+                    const activeClass = isActive ? 'active-job' : '';
+                    const badge = isActive ? `<div class="status-badge">${i18n[state.language].running_status}</div>` : '';
+                    
+                    const safeWoId = escapeHtml(job.wo_id);
+                    const safeOp = escapeHtml(op);
+                    
+                    // 顯示更多明細：加入 master_wo_id
+                    list.innerHTML += `<div class="queue-item ${activeClass}" onclick="selectJob('${safeWoId}', '${safeOp}')">
+                        <span class="q-num">Q${job.queue_rank}</span>
+                        <div style="flex-grow:1;">
+                            <span class="main-lang">${escapeHtml(prod)}</span>
+                            <span class="aux-lang">${safeOp}</span>
+                        </div>
+                        <div class="wo-details">單號: ${escapeHtml(job.master_wo_id)}</div>
+                        <div class="wo-details" style="color:#aaa;">工時: ${job.standard_time_hr} Hr</div>
+                        ${badge}</div>`;
+                });
+            } else { list.innerHTML = `<p style="font-size:1.2rem; color: #ccc; grid-column: 1 / -1;">${i18n[state.language].no_job_in_queue}</p>`; }
+        }
+
+        function selectJob(woId, operationName) {
+            state.currentViewingWoId = woId; state.currentWoOperationName = operationName;
+            
+            if (state.activeSessions[woId]) {
+                const session = state.activeSessions[woId];
+                state.currentManpower = session.manpower;
+                if (timerInterval) clearInterval(timerInterval);
+                timerInterval = setInterval(updateTimer, 1000);
+                document.getElementById('working-woid').textContent = woId;
+                document.getElementById('manpower-display').textContent = session.manpower;
+                saveAll(); 
+                showScreen('screen-working'); updateTimer();
+            } else {
+                state.currentTypedValue = '0';
+                document.getElementById('manpower-woid').textContent = woId;
+                document.getElementById('manpower-input-display').textContent = '0';
+                renderKeypad('manpower-keypad-container', 'MANPOWER_INPUT');
+                showScreen('screen-manpower');
+            }
+        }
+
+        function adjustManpower() {
+            state.currentTypedValue = '0';
+            document.getElementById('manpower-woid').textContent = state.currentViewingWoId;
+            document.getElementById('manpower-input-display').textContent = '0';
+            renderKeypad('manpower-keypad-container', 'MANPOWER_INPUT');
+            showScreen('screen-manpower');
+        }
+
+        function confirmManpower(value) {
+            if (value <= 0) { alert(i18n[state.language].manpower_error); return; }
+            if (state.activeSessions[state.currentViewingWoId]) {
+                const session = state.activeSessions[state.currentViewingWoId];
+                const now = Date.now();
+                session.accumulatedManHours = (session.accumulatedManHours || 0) + ((now - session.lastUpdateTime) / 3600000.0) * session.manpower;
+                session.lastUpdateTime = now; session.manpower = value;
+                state.currentManpower = value;
+                if (timerInterval) clearInterval(timerInterval);
+                timerInterval = setInterval(updateTimer, 1000);
+                document.getElementById('working-woid').textContent = state.currentViewingWoId;
+                document.getElementById('manpower-display').textContent = state.currentManpower;
+                saveAll(); 
+                showScreen('screen-working');
+            } else {
+                state.currentManpower = value;
+                startJobSession();
+            }
+        }
+
+        function startJobSession() {
+            const now = Date.now();
+            state.activeSessions[state.currentViewingWoId] = {
+                startTime: now, lastUpdateTime: now, startTimeISO: new Date(now).toISOString(),
+                manpower: state.currentManpower, operationName: state.currentWoOperationName, accumulatedManHours: 0
+            };
+            saveAll(); 
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+            document.getElementById('working-woid').textContent = state.currentViewingWoId;
+            document.getElementById('manpower-display').textContent = state.currentManpower;
+            showScreen('screen-working');
+        }
+
+        function backToQueue() {
+            if (timerInterval) clearInterval(timerInterval);
+            state.currentViewingWoId = null; showScreen('screen-queue');
+        }
+
+        function updateTimer() {
+            const session = state.activeSessions[state.currentViewingWoId];
+            if (!session) return;
+            const elapsed = Date.now() - session.startTime;
+            const seconds = Math.floor(elapsed / 1000);
+            const h = String(Math.floor(seconds/3600)).padStart(2,'0');
+            const m = String(Math.floor((seconds%3600)/60)).padStart(2,'0');
+            const s = String(seconds%60).padStart(2,'0');
+            document.getElementById('elapsed-time').textContent = `${h}:${m}:${s}`;
+        }
+
+        function endJob() { startFinishFlow(); }
+
+        function startFinishFlow() {
+            if (timerInterval) clearInterval(timerInterval);
+            state.currentTypedValue = '0';
+            document.getElementById('finish-woid').textContent = state.currentViewingWoId;
+            const isSlicing = state.currentWoOperationName && state.currentWoOperationName.includes('分切');
+            state.finishStep = isSlicing ? 1 : 5;
+            document.getElementById('finish-instruction').innerHTML = `<span class="main-lang">${i18n[state.language][isSlicing ? 'finish_step1' : 'finish_step5_good']}</span>`;
+            state.finishData = { qty_reject: 0, actual_collar_qty: 0, actual_tail_qty: 0, qty_good: 0 };
+            document.getElementById('qty-input-display').textContent = '0';
+            renderKeypad('finish-keypad-container', 'QTY_INPUT');
+            showScreen('screen-finish');
+        }
+
+        function processFinishStep(value) {
+            const instruction = document.getElementById('finish-instruction');
+            const lang = state.language;
+            if (state.finishStep >= 1 && state.finishStep <= 4) {
+                if (state.finishStep === 1) { state.finishData.qty_reject = value; state.finishStep = 2; instruction.innerHTML = `<span class="main-lang">${i18n[lang].finish_step2}</span>`; }
+                else if (state.finishStep === 2) { state.finishData.actual_collar_qty = value; state.finishStep = 3; instruction.innerHTML = `<span class="main-lang">${i18n[lang].finish_step3}</span>`; }
+                else if (state.finishStep === 3) { state.finishData.actual_tail_qty = value; state.finishStep = 4; instruction.innerHTML = `<span class="main-lang">${i18n[lang].finish_step4}</span>`; }
+                else if (state.finishStep === 4) { state.finishData.qty_good = value; state.finishStep = 7; showSummary(); return; }
+            } else if (state.finishStep === 5) {
+                state.finishData.qty_good = value; state.finishStep = 6; instruction.innerHTML = `<span class="main-lang">${i18n[lang].finish_step5_reject}</span>`;
+            } else if (state.finishStep === 6) {
+                state.finishData.qty_reject = value; state.finishStep = 7; showSummary(); return;
+            }
+            if (state.finishStep !== 7) { state.currentTypedValue = '0'; document.getElementById('qty-input-display').textContent = '0'; }
+        }
+
+        function showSummary() {
+            const instruction = document.getElementById('finish-instruction');
+            const lang = state.language;
+            let summaryHTML = `<div style="font-size:0.9rem; text-align:left; line-height:1.5; padding:10px; background:#112233; border-radius:10px;">
+                ${i18n[lang].confirm_summary_title}<br>
+                ----------------<br>
+                ${i18n[lang].finish_step5_good}: <b style="color:#4caf50; font-size:1.2rem;">${state.finishData.qty_good}</b><br>
+                ${i18n[lang].finish_step5_reject}: <b style="color:#ff5722; font-size:1.2rem;">${state.finishData.qty_reject}</b><br>`;
+            if (state.finishData.actual_collar_qty > 0) {
+                summaryHTML += `下巴: <b>${state.finishData.actual_collar_qty}</b> | 尾段: <b>${state.finishData.actual_tail_qty}</b><br>`;
+            }
+            summaryHTML += `----------------<br><span style="color:#00e676; font-weight:bold;">${i18n[lang].confirm_btn_text}</span></div>`;
+            instruction.innerHTML = summaryHTML;
+            document.getElementById('qty-input-display').textContent = '';
+        }
+
+        function handleConfirmKey() {
+            if (state.finishStep === 7) confirmFinishWithYields();
+        }
+
+        async function confirmFinishWithYields() {
+            if (GAS_WEBHOOK_URL === 'YOUR_GAS_WEBHOOK_URL') { alert("🚨 錯誤: 請替換 GAS URL!"); return; }
+            if (state.isSubmitting) return; 
+            
+            showLoading(); // 顯示轉圈圈
+            state.isSubmitting = true;
+            
+            const session = state.activeSessions[state.currentViewingWoId];
+            if (!session) { alert("錯誤：無工單資訊"); hideLoading(); state.isSubmitting = false; return; }
+
+            const now = Date.now();
+            const totalManHours = (session.accumulatedManHours || 0) + ((now - session.lastUpdateTime) / 3600000.0) * session.manpower;
+            const postData = {
+                token: SECURITY_TOKEN, supervisor_pin: state.currentUser.user_pin, operation_name: session.operationName,
+                manpower_count: session.manpower, wo_id: state.currentViewingWoId,
+                start_time: session.startTimeISO, qty_good: state.finishData.qty_good, qty_reject: state.finishData.qty_reject,
+                actual_collar_qty: state.finishData.actual_collar_qty, actual_tail_qty: state.finishData.actual_tail_qty
+            };
+            
+            try {
+                const response = await fetch(GAS_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(postData) });
+                const data = await response.json();
+                
+                if (data.success) {
+                    completedLogs.push({ ...postData, endTime: new Date().toISOString(), totalManHours: totalManHours });
+                    saveLogsToStorage();
+                    delete state.activeSessions[state.currentViewingWoId];
+                    saveAll();
+                    state.currentViewingWoId = null; state.finishData = {}; 
+                    showScreen('screen-queue');
+                } else { 
+                    alert(`提交失敗: ${data.message}`); 
+                }
+            } catch (error) { 
+                alert(`${i18n[state.language].api_error}: ${error.message}`); 
+                showScreen('screen-queue'); 
+            } finally { 
+                state.isSubmitting = false; 
+                hideLoading(); 
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initApp(); });
     </script>
 </body>
 </html>
