@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v51.0 兼容性修復版)</title>
+    <title>貨櫃管理系統 (v52.0 品管功能版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -11,14 +11,12 @@
             setTimeout(function() {
                 var root = document.getElementById('root');
                 if (root && root.innerHTML.trim().length > 0 && root.innerHTML.indexOf('系統啟動中') === -1) return;
-                
-                var loader = document.getElementById('loading-screen');
-                if(loader) loader.remove();
-
                 var div = document.createElement("div");
                 div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:white; color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
-                div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統載入異常</h2><p>請截圖此畫面</p><div style="background:#f3f4f6;padding:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto;margin-bottom:20px">Line: ${line}<br>${msg}</div><button onclick="window.location.reload()" style="padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;cursor:pointer;">重新整理</button>`;
+                div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統載入異常</h2><div style="background:#f3f4f6;padding:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto;margin-bottom:20px">Line: ${line}<br>${msg}</div><button onclick="window.location.reload()" style="padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;cursor:pointer;">重新整理</button>`;
                 document.body.appendChild(div);
+                var loader = document.getElementById('loading-screen');
+                if(loader) loader.style.display = 'none';
             }, 3000);
             return false;
         };
@@ -39,7 +37,7 @@
         body { background-color: #F3F4F6; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; margin: 0; }
         
         /* Loading */
-        #loading-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; }
+        #loading-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; pointer-events: none; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
@@ -52,11 +50,14 @@
         .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
         .reconcile-table tr:hover { background-color: #f9fafb; cursor: pointer; }
         
+        /* 狀態 */
         .amt-paid { color: #111827; font-weight: 800; font-family: monospace; font-size: 16px; }
         .amt-unpaid { background-color: white; color: #dc2626; border: 1px solid #ef4444; border-radius: 4px; padding: 0 6px; font-weight: 700; font-family: monospace; font-size: 16px; white-space: nowrap; display: inline-block; }
 
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
         .company-tag { font-size: 16px; font-weight: 800; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+        
+        /* 輸入框 */
         .input-bg-style { background-color: #ffffff; border: 1px solid #d1d5db; color: #111827; transition: all 0.2s; height: 42px; padding: 0 12px; font-size: 16px; border-radius: 8px; width: 100%; }
         .input-bg-style:focus { border-color: #3b82f6; outline: 2px solid #bfdbfe; }
         .input-bg-style::placeholder { color: #9ca3af; font-weight: 700; font-size: 16px; }
@@ -70,6 +71,7 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
 
+        /* 彈窗 */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
         .modal-content { background: white; width: 90%; max-width: 400px; max-height: 80vh; border-radius: 20px; padding: 20px; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { opacity: 1; transform: translateY(0); } }
@@ -120,7 +122,10 @@
             docName: '', 
             docRefPath: '', 
             devanningLocation: '', 
-            devanningDate: '', 
+            devanningDate: '',
+            // V52.0 新增欄位
+            customsDeclarationNo: '', // 報關單號
+            importPermitNo: '',       // 輸入許可證號
             warehouseConfirmed: false,
             attachments: [],
             isPaid: false,
@@ -165,7 +170,7 @@
         const isDomestic = (d) => d && d.customsBroker === DOMESTIC_FLAG;
         const isForeign = (d) => !isDomestic(d);
 
-        // --- 3. Icons (V51.0: 移除 Proxy，改為標準物件) ---
+        // --- 3. Icons ---
         const Icons = {
             Ship: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
             Anchor: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
@@ -328,11 +333,11 @@
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert("權限不足"); 
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付"; 
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付,報關單號,輸入許可證號";
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
                 const rows = filteredList.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付'];
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付', s.customsDeclarationNo || '', s.importPermitNo || ''];
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
                 })).join("\n");
@@ -377,7 +382,8 @@
                     ...initialFormState, ...item, attachments: atts,
                     currency: item.currency || (item.customsBroker === DOMESTIC_FLAG ? 'TWD' : 'USD'),
                     paymentTerm: item.paymentTerm || (item.customsBroker === DOMESTIC_FLAG ? PAYMENT_TERMS_DOMESTIC[0] : '到港前付款'),
-                    prepayment: item.prepayment || 0, flightFee: item.flightFee || 0, flightFeePaid: item.flightFeePaid || false
+                    prepayment: item.prepayment || 0, flightFee: item.flightFee || 0, flightFeePaid: item.flightFeePaid || false,
+                    customsDeclarationNo: item.customsDeclarationNo || '', importPermitNo: item.importPermitNo || ''
                 }); 
                 setEditingId(item.id); setView('form'); 
             };
@@ -490,7 +496,7 @@
                 return () => unsub();
             }, [user]);
 
-            // Permissions (V51.0 Explicit QC Fix)
+            // Permissions (V52.0: Include QC for new fields)
             const canManage = () => userRole === 'MANAGER';
             const canEdit = () => ['MANAGER','PURCHASING','WAREHOUSE','QC'].includes(userRole);
             const canCreate = () => ['MANAGER','PURCHASING'].includes(userRole); 
@@ -501,6 +507,7 @@
             const canEditDomesticFull = () => ['MANAGER','PURCHASING'].includes(userRole);
             const canEditForeignFinance = () => ['MANAGER', 'ACCOUNTING'].includes(userRole);
             const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole);
+            const canEditQCFields = () => ['MANAGER', 'QC'].includes(userRole); // V52.0 New Permission
 
             // Filter
             const todayStr = new Date().toISOString().split('T')[0];
@@ -523,7 +530,7 @@
             if(loading) return <div className="flex h-screen items-center justify-center text-gray-500">Loading...</div>;
             if(!user) return <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full"><div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 text-3xl"><Icons.Ship /></div><h1 className="text-2xl font-bold mb-8">貨櫃管理系統</h1><button onClick={handleAdminLogin} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow mb-3 flex justify-center gap-2"><Icons.Google /> 員工登入</button><button onClick={handleGuestLogin} className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-bold flex justify-center gap-2"><Icons.User /> 訪客登入</button></div></div>;
 
-            // Icons Direct Access
+            // V51.0: Direct Access
             const I = Icons;
 
             return (
@@ -544,7 +551,7 @@
                         </div>
                     )}
 
-                    {/* V47.0: File List Modal */}
+                    {/* File List Modal */}
                     {showFileModal && (
                         <div className="modal-overlay" onClick={()=>setShowFileModal(false)}>
                             <div className="modal-content" onClick={e=>e.stopPropagation()}>
@@ -561,7 +568,7 @@
                         </div>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v51.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> 登出</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v52.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> 登出</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?'貨櫃列表':'統計分析'}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
@@ -643,9 +650,8 @@
                                                             {item.devanningDate && <span className="tag-badge bg-blue-50 text-blue-600"><I.Calendar />{item.devanningDate}</span>}
                                                         </div>
                                                     </div>
-                                                    {/* 右側操作區 */}
                                                     <div className="flex flex-col items-end gap-2">
-                                                         <div className="flex gap-1 relative z-20">
+                                                         <div className="flex gap-1 relative z-10">
                                                             {/* V47.0: 智慧附件按鈕 */}
                                                             {hasAttachments && (
                                                                 <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative">
@@ -713,33 +719,73 @@
                             <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
                                 <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><I.X /></button></div>
                                 <form onSubmit={handleSubmit} className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-xs font-bold text-gray-500 mb-1">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" placeholder="櫃號" /></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">日期</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="廠商" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div></div>
-                                    <div className="grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1">拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div></div>
+                                    {/* V47.0: 1. 物流與基本資訊 (10欄位 V52.0 update) */}
+                                    <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm mb-3">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                            <div><label>櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" placeholder="櫃號" /></div>
+                                            <div><label>到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div>
+                                            <div><label>報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                            {/* V52.0 New Fields */}
+                                            <div><label>報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="報關單號" /></div>
+                                            <div><label>輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="許可證號" /></div>
+                                            
+                                            <div><label>廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div>
+                                            <div><label>產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
+                                            <div><label>拆櫃地</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div>
+                                            <div><label>拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div>
+                                        </div>
+                                    </div>
                                     
-                                    {canSeePrice() && <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 grid grid-cols-2 gap-3"><div><label className="block text-xs font-bold text-gray-500 mb-1">付款條件</label><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded p-2 text-xs" /></div><label className="flex items-center gap-2 pt-4 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700">貨款已付</span></label>{canEditFlightFee() && isForeign(formData) && <><div className="col-span-2 border-t my-1"></div><div><label className="block text-xs font-bold text-gray-500 mb-1">旅費 (TWD)</label><input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded input-bg-style" placeholder="旅費" /></div><label className="flex items-center gap-2 pt-4 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700">旅費已付</span></label></>}</div>}
-                                    
+                                    {/* V47.0: 2. 財務專區 (橫向) */}
+                                    {canSeePrice() && (
+                                        <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 mb-3 flex flex-wrap items-end gap-3">
+                                             <div className="flex-1 min-w-[140px]">
+                                                <label>付款條件</label>
+                                                <input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" />
+                                             </div>
+                                             {canEditFlightFee() && isForeign(formData) && (
+                                                <div className="w-24">
+                                                   <label>旅費</label>
+                                                   <input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded input-bg-style" placeholder="0" />
+                                                </div>
+                                             )}
+                                             <div className="flex items-center gap-3 pb-2 ml-auto">
+                                                <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>
+                                                {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}
+                                             </div>
+                                        </div>
+                                    )}
+
+                                    {/* V49.0: 3. 產品明細 (九宮格 3x3) */}
                                     <div className="pt-2">
                                         <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-700">產品明細</h3>{(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}</div>
                                         <div className="space-y-3">{formData.products.map((p, idx) => (
                                             <div key={p.id} className="bg-white border rounded-xl p-3 relative shadow-sm">
-                                                <div className="grid gap-2">
-                                                    <div className="relative">
-                                                        <input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="font-bold border-b pb-1 w-full outline-none input-bg-style rounded p-1" style={{paddingRight: '6rem'}} placeholder="品名" />
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {/* Row 1 */}
+                                                    <input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="input-bg-style rounded p-1 font-bold" placeholder="品名" />
+                                                    <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
+                                                    <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="quantity">計件</option><option value="weight">計重</option></select>
+                                                    
+                                                    {/* Row 2 */}
+                                                    <input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="件數" />
+                                                    <input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" />
+                                                    <input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" />
+                                                    
+                                                    {/* Row 3 */}
+                                                    <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
+                                                    <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
+                                                    
+                                                    {/* 小計 + 按鈕 (Row 3 Col 3) */}
+                                                    <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">
+                                                        {canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${safeNum(p.amount).toLocaleString()}</span> : <span></span>}
                                                         {(canEditDomesticFull() || canManage()) && (
-                                                            <div className="absolute top-1 right-1 flex gap-1">
-                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="p-1 text-gray-400 hover:text-blue-600"><I.Copy /></button>
-                                                                {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-1 text-gray-400 hover:text-red-600"><I.Trash2 /></button>}
+                                                            <div className="flex gap-1">
+                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><I.Copy /></button>
+                                                                {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><I.Trash2 /></button>}
                                                             </div>
                                                         )}
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2"><input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-xs" placeholder="規格" /><select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-xs"><option value="quantity">計件</option><option value="weight">計重</option></select></div>
-                                                    <div className="grid grid-cols-3 gap-2"><input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="件數" /><input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" /><input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" /></div>
-                                                    <div className="grid grid-cols-3 gap-2 items-center">
-                                                        <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
-                                                        <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-sm" />
-                                                        {canSeePrice() && <div className="text-right font-bold text-emerald-600 text-sm bg-gray-50 rounded p-2 border border-gray-200">${safeNum(p.amount).toLocaleString()}</div>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -753,10 +799,12 @@
                                             {(formData.attachments || []).map((file, idx) => (
                                                 <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border">
                                                     <a href={file.url} target="_blank" className="text-blue-600 text-xs underline truncate flex-1 mr-2">{file.name}</a>
+                                                    {/* V51.0: QC 可以刪除 */}
                                                     {canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><I.Trash2 /></button>}
                                                 </div>
                                             ))}
                                         </div>
+                                        {/* V51.0: QC 可以上傳 */}
                                         {canUpload() && (
                                             <div className="mt-2 relative">
                                                 <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
