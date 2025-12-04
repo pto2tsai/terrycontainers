@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v62.0 存檔修復版)</title>
+    <title>貨櫃管理系統 (v63.0 船公司補完版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -105,7 +105,7 @@
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', DOMESTIC_FLAG];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
         const PAYMENT_TERMS_DOMESTIC = ['現金', '月結 30 天', '月結 45 天', '月結 60 天', '其他'];
-        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "wensfood3472602@gmail.com","4onlymerich@gmail.com"];
+        const ADMIN_EMAILS = ["pto2.tw@gmail.com", "bapbts0901@gmail.com", "4onlymerich@gmail.com"];
 
         const initialFormState = { 
             importCompany: IMPORT_COMPANIES[0], 
@@ -114,7 +114,7 @@
             supplier: '', 
             arrivalDate: new Date().toISOString().split('T')[0], 
             containerNumber: '', 
-            shippingCompany: '', 
+            shippingCompany: '', // V63.0: 確保初始值有此欄位
             products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }], 
             totalQuantity: 0, 
             totalWeight: 0, 
@@ -334,11 +334,11 @@
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert("權限不足"); 
                 const showPrice = canSeePrice();
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付,報關單號,輸入許可證號";
+                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,船公司,品名,批號,效期,規格,箱容,數量,重量,計價模式,總數,文件,拆櫃地點,拆櫃日期,是否匯款,幣別,付款條件,預付款,旅費,旅費已付,報關單號,輸入許可證號,船公司";
                 if (showPrice) header += ",單價,金額";
                 header += "\n";
                 const rows = filteredList.flatMap(s => (s.products || []).map(p => {
-                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付', s.customsDeclarationNo || '', s.importPermitNo || ''];
+                    let row = [s.importCompany,s.customsBroker,s.containerNumber,s.arrivalDate,s.origin,s.supplier,s.shippingCompany,p.name,p.batchNumber,p.expiryDate,p.spec,p.boxCapacity || 1,p.quantity,p.weight || 0, p.pricingMode === 'weight' ? '重量' : '數量', s.totalQuantity,(s.attachments||[]).map(a=>a.url).join('; '),s.devanningLocation,s.devanningDate, s.isPaid ? '已匯款' : '未匯款', s.currency || 'USD', s.paymentTerm || '', s.prepayment || 0, s.flightFee || 0, s.flightFeePaid ? '已付' : '未付', s.customsDeclarationNo || '', s.importPermitNo || '', s.shippingCompany || ''];
                     if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
                     return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
                 })).join("\n");
@@ -354,6 +354,7 @@
                 window.open("https://line.me/R/msg/text/?" + encodeURIComponent(text), '_blank');
             };
 
+            // V47.0: 智慧附件處理
             const handleAttachmentClick = (e, item) => {
                 e.stopPropagation();
                 const files = item.attachments || [];
@@ -371,7 +372,8 @@
                     currency: item.currency || (item.customsBroker === DOMESTIC_FLAG ? 'TWD' : 'USD'),
                     paymentTerm: item.paymentTerm || (item.customsBroker === DOMESTIC_FLAG ? PAYMENT_TERMS_DOMESTIC[0] : '到港前付款'),
                     prepayment: item.prepayment || 0, flightFee: item.flightFee || 0, flightFeePaid: item.flightFeePaid || false,
-                    customsDeclarationNo: item.customsDeclarationNo || '', importPermitNo: item.importPermitNo || ''
+                    customsDeclarationNo: item.customsDeclarationNo || '', importPermitNo: item.importPermitNo || '',
+                    shippingCompany: item.shippingCompany || '' // V63.0 fix
                 }); 
                 setEditingId(item.id); setView('form'); 
             };
@@ -592,7 +594,7 @@
                         </div>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v62.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> 登出</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v63.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> 登出</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?'貨櫃列表':'統計分析'}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
@@ -711,7 +713,7 @@
                                                                 <div className="flex items-center gap-2 mr-auto sm:ml-0 flex-wrap justify-start text-gray-600">
                                                                     <span className="text-xs text-gray-400">{p.pricingMode==='weight'?'[重]':'[數]'}</span>
                                                                     <span className="font-mono text-base">{safeNum(p.weight).toLocaleString()}kg</span>
-                                                                    {/* V61.0: 隱藏訪客金額 */}
+                                                                    {/* V61.0: 訪客隱藏金額 */}
                                                                     {canSeePrice()&&<><span className="text-gray-300">|</span><span className="font-mono text-base">${safeNum(p.unitPrice)}</span><span className="text-gray-300">|</span><span className="font-bold text-emerald-600 font-mono text-base">${safeNum(p.amount).toLocaleString()}</span></>}
                                                                 </div>
                                                                 <span className="ml-auto text-base font-bold text-blue-600 font-mono">{safeNum(p.quantity).toLocaleString()} 件</span>
@@ -760,11 +762,15 @@
                             <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
                                 <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><I.X /></button></div>
                                 <form onSubmit={handleSubmit} className="space-y-4">
-                                    {/* V52.0: 1. 基礎資訊 (10欄位 4x2 佈局) */}
+                                    {/* V52.0: 1. 基礎資訊 (11欄位 4x2 佈局) - V63.0 Added Shipping Company */}
                                     <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm mb-3">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                             <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                                             <div><label>櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" placeholder="櫃號" /></div>
+                                            
+                                            {/* V63.0 新增欄位：船公司 */}
+                                            <div><label>船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="船公司" /></div>
+
                                             <div><label>到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div>
                                             <div><label>報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                                             
