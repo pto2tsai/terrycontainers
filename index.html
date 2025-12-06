@@ -3,20 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v65.0 精度強化版)</title>
+    <title>貨櫃管理系統 (v66.0 輕量圖表版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
+            // 忽略非關鍵錯誤
             if (msg && msg.toLowerCase().indexOf("script error") > -1) return false;
+
             setTimeout(function() {
                 var root = document.getElementById('root');
                 if (root && root.innerHTML.trim().length > 0 && root.innerHTML.indexOf('系統啟動中') === -1) return;
+                
+                var loader = document.getElementById('loading-screen');
+                if(loader) loader.remove();
+
                 var div = document.createElement("div");
                 div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:white; color:#333; padding:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;";
                 div.innerHTML = `<h2 style="color:#dc2626;font-size:20px;font-weight:bold;margin-bottom:10px">⚠️ 系統載入異常</h2><div style="background:#f3f4f6;padding:15px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:left;max-width:90%;overflow:auto;margin-bottom:20px">Line: ${line}<br>${msg}</div><button onclick="window.location.reload()" style="padding:12px 30px;background:#2563eb;color:white;border:none;border-radius:50px;font-weight:bold;cursor:pointer;">重新整理</button>`;
                 document.body.appendChild(div);
-                var loader = document.getElementById('loading-screen');
-                if(loader) loader.style.display = 'none';
             }, 3000);
             return false;
         };
@@ -26,7 +30,6 @@
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -50,14 +53,12 @@
         .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
         .reconcile-table tr:hover { background-color: #f9fafb; cursor: pointer; }
         
-        /* 狀態 */
         .amt-paid { color: #111827; font-weight: 800; font-family: monospace; font-size: 16px; }
         .amt-unpaid { background-color: white; color: #dc2626; border: 1px solid #ef4444; border-radius: 4px; padding: 0 6px; font-weight: 700; font-family: monospace; font-size: 16px; white-space: nowrap; display: inline-block; }
 
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
         .company-tag { font-size: 16px; font-weight: 800; padding: 4px 10px; border-radius: 6px; display: inline-block; }
         
-        /* 輸入框 */
         .input-bg-style { background-color: #ffffff; border: 1px solid #d1d5db; color: #111827; transition: all 0.2s; height: 42px; padding: 0 12px; font-size: 16px; border-radius: 8px; width: 100%; }
         .input-bg-style:focus { border-color: #3b82f6; outline: 2px solid #bfdbfe; }
         .input-bg-style::placeholder { color: #9ca3af; font-weight: 700; font-size: 16px; }
@@ -71,7 +72,6 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
 
-        /* 彈窗 */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
         .modal-content { background: white; width: 90%; max-width: 400px; max-height: 80vh; border-radius: 20px; padding: 20px; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { opacity: 1; transform: translateY(0); } }
@@ -112,6 +112,7 @@
             "wensfood3472602@gmail.com"
         ];
 
+        // V66.0: 預設 pricingMode 改為 'weight'
         const initialFormState = { 
             importCompany: IMPORT_COMPANIES[0], 
             customsBroker: CUSTOMS_BROKERS[0], 
@@ -120,7 +121,8 @@
             arrivalDate: new Date().toISOString().split('T')[0], 
             containerNumber: '', 
             shippingCompany: '', 
-            products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'quantity' }], 
+            // V66.0: 預設 pricingMode: 'weight'
+            products: [{ id: Date.now(), name: '', batchNumber: '', expiryDate: '', spec: '', boxCapacity: 1, quantity: 0, weight: 0, unitPrice: 0, amount: 0, pricingMode: 'weight' }], 
             totalQuantity: 0, 
             totalWeight: 0, 
             docUrl: '', 
@@ -159,7 +161,6 @@
 
         // --- 2. Helpers ---
         const safeNum = (val) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
-        // V65.0: 數字精度工具
         const round2 = (num) => Math.round(safeNum(num) * 100) / 100;
         const format2 = (num) => safeNum(num).toFixed(2);
 
@@ -211,30 +212,36 @@
         
         const I = Icons;
 
-        // 4. SafeChart
-        const SafeChart = ({ data }) => {
-            const [loaded, setLoaded] = useState(false);
-            useEffect(() => {
-                if(window.Recharts) { setLoaded(true); return; }
-                const t = setInterval(() => { if(window.Recharts) { setLoaded(true); clearInterval(t); } }, 500);
-                return () => clearInterval(t);
-            }, []);
-            if(!loaded) return <div className="p-12 text-center text-gray-400 text-sm">圖表載入中...</div>;
-            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = window.Recharts;
+        // 4. SimpleBarChart (Pure CSS/HTML, V66.0 New)
+        const SimpleBarChart = ({ data }) => {
+            if (!data || data.length === 0) return <div className="text-gray-400 text-center py-4">無足夠數據可顯示</div>;
+            
+            const maxUSD = Math.max(...data.map(d => d.USD || 0), 1);
+            const maxTWD = Math.max(...data.map(d => d.TWD || 0), 1);
+
             return (
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" tick={{fontSize:10}} />
-                            <YAxis yAxisId="left" orientation="left" stroke="#10B981" tick={{fontSize:10}} tickFormatter={v=>`$${v/1000}k`} />
-                            <YAxis yAxisId="right" orientation="right" stroke="#3B82F6" tick={{fontSize:10}} tickFormatter={v=>`$${v/1000}k`} />
-                            <Tooltip />
-                            <Legend />
-                            <Bar yAxisId="left" dataKey="USD" name="美金" fill="#10B981" radius={[4,4,0,0]} />
-                            <Bar yAxisId="right" dataKey="TWD" name="台幣" fill="#3B82F6" radius={[4,4,0,0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
+                <div className="space-y-4 mt-2">
+                    {data.map(d => (
+                        <div key={d.name} className="text-xs">
+                            <div className="font-bold text-gray-700 mb-1">{d.name}</div>
+                            {/* USD Bar */}
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-8 text-emerald-600 font-bold">USD</div>
+                                <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                                    <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{width: `${(d.USD / maxUSD) * 100}%`}}></div>
+                                </div>
+                                <div className="w-20 text-right text-emerald-600 font-mono">${(d.USD/1000).toFixed(1)}k</div>
+                            </div>
+                            {/* TWD Bar */}
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 text-blue-600 font-bold">TWD</div>
+                                <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                                    <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{width: `${(d.TWD / maxTWD) * 100}%`}}></div>
+                                </div>
+                                <div className="w-20 text-right text-blue-600 font-mono">${(d.TWD/10000).toFixed(1)}萬</div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             );
         };
@@ -249,7 +256,6 @@
                 return Array.from(months).sort().reverse();
             }, [shipments]);
 
-            const [tf, setTf] = useState('YEAR');
             const [filterMonth, setFilterMonth] = useState('ALL');
             const [search, setSearch] = useState('');
             
@@ -272,18 +278,23 @@
                 
                 const supps = {}; list.forEach(s=>{ const n=s.supplier||'未填'; supps[n]=(supps[n]||0)+1; });
                 const top = Object.entries(supps).sort((a,b)=>b[1]-a[1]).slice(0,5);
-                
+                const maxVal = (top.length>0 && top[0][1]>0) ? top[0][1] : 1;
+
+                // Chart Data Logic
                 const chartMap = {};
-                list.forEach(s => {
-                    const d = parseDate(s.arrivalDate);
-                    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                // Sort list by date for chart
+                const chartList = [...list].sort((a,b) => (a.arrivalDate||'').localeCompare(b.arrivalDate||''));
+                chartList.forEach(s => {
+                    if(!s.arrivalDate) return;
+                    const k = s.arrivalDate.substring(0, 7); // YYYY-MM
                     if(!chartMap[k]) chartMap[k] = {name:k, TWD:0, USD:0};
                     const amt = (s.products||[]).reduce((a,p)=>a+safeNum(p.amount),0);
                     if(s.currency==='USD') chartMap[k].USD += amt; else chartMap[k].TWD += amt;
                 });
-                const chartData = Object.values(chartMap).sort((a,b)=>a.name.localeCompare(b.name)).slice(-6);
+                // Get last 6 months or all based on filter
+                const chartData = Object.values(chartMap).slice(-6);
 
-                return { count, items, w, moneyUSD, moneyTWD, top, chartData };
+                return { count, items, w, moneyUSD, moneyTWD, top, chartData, maxVal };
             }, [shipments, filterMonth, search]);
             
             return (
@@ -301,16 +312,16 @@
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總筆數</div><div className="text-2xl font-black text-gray-800">{stats.count}</div></div>
                         <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總件數</div><div className="text-2xl font-black text-blue-600">{stats.items.toLocaleString()}</div></div>
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm col-span-2"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{parseInt(stats.w).toLocaleString()}</div></div>
+                        <div className="bg-white p-4 rounded-2xl border shadow-sm col-span-2"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{format2(stats.w)}</div></div>
                         {canSeePrice() && (
                             <>
-                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyUSD.toLocaleString()}</div></div>
-                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">${stats.moneyTWD.toLocaleString()}</div></div>
+                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">${format2(stats.moneyUSD)}</div></div>
+                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">${format2(stats.moneyTWD)}</div></div>
                             </>
                         )}
                     </div>
-                    {canSeePrice() && <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">📈 月度採購金額趨勢</h3><SafeChart data={stats.chartData} /></div>}
-                     <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">🏆 前五大廠商</h3><div className="space-y-3">{stats.top.map(([n,c],i)=><div key={n} className="flex items-center gap-3"><div className="w-6 text-xs font-bold text-gray-400">#{i+1}</div><div className="flex-1"><div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">{n}</span><span className="text-gray-500">{c} 筆</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{width:`${(c/5)*100}%`}}></div></div></div></div>)}</div></div>
+                    {canSeePrice() && <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">📈 月度採購金額趨勢</h3><SimpleBarChart data={stats.chartData} /></div>}
+                     <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">🏆 前五大廠商</h3><div className="space-y-3">{stats.top.map(([n,c],i)=><div key={n} className="flex items-center gap-3"><div className="w-6 text-xs font-bold text-gray-400">#{i+1}</div><div className="flex-1"><div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">{n}</span><span className="text-gray-500">{c} 筆</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{width:`${(c/stats.maxVal)*100}%`}}></div></div></div></div>)}</div></div>
                 </div>
             );
         };
@@ -404,7 +415,6 @@
                     let dataToSend = d;
                     
                     if(editingId) {
-                        // V62.0: 針對不同角色發送不同欄位，以通過 Firebase 規則檢查
                         if (userRole === 'QC') {
                             dataToSend = {
                                 customsDeclarationNo: d.customsDeclarationNo,
@@ -426,11 +436,9 @@
                                 updatedAt: d.updatedAt
                              };
                         } 
-                        // Note: Accounting / Purchasing / Manager send full payload (or their restricted subset if required by stricter rules)
                         
                         await db.collection('shipments').doc(editingId).update(dataToSend);
                     } else {
-                        // 新增只有經理/採購可做
                         await db.collection('shipments').add({...d, createdAt: new Date().toISOString()});
                     }
                     setEditingId(null); setView('list');
@@ -461,7 +469,7 @@
                 const w = safeNum(p.weight);
                 const u = safeNum(p.unitPrice);
 
-                // V65.0: 精度修正
+                // V66.0: Price Calc
                 if(p.pricingMode==='weight') { p.amount = round2(w * u); } 
                 else { p.amount = round2(q * b * u); }
 
@@ -475,7 +483,8 @@
 
             const addProductRow = (e) => {
                 if(e) e.preventDefault();
-                setFormData(p => ({...p, products:[...(p.products||[]), {id:Date.now(), name:'', quantity:0, weight:0, unitPrice:0, amount:0, pricingMode:'quantity', boxCapacity: 1}]}));
+                // V66.0: Default weight mode
+                setFormData(p => ({...p, products:[...(p.products||[]), {id:Date.now(), name:'', quantity:0, weight:0, unitPrice:0, amount:0, pricingMode:'weight', boxCapacity: 1}]}));
             };
             const duplicateProductRow = (idx) => { const p=formData.products[idx]; setFormData(prev=>({...prev, products:[...prev.products.slice(0,idx+1), {...p, id:Date.now()}, ...prev.products.slice(idx+1)]})); };
             const removeProductRow = (idx) => { const np=formData.products.filter((_,i)=>i!==idx); setFormData(prev=>({...prev, products:np})); };
@@ -603,7 +612,7 @@
                         </div>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v64.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> 登出</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v66.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> 貨櫃列表</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> 統計分析</button></nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> 登出</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?'貨櫃列表':'統計分析'}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
@@ -669,6 +678,7 @@
 
                                             return (
                                             <div key={item.id} className="ios-card p-4" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
+                                                {/* V40.0: 卡片排版 */}
                                                 <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="mb-1"><span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span></div>
@@ -678,6 +688,7 @@
                                                             {item.customsBroker && <span className="tag-badge bg-gray-100 text-gray-600"><I.FileCheck />{item.customsBroker}</span>}
                                                             <span className="tag-badge bg-gray-100 text-gray-600"><I.Factory />{item.supplier}</span>
                                                             {item.origin && <span className="tag-badge bg-gray-100 text-gray-600"><I.Globe />{item.origin}</span>}
+                                                            {item.shippingCompany && <span className="tag-badge bg-gray-100 text-gray-600"><I.Ship />{item.shippingCompany}</span>}
                                                             
                                                             {item.customsDeclarationNo && <span className="tag-badge bg-purple-50 text-purple-700 border border-purple-100"><I.FileCheck />報關單:{item.customsDeclarationNo}</span>}
                                                             {item.importPermitNo && <span className="tag-badge bg-purple-50 text-purple-700 border border-purple-100"><I.FileCheck />許可證:{item.importPermitNo}</span>}
@@ -724,7 +735,6 @@
                                                     ))}
                                                 </div>
                                                 
-                                                {/* 卡片底部合計與狀態 V61.0 修正 */}
                                                 <div className="mt-3 pt-2 bg-gray-50 -mx-4 -mb-4 p-3 border-t border-gray-200">
                                                     <div className="grid grid-cols-3 gap-2 text-lg mb-2 font-mono font-bold text-gray-700 border-b border-gray-300 pb-2">
                                                         <div className="text-left">{format2(totalWeight)}kg</div>
@@ -761,7 +771,6 @@
                             <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
                                 <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><I.X /></button></div>
                                 <form onSubmit={handleSubmit} className="space-y-4">
-                                    {/* V52.0: 1. 基礎資訊 (11欄位 4x2 佈局) */}
                                     <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm mb-3">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                             <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
@@ -783,7 +792,6 @@
                                         </div>
                                     </div>
                                     
-                                    {/* V47.0: 2. 財務專區 (橫向) */}
                                     {canSeePrice() && (
                                         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 mb-3 flex flex-wrap items-end gap-3">
                                              <div className="flex-1 min-w-[140px]">
@@ -798,32 +806,24 @@
                                              )}
                                              <div className="flex items-center gap-3 pb-2 ml-auto">
                                                 <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>
-                                                {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}
+                                                {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}
                                              </div>
                                         </div>
                                     )}
 
-                                    {/* V49.0: 3. 產品明細 (九宮格 3x3) */}
                                     <div className="pt-2">
                                         <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg text-gray-700">產品明細</h3>{(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}</div>
                                         <div className="space-y-3">{formData.products.map((p, idx) => (
                                             <div key={p.id} className="bg-white border rounded-xl p-3 relative shadow-sm">
                                                 <div className="grid grid-cols-3 gap-2">
-                                                    {/* Row 1 */}
                                                     <input value={p.name} onChange={e=>handleProductChange(idx,'name',e.target.value)} className="input-bg-style rounded p-1 font-bold" placeholder="品名" />
                                                     <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
                                                     <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="quantity">計件</option><option value="weight">計重</option></select>
-                                                    
-                                                    {/* Row 2 */}
                                                     <input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="件數" />
                                                     <input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" />
                                                     <input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" />
-                                                    
-                                                    {/* Row 3 */}
                                                     <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
                                                     <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
-                                                    
-                                                    {/* 小計 + 按鈕 (Row 3 Col 3) */}
                                                     <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">
                                                         {canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${format2(safeNum(p.amount))}</span> : <span></span>}
                                                         {(canEditDomesticFull() || canManage()) && (
@@ -838,7 +838,7 @@
                                         ))}</div>
                                     </div>
                                     
-                                    {/* 多檔案上傳 - V51.0 權限驗證 */}
+                                    {/* 多檔案上傳 */}
                                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                                         <label className="block text-xs font-bold text-gray-500 mb-2">附件 ({formData.attachments?.length || 0})</label>
                                         <div className="space-y-2">
