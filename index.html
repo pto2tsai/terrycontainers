@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v78.2 版面優化版)</title>
+    <title>貨櫃管理系統 (v78.0 效能優化版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -93,97 +93,44 @@
         .sidebar-link:hover { background: #f3f4f6; color: #374151; }
         .sidebar-link.active { background: #eff6ff; color: #2563eb; }
         
-        /* V78.1: Bottom Sheet 樣式 - 加高並優化 */
-        .bottom-sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 60; opacity: 0; animation: fadeIn 0.25s ease-out forwards; backdrop-filter: blur(2px); }
+        /* V78.0: Bottom Sheet 樣式 */
+        .bottom-sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 60; opacity: 0; animation: fadeIn 0.2s ease-out forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
-        .bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 24px 24px 0 0; z-index: 61; max-height: 85vh; display: flex; flex-direction: column; transform: translateY(100%); animation: slideUpSheet 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); }
+        .bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 20px 20px 0 0; z-index: 61; max-height: 70vh; display: flex; flex-direction: column; transform: translateY(100%); animation: slideUpSheet 0.3s ease-out forwards; }
         @keyframes slideUpSheet { to { transform: translateY(0); } }
-        .bottom-sheet-handle { width: 40px; height: 5px; background: #d1d5db; border-radius: 3px; margin: 10px auto 6px; }
-        .bottom-sheet-header { padding: 8px 20px 16px; border-bottom: 1px solid #e5e7eb; }
-        .bottom-sheet-content { flex: 1; overflow-y: auto; padding: 0 20px 24px; -webkit-overflow-scrolling: touch; }
+        .bottom-sheet-handle { width: 36px; height: 4px; background: #d1d5db; border-radius: 2px; margin: 12px auto 8px; }
+        .bottom-sheet-content { flex: 1; overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
         
-        /* V78.1: 產品搜尋框 */
-        .product-search-input {
-            width: 100%;
-            padding: 14px 14px 14px 44px;
-            background: #f3f4f6;
-            border: 2px solid transparent;
-            border-radius: 14px;
-            outline: none;
-            font-size: 16px;
-            transition: all 0.2s;
-        }
-        .product-search-input:focus {
-            background: white;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        .product-search-input::placeholder { color: #9ca3af; }
-        
-        /* V78.1: 產品列表項目 - 加大觸控區域 */
-        .product-list-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 12px;
-            margin: 0 -8px;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.15s;
-            border-bottom: 1px solid #f3f4f6;
-        }
-        .product-list-item:hover { background: #f9fafb; }
-        .product-list-item:active { background: #eff6ff; transform: scale(0.98); }
-        
-        /* V78.1: 虛擬捲動容器 - 加高 */
-        .virtual-list-container { height: 100%; min-height: 200px; max-height: 50vh; overflow-y: auto; position: relative; }
+        /* V78.0: 虛擬捲動容器 */
+        .virtual-list-container { height: 400px; overflow-y: auto; position: relative; }
         .virtual-list-item { position: absolute; left: 0; right: 0; }
         
-        /* V78.1: 數字輸入優化 */
+        /* V78.0: 數字輸入優化 */
         .num-input { 
             -webkit-appearance: none; 
             -moz-appearance: textfield;
             text-align: right;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-weight: 600;
-            font-size: 15px;
-        }
-        .num-input:focus {
-            background: #eff6ff;
-            border-color: #3b82f6;
+            font-family: monospace;
+            font-weight: bold;
         }
         
-        /* V78.1: 最近使用產品標籤 - 加大觸控 */
+        /* V78.0: 最近使用產品標籤 */
         .recent-product-tag {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 10px 16px;
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            gap: 4px;
+            padding: 6px 12px;
+            background: #f0f9ff;
             border: 1px solid #bae6fd;
-            border-radius: 24px;
-            font-size: 14px;
+            border-radius: 20px;
+            font-size: 13px;
             font-weight: 600;
             color: #0369a1;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        .recent-product-tag:hover { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); }
-        .recent-product-tag:active { transform: scale(0.95); box-shadow: none; }
-        
-        /* V78.1: 區塊標題 */
-        .section-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            font-weight: 700;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-        }
+        .recent-product-tag:hover { background: #e0f2fe; }
+        .recent-product-tag:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -484,7 +431,7 @@
             return { visibleItems, totalHeight, handleScroll, startIndex };
         };
 
-        // --- V78.1: 5. Bottom Sheet 產品選擇器組件（優化版）---
+        // --- V78.0: 5. Bottom Sheet 產品選擇器組件 ---
         const ProductPickerBottomSheet = React.memo(({ 
             isOpen, 
             onClose, 
@@ -495,11 +442,10 @@
             onSearchChange
         }) => {
             const inputRef = useRef(null);
-            const listRef = useRef(null);
             
             useEffect(() => {
                 if (isOpen && inputRef.current) {
-                    setTimeout(() => inputRef.current?.focus(), 350);
+                    setTimeout(() => inputRef.current?.focus(), 300);
                 }
             }, [isOpen]);
             
@@ -516,7 +462,8 @@
                 ).slice(0, 100);
             }, [products, searchValue]);
             
-            // V78.1: 簡化列表渲染（移除虛擬捲動以換取更好的觸控體驗）
+            // 虛擬捲動
+            const { visibleItems, totalHeight, handleScroll } = useVirtualList(filteredProducts, 56, 300);
             
             if (!isOpen) return null;
             
@@ -524,48 +471,33 @@
                 <>
                     <div className="bottom-sheet-overlay" onClick={onClose} />
                     <div className="bottom-sheet">
-                        <div className="bottom-sheet-handle" onClick={onClose} />
+                        <div className="bottom-sheet-handle" />
                         
-                        {/* V78.1: 標題與搜尋 - 優化 */}
-                        <div className="bottom-sheet-header">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-xl text-gray-900">{TEXT.SELECT_PRODUCT}</h3>
-                                <button 
-                                    onClick={onClose} 
-                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 active:scale-95 transition-all"
-                                >
-                                    <I.X />
-                                </button>
+                        {/* 標題與搜尋 */}
+                        <div className="px-4 pb-3 border-b">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="font-bold text-lg">{TEXT.SELECT_PRODUCT}</h3>
+                                <button onClick={onClose} className="p-1 text-gray-400"><I.X /></button>
                             </div>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><I.Search /></span>
+                                <span className="absolute left-3 top-2.5 text-gray-400"><I.Search /></span>
                                 <input
                                     ref={inputRef}
                                     type="text"
                                     value={searchValue}
                                     onChange={e => onSearchChange(e.target.value)}
                                     placeholder={TEXT.SEARCH_PRODUCT_HINT}
-                                    className="product-search-input"
+                                    className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-xl outline-none text-sm"
                                     enterKeyHint="search"
-                                    autoComplete="off"
-                                    autoCorrect="off"
                                 />
-                                {searchValue && (
-                                    <button 
-                                        onClick={() => onSearchChange('')}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-300 text-white text-xs"
-                                    >
-                                        ✕
-                                    </button>
-                                )}
                             </div>
                         </div>
                         
                         <div className="bottom-sheet-content">
-                            {/* V78.1: 最近使用 - 優化樣式 */}
+                            {/* 最近使用 */}
                             {recentProducts.length > 0 && !searchValue && (
-                                <div className="py-4 border-b border-gray-100">
-                                    <div className="section-label">
+                                <div className="py-3 border-b">
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 font-bold mb-2">
                                         <I.Clock /> {TEXT.RECENT_USED}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
@@ -576,52 +508,45 @@
                                                 className="recent-product-tag"
                                             >
                                                 {p.name}
-                                                {p.spec && <span className="text-sky-400 text-xs ml-1">({p.spec})</span>}
+                                                {p.spec && <span className="text-gray-400 text-xs">({p.spec})</span>}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             )}
                             
-                            {/* V78.1: 產品列表 - 優化觸控體驗 */}
-                            <div className="py-4">
-                                <div className="section-label">
-                                    {searchValue ? `搜尋結果` : TEXT.ALL_PRODUCTS} 
-                                    <span className="text-blue-500">({filteredProducts.length})</span>
+                            {/* 產品列表 - 使用虛擬捲動 */}
+                            <div className="py-2">
+                                <div className="text-xs text-gray-500 font-bold mb-2">
+                                    {TEXT.ALL_PRODUCTS} ({filteredProducts.length})
                                 </div>
                                 
                                 {filteredProducts.length === 0 ? (
-                                    <div className="text-center py-12">
-                                        <div className="text-4xl mb-3">🔍</div>
-                                        <div className="text-gray-400 font-medium">找不到符合的產品</div>
-                                        <div className="text-gray-300 text-sm mt-1">請嘗試其他關鍵字</div>
-                                    </div>
+                                    <div className="text-center py-8 text-gray-400">{TEXT.NO_PRODUCTS}</div>
                                 ) : (
                                     <div 
-                                        ref={listRef}
-                                        className="virtual-list-container -mx-2"
-                                        style={{ height: Math.min(400, filteredProducts.length * 64) }}
+                                        className="virtual-list-container"
+                                        onScroll={handleScroll}
+                                        style={{ height: Math.min(300, filteredProducts.length * 56) }}
                                     >
-                                        {filteredProducts.map((p, idx) => (
-                                            <div
-                                                key={p.id || idx}
-                                                onClick={() => onSelect(p)}
-                                                className="product-list-item"
-                                            >
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="font-bold text-gray-800 text-base truncate">{p.name}</div>
-                                                    <div className="text-sm text-gray-400 truncate mt-0.5">
-                                                        <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded mr-2">{p.productId}</span>
-                                                        {p.spec && <span>{p.spec}</span>}
+                                        <div style={{ height: totalHeight, position: 'relative' }}>
+                                            {visibleItems.map(p => (
+                                                <div
+                                                    key={p.id || p._virtualIndex}
+                                                    style={p._style}
+                                                    onClick={() => onSelect(p)}
+                                                    className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 active:bg-blue-50 cursor-pointer border-b border-gray-100"
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-bold text-gray-800 truncate">{p.name}</div>
+                                                        <div className="text-xs text-gray-500 truncate">
+                                                            {p.productId} {p.spec && `· ${p.spec}`}
+                                                        </div>
                                                     </div>
+                                                    <I.ChevronDown className="text-gray-300 rotate-[-90deg]" />
                                                 </div>
-                                                <div className="text-blue-400 ml-2">
-                                                    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                                        <path d="m9 18 6-6-6-6"/>
-                                                    </svg>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -631,38 +556,20 @@
             );
         });
 
-        // --- V78.1: 6. 數字輸入組件（優化手機體驗）---
+        // --- V78.0: 6. 數字輸入組件（優化手機體驗）---
         const NumericInput = React.memo(({ value, onChange, placeholder, className, ...props }) => {
-            const inputRef = useRef(null);
-            
             const handleChange = useCallback((e) => {
                 const val = e.target.value.replace(/[^\d.-]/g, '');
                 onChange({ target: { value: val } });
             }, [onChange]);
             
-            // V78.1: 聚焦時若值為 0 則自動全選，讓使用者直接輸入覆蓋
-            const handleFocus = useCallback((e) => {
-                const numVal = parseFloat(e.target.value);
-                if (numVal === 0 || e.target.value === '' || e.target.value === '0') {
-                    // 延遲執行以確保在所有瀏覽器上都能正確選取
-                    setTimeout(() => {
-                        e.target.select();
-                    }, 0);
-                }
-            }, []);
-            
-            // V78.1: 顯示值處理 - 0 顯示為 "0" 但聚焦後可直接覆蓋
-            const displayValue = value;
-            
             return (
                 <input
-                    ref={inputRef}
                     type="text"
                     inputMode="decimal"
                     pattern="[0-9]*"
-                    value={displayValue}
+                    value={value}
                     onChange={handleChange}
-                    onFocus={handleFocus}
                     placeholder={placeholder}
                     className={`num-input ${className || ''}`}
                     {...props}
@@ -1341,100 +1248,68 @@
                                             const mainDate = parseDate(item.arrivalDate);
 
                                             return (
-                                            <div key={item.id} className="ios-card" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
-                                                {/* V78.2: 卡片頭部 - 公司標籤 + 操作按鈕 */}
-                                                <div className="flex justify-between items-center px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-                                                    <span className={`text-xs font-bold px-2 py-1 rounded ${getCompanyColor(item.importCompany)}`}>{item.importCompany}</span>
-                                                    <div className="flex gap-0.5">
-                                                        {((item.attachments && item.attachments.length > 0) || item.docUrl) && (
-                                                            <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full relative">
-                                                                <I.Paperclip />
-                                                                {(item.attachments?.length || (item.docUrl ? 1 : 0)) > 1 && <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{item.attachments?.length}</span>}
-                                                            </button>
-                                                        )}
-                                                        {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-2"><I.Edit /></button>}
-                                                        <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-2"><I.MessageCircle /></button>
-                                                        {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-2"><I.Copy /></button>}
-                                                        {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-2"><I.Trash2 /></button>}
-                                                    </div>
-                                                </div>
-                                                
-                                                {/* V78.2: 主要資訊區 */}
-                                                <div className="px-4 py-3">
-                                                    {/* 櫃號 + 日期 */}
-                                                    <div className="flex justify-between items-start mb-3">
-                                                        <div>
-                                                            <div className="text-2xl font-black text-gray-900 tracking-tight">{item.containerNumber}</div>
-                                                            <div className="text-sm text-gray-500 mt-0.5">{item.supplier} {item.origin && `· ${item.origin}`}</div>
+                                            <div key={item.id} className="ios-card p-4" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
+                                                <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="mb-1"><span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span></div>
+                                                        <div className="text-2xl font-black text-gray-900 tracking-tight mb-2">{item.containerNumber}</div>
+                                                        
+                                                        <div className="flex flex-wrap gap-1 mb-2">
+                                                            {item.customsBroker && <span className="tag-badge bg-gray-100 text-gray-600"><I.FileCheck />{item.customsBroker}</span>}
+                                                            <span className="tag-badge bg-gray-100 text-gray-600"><I.Factory />{item.supplier}</span>
+                                                            {item.origin && <span className="tag-badge bg-gray-100 text-gray-600"><I.Globe />{item.origin}</span>}
+                                                            {item.shippingCompany && <span className="tag-badge bg-gray-100 text-gray-600"><I.Ship />{item.shippingCompany}</span>}
                                                         </div>
-                                                        <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl border-2 ${isDevanned?'bg-green-50 border-green-300 text-green-700':'bg-blue-50 border-blue-200 text-blue-700'}`}>
-                                                            <span className="text-[10px] font-bold uppercase opacity-70">{mainDate.toLocaleString('zh-TW',{month:'short'})}</span>
-                                                            <span className="text-xl font-black leading-none">{mainDate.getDate()}</span>
+
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {item.devanningLocation && <span className="tag-badge bg-blue-50 text-blue-600"><I.Briefcase />{item.devanningLocation}</span>}
+                                                            {item.devanningDate && <span className="tag-badge bg-blue-50 text-blue-600"><I.Calendar />{item.devanningDate}</span>}
                                                         </div>
                                                     </div>
-                                                    
-                                                    {/* V78.2: 簡化的標籤列 - 只顯示關鍵資訊 */}
-                                                    <div className="flex flex-wrap gap-1.5 text-xs mb-3">
-                                                        {item.customsBroker && item.customsBroker !== DOMESTIC_FLAG && <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded font-medium">{item.customsBroker}</span>}
-                                                        {item.shippingCompany && <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded font-medium">{item.shippingCompany}</span>}
-                                                        {item.devanningLocation && <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded font-medium">📍 {item.devanningLocation}</span>}
-                                                        {item.devanningDate && <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded font-medium">🗓 {item.devanningDate}</span>}
+                                                    <div className="flex flex-col items-end gap-2">
+                                                         <div className="flex gap-1 relative z-10">
+                                                            {((item.attachments && item.attachments.length > 0) || item.docUrl) && (
+                                                                <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative">
+                                                                    <I.Paperclip />
+                                                                    {(item.attachments?.length || (item.docUrl ? 1 : 0)) > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{(item.attachments?.length || (item.docUrl ? 1 : 0))}</span>}
+                                                                </button>
+                                                            )}
+                                                            
+                                                            {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><I.Edit /></button>}
+                                                            <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-1.5"><I.MessageCircle /></button>
+                                                            {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><I.Copy /></button>}
+                                                            {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-1.5"><I.Trash2 /></button>}
+                                                        </div>
+                                                        <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl border ${isDevanned?'bg-green-50 border-green-200 text-green-700':'bg-white border-gray-200 text-gray-700'}`}><span className="text-[10px] font-bold uppercase">{mainDate.toLocaleString('default',{month:'short'})}</span><span className="text-xl font-bold leading-none">{mainDate.getDate()}</span></div>
                                                     </div>
                                                 </div>
 
-                                                {/* V78.2: 產品明細 - 表格式排版 */}
-                                                <div className="px-4 pb-3">
-                                                    <table className="w-full text-sm">
-                                                        <tbody>
-                                                            {(item.products || []).map((p,i)=>(
-                                                                <tr key={i} className="border-t border-gray-100 first:border-t-0">
-                                                                    <td className="py-2 pr-2">
-                                                                        <div className="font-bold text-gray-900">{p.name}</div>
-                                                                        {p.spec && <div className="text-xs text-gray-400">{p.spec}</div>}
-                                                                        {(p.batchNumber||p.expiryDate) && (
-                                                                            <div className="flex gap-2 mt-0.5 text-[10px] text-gray-400 font-mono">
-                                                                                {p.batchNumber && <span>批:{p.batchNumber}</span>}
-                                                                                {p.expiryDate && <span>效:{p.expiryDate}</span>}
-                                                                            </div>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="py-2 text-right whitespace-nowrap">
-                                                                        <div className="text-orange-500 font-mono text-xs">{format2(safeNum(p.weight))}kg</div>
-                                                                    </td>
-                                                                    {canSeePrice() && (
-                                                                        <td className="py-2 text-right whitespace-nowrap pl-2">
-                                                                            <div className="text-emerald-600 font-bold font-mono">${format2(safeNum(p.amount))}</div>
-                                                                            <div className="text-[10px] text-gray-400">@${format2(safeNum(p.unitPrice))}</div>
-                                                                        </td>
-                                                                    )}
-                                                                    <td className="py-2 text-right whitespace-nowrap pl-2">
-                                                                        <div className="text-blue-600 font-bold font-mono">{safeNum(p.quantity).toLocaleString()}</div>
-                                                                        <div className="text-[10px] text-gray-400">件</div>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                                <div className="space-y-3">
+                                                    {(item.products || []).map((p,i)=>(
+                                                        <div key={i} className="flex flex-col border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                                                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                                                                <span className="font-bold text-gray-900 text-base">{p.name}</span>
+                                                                {p.spec&&<span className="text-gray-500">{p.spec}</span>}
+                                                                <div className="flex items-center gap-2 mr-auto sm:ml-0 flex-wrap justify-start text-gray-600">
+                                                                    <span className="text-xs text-gray-400">{p.pricingMode==='weight'?'[重]':'[數]'}</span>
+                                                                    <span className="font-mono text-base">{format2(safeNum(p.weight))}kg</span>
+                                                                    {canSeePrice()&&<><span className="text-gray-300">|</span><span className="font-mono text-base">${format2(safeNum(p.unitPrice))}</span><span className="text-gray-300">|</span><span className="font-bold text-emerald-600 font-mono text-base">${format2(safeNum(p.amount))}</span></>}
+                                                                </div>
+                                                                <span className="ml-auto text-base font-bold text-blue-600 font-mono">{safeNum(p.quantity).toLocaleString()} 件</span>
+                                                            </div>
+                                                            {(p.batchNumber||p.expiryDate)&&<div className="flex gap-2 mt-1 text-xs text-gray-400 font-mono">{p.batchNumber&&<span className="bg-gray-100 px-1.5 rounded">批:{p.batchNumber}</span>}{p.expiryDate&&<span className="bg-gray-100 px-1.5 rounded">效:{p.expiryDate}</span>}</div>}
+                                                        </div>
+                                                    ))}
                                                 </div>
                                                 
-                                                {/* V78.2: 底部統計列 */}
-                                                <div className="flex justify-between items-center px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
-                                                    <div className="flex items-center gap-4">
-                                                        <div>
-                                                            <div className="text-[10px] text-gray-400 uppercase font-bold">總重</div>
-                                                            <div className="text-orange-500 font-bold font-mono">{format2(safeNum(item.totalWeight))} kg</div>
+                                                <div className="mt-3 pt-2 bg-gray-50 -mx-4 -mb-4 p-3 border-t border-gray-200">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex gap-3">
+                                                            <span className="font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()} 件</span>
+                                                            <span className="text-orange-500">{format2(safeNum(item.totalWeight))} kg</span>
                                                         </div>
-                                                        <div>
-                                                            <div className="text-[10px] text-gray-400 uppercase font-bold">件數</div>
-                                                            <div className="text-blue-600 font-bold font-mono">{safeNum(item.totalQuantity).toLocaleString()}</div>
-                                                        </div>
+                                                        {canSeePrice() && <span className={`font-bold text-lg ${item.isPaid?'text-gray-600':'text-red-600'}`}>{currSymbol} {format2(totalAmount)}</span>}
                                                     </div>
-                                                    {canSeePrice() && (
-                                                        <div className="text-right">
-                                                            <div className="text-[10px] text-gray-400 uppercase font-bold">{item.isPaid ? '已付款' : '未付款'}</div>
-                                                            <div className={`text-lg font-black font-mono ${item.isPaid?'text-gray-600':'text-red-600'}`}>{currSymbol}{format2(totalAmount)}</div>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             </div>
                                         )})}
@@ -1494,228 +1369,102 @@
                         )}
 
                         {view === 'form' && (
-                            <div className="ios-card animate-[fade-in_0.3s_ease-out]">
-                                {/* V78.2: 表單標題列 */}
-                                <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 bg-gray-50/50">
-                                    <h2 className="font-bold text-lg text-gray-800">{editingId?'編輯貨櫃':'新增貨櫃'}</h2>
-                                    <button onClick={()=>setView('list')} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 text-gray-500 hover:bg-gray-300"><I.X /></button>
-                                </div>
-                                
-                                <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                                    {/* V78.2: 基本資訊區塊 */}
-                                    <div className="space-y-3">
-                                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">基本資訊</div>
-                                        
-                                        {/* 第一行：公司 + 櫃號 */}
-                                        <div className="grid grid-cols-5 gap-2">
-                                            <div className="col-span-2">
-                                                <label className="text-xs font-bold text-gray-500 mb-1 block">進口公司</label>
-                                                <select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:border-blue-500 focus:bg-white outline-none">
-                                                    {IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="col-span-3">
-                                                <label className={`text-xs font-bold text-gray-500 mb-1 block ${!editingId ? 'after:content-["*"] after:text-red-500 after:ml-0.5' : ''}`}>櫃號</label>
-                                                <input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className={`w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg font-mono uppercase text-base font-bold focus:border-blue-500 focus:bg-white outline-none ${validationErrors.containerNumber ? 'border-red-400 bg-red-50' : ''}`} placeholder="ABCD1234567" />
-                                            </div>
-                                        </div>
-                                        
-                                        {/* 第二行：到港日 + 船公司 */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div>
-                                                <label className={`text-xs font-bold text-gray-500 mb-1 block ${!editingId ? 'after:content-["*"] after:text-red-500 after:ml-0.5' : ''}`}>到港日</label>
-                                                <input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className={`w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none ${validationErrors.arrivalDate ? 'border-red-400 bg-red-50' : ''}`} />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-500 mb-1 block">船公司</label>
-                                                <input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none" placeholder="船公司名稱" />
-                                            </div>
-                                        </div>
-                                        
-                                        {/* 第三行：廠商 + 產地 */}
-                                        <div className="grid grid-cols-5 gap-2">
-                                            <div className="col-span-3">
-                                                <label className={`text-xs font-bold text-gray-500 mb-1 block ${!editingId ? 'after:content-["*"] after:text-red-500 after:ml-0.5' : ''}`}>廠商</label>
-                                                <input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className={`w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none ${validationErrors.supplier ? 'border-red-400 bg-red-50' : ''}`} placeholder="供應商名稱" />
-                                            </div>
-                                            <div className="col-span-2">
-                                                <label className="text-xs font-bold text-gray-500 mb-1 block">產地</label>
-                                                <input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none" placeholder="選擇產地" />
-                                                <datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist>
-                                            </div>
+                            <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
+                                <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><I.X /></button></div>
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm mb-3">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                            <div><label className={!editingId ? 'label-required' : ''}>櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 font-mono uppercase ${validationErrors.containerNumber ? 'input-error' : ''}`} placeholder="櫃號" /></div>
+                                            
+                                            <div><label>船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="船公司" /></div>
+
+                                            <div><label className={!editingId ? 'label-required' : ''}>到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.arrivalDate ? 'input-error' : ''}`} /></div>
+                                            <div><label>報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                            
+                                            <div><label>報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="報關單號" /></div>
+                                            <div><label>輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="許可證號" /></div>
+                                            
+                                            <div><label className={!editingId ? 'label-required' : ''}>廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.supplier ? 'input-error' : ''}`} placeholder="廠商" /></div>
+                                            <div><label>產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
+                                            <div><label>拆櫃地</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div>
+                                            <div><label>拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div>
                                         </div>
                                     </div>
                                     
-                                    {/* V78.2: 報關資訊區塊 */}
-                                    <div className="space-y-3 pt-2 border-t border-gray-100">
-                                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">報關資訊</div>
-                                        
-                                        {/* 報關行 + 報關單號 */}
-                                        <div className="grid grid-cols-5 gap-2">
-                                            <div className="col-span-2">
-                                                <label className="text-xs font-bold text-gray-500 mb-1 block">報關行</label>
-                                                <select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:border-blue-500 focus:bg-white outline-none">
-                                                    {CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="col-span-3">
-                                                <label className="text-xs font-bold text-gray-500 mb-1 block">報關單號</label>
-                                                <input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none" placeholder="報關單號" />
-                                            </div>
-                                        </div>
-                                        
-                                        {/* 輸入許可證 */}
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-500 mb-1 block">輸入許可證</label>
-                                            <input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none" placeholder="許可證號" />
-                                        </div>
-                                    </div>
-                                    
-                                    {/* V78.2: 拆櫃資訊區塊 */}
-                                    <div className="space-y-3 pt-2 border-t border-gray-100">
-                                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">拆櫃資訊</div>
-                                        
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-500 mb-1 block">拆櫃地點</label>
-                                                <input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none" placeholder="地點" />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-500 mb-1 block">拆櫃日期</label>
-                                                <input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* V78.2: 付款資訊區塊 */}
                                     {canSeePrice() && (
-                                        <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 space-y-3">
-                                            <div className="text-xs font-bold text-blue-600 uppercase tracking-wide">付款資訊</div>
-                                            
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-xs font-bold text-gray-500 mb-1 block">付款條件</label>
-                                                    <input value={formData.paymentTerm} disabled className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg text-sm" />
+                                        <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 mb-3 flex flex-wrap items-end gap-3">
+                                             <div className="flex-1 min-w-[140px]">
+                                                <label>付款條件</label>
+                                                <input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" />
+                                             </div>
+                                             {canEditFlightFee() && isForeign(formData) && (
+                                                <div className="w-24">
+                                                   <label>旅費</label>
+                                                   {/* V78.0: 使用 NumericInput */}
+                                                   <NumericInput 
+                                                       value={formData.flightFee} 
+                                                       onChange={e => handleInputChange({target: {name: 'flightFee', value: e.target.value, type: 'text'}})} 
+                                                       className="w-full bg-white border rounded input-bg-style" 
+                                                       placeholder="0" 
+                                                   />
                                                 </div>
-                                                {canEditFlightFee() && isForeign(formData) && (
-                                                    <div>
-                                                        <label className="text-xs font-bold text-gray-500 mb-1 block">旅費</label>
-                                                        <NumericInput 
-                                                            value={formData.flightFee} 
-                                                            onChange={e => handleInputChange({target: {name: 'flightFee', value: e.target.value, type: 'text'}})} 
-                                                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg text-right font-mono" 
-                                                            placeholder="0" 
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            
-                                            <div className="flex gap-4 pt-2">
-                                                <label className="flex items-center gap-2 cursor-pointer">
-                                                    <input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600 rounded"/>
-                                                    <span className="font-bold text-green-700 text-sm">貨款已付</span>
-                                                </label>
-                                                {canEditFlightFee() && isForeign(formData) && (
-                                                    <label className="flex items-center gap-2 cursor-pointer">
-                                                        <input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-red-600 rounded"/>
-                                                        <span className="font-bold text-red-700 text-sm">旅費已付</span>
-                                                    </label>
-                                                )}
-                                            </div>
+                                             )}
+                                             <div className="flex items-center gap-3 pb-2 ml-auto">
+                                                <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>
+                                                {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}
+                                             </div>
                                         </div>
                                     )}
 
-                                    {/* V78.2: 產品明細區塊 */}
-                                    <div className="pt-2 border-t border-gray-100">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <div>
-                                                <span className={`text-xs font-bold uppercase tracking-wide ${validationErrors.products ? 'text-red-500' : 'text-gray-400'}`}>
-                                                    產品明細 {!editingId && <span className="text-red-500">*</span>}
-                                                </span>
-                                                {validationErrors.products && <span className="text-red-500 text-xs ml-2">請至少填寫一項品名</span>}
-                                            </div>
-                                            {(canEditDomesticFull() || canManage()) && (
-                                                <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100">+ 新增</button>
-                                            )}
+                                    <div className="pt-2">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h3 className={`font-bold text-lg ${validationErrors.products ? 'text-red-600' : 'text-gray-700'}`}>
+                                                產品明細 {!editingId && <span className="text-red-500 text-sm">*</span>}
+                                                {validationErrors.products && <span className="text-red-500 text-xs ml-2">(請至少填寫一項品名)</span>}
+                                            </h3>
+                                            {(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}
                                         </div>
-                                        
-                                        <div className="space-y-3">
-                                            {formData.products.map((p, idx) => (
-                                                <div key={p.id} className={`bg-white border rounded-xl p-3 shadow-sm ${validationErrors.products && idx === 0 ? 'border-red-300 bg-red-50/30' : 'border-gray-200'}`}>
-                                                    {/* 第一行：品名 + 規格 */}
-                                                    <div className="grid grid-cols-5 gap-2 mb-2">
-                                                        <div className="col-span-3">
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">品名</label>
-                                                            <div 
-                                                                onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }}
-                                                                className={`h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between cursor-pointer hover:bg-blue-50 hover:border-blue-300 ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'border-red-400 bg-red-50' : ''}`}
-                                                            >
-                                                                <span className={`text-sm font-medium truncate ${p.name ? 'text-gray-800' : 'text-gray-400'}`}>{p.name || '點擊選擇'}</span>
-                                                                <span className="text-blue-400 text-xs">▼</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="col-span-2">
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">規格</label>
-                                                            <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none" placeholder="規格" />
+                                        <div className="space-y-3">{formData.products.map((p, idx) => (
+                                            <div key={p.id} className={`bg-white border rounded-xl p-3 relative shadow-sm ${validationErrors.products && idx === 0 ? 'border-red-300' : ''}`}>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {/* V78.0: 品名改為觸發 Bottom Sheet */}
+                                                    <div className="relative">
+                                                        <div 
+                                                            onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }}
+                                                            className={`input-bg-style rounded p-1 font-bold w-full cursor-pointer flex items-center justify-between ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'input-error' : ''} ${products.length > 0 ? 'hover:bg-blue-50 active:bg-blue-100' : ''}`}
+                                                        >
+                                                            <span className={p.name ? 'text-gray-800' : 'text-gray-400'}>{p.name || '點擊選擇品名'}</span>
+                                                            {products.length > 0 && <span className="text-blue-500 text-xs">▼</span>}
                                                         </div>
                                                     </div>
+                                                    <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
+                                                    <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="quantity">計件</option><option value="weight">計重</option></select>
                                                     
-                                                    {/* 第二行：件數 + 重量 + 單價 */}
-                                                    <div className="grid grid-cols-4 gap-2 mb-2">
-                                                        <div>
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">件數</label>
-                                                            <NumericInput value={p.quantity} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="w-full h-10 px-2 bg-gray-50 border border-gray-200 rounded-lg text-blue-600 font-bold text-right focus:border-blue-500 focus:bg-white outline-none" placeholder="0" />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">重量(kg)</label>
-                                                            <NumericInput value={p.weight} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="w-full h-10 px-2 bg-gray-50 border border-gray-200 rounded-lg text-orange-500 font-bold text-right focus:border-blue-500 focus:bg-white outline-none" placeholder="0" />
-                                                        </div>
-                                                        {canSeePrice() ? (
-                                                            <div>
-                                                                <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">單價</label>
-                                                                <NumericInput value={p.unitPrice} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="w-full h-10 px-2 bg-gray-50 border border-gray-200 rounded-lg text-right focus:border-blue-500 focus:bg-white outline-none" placeholder="0" />
-                                                            </div>
-                                                        ) : (
-                                                            <div>
-                                                                <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">單價</label>
-                                                                <div className="w-full h-10 px-2 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-end text-gray-300">***</div>
+                                                    {/* V78.0: 數字輸入使用 NumericInput */}
+                                                    <NumericInput value={p.quantity} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-blue-600" placeholder="件數" />
+                                                    <NumericInput value={p.weight} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-orange-500" placeholder="重量" />
+                                                    
+                                                    {canSeePrice() ? (
+                                                        <NumericInput value={p.unitPrice} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1" placeholder="單價" />
+                                                    ) : (
+                                                        <div className="input-bg-style rounded p-1 text-right flex items-center justify-end text-gray-300">***</div>
+                                                    )}
+                                                    
+                                                    <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
+                                                    <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
+                                                    <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">
+                                                        {canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${format2(safeNum(p.amount))}</span> : <span>***</span>}
+                                                        {(canEditDomesticFull() || canManage()) && (
+                                                            <div className="flex gap-1">
+                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><I.Copy /></button>
+                                                                {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><I.Trash2 /></button>}
                                                             </div>
                                                         )}
-                                                        <div>
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">計價</label>
-                                                            <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="w-full h-10 px-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:bg-white outline-none">
-                                                                <option value="weight">計重</option>
-                                                                <option value="quantity">計件</option>
-                                                            </select>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    {/* 第三行：批號 + 效期 + 金額 */}
-                                                    <div className="grid grid-cols-4 gap-2">
-                                                        <div>
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">批號</label>
-                                                            <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="w-full h-10 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono focus:border-blue-500 focus:bg-white outline-none" placeholder="批號" />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">效期</label>
-                                                            <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="w-full h-10 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:bg-white outline-none" />
-                                                        </div>
-                                                        <div className="col-span-2">
-                                                            <label className="text-[10px] font-bold text-gray-400 mb-0.5 block">金額</label>
-                                                            <div className="h-10 px-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
-                                                                {canSeePrice() ? <span className="font-bold text-emerald-600 font-mono">${format2(safeNum(p.amount))}</span> : <span className="text-gray-300">***</span>}
-                                                                {(canEditDomesticFull() || canManage()) && (
-                                                                    <div className="flex gap-1">
-                                                                        <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><I.Copy /></button>
-                                                                        {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><I.Trash2 /></button>}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
+                                            </div>
+                                        ))}</div>
                                     </div>
                                     
                                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
