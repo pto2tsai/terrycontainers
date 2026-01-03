@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v78.0 效能優化版)</title>
+    <title>貨櫃管理系統 (v78.3 手機優化版)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -93,44 +93,70 @@
         .sidebar-link:hover { background: #f3f4f6; color: #374151; }
         .sidebar-link.active { background: #eff6ff; color: #2563eb; }
         
-        /* V78.0: Bottom Sheet 樣式 */
-        .bottom-sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 60; opacity: 0; animation: fadeIn 0.2s ease-out forwards; }
-        @keyframes fadeIn { to { opacity: 1; } }
-        .bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 20px 20px 0 0; z-index: 61; max-height: 70vh; display: flex; flex-direction: column; transform: translateY(100%); animation: slideUpSheet 0.3s ease-out forwards; }
-        @keyframes slideUpSheet { to { transform: translateY(0); } }
-        .bottom-sheet-handle { width: 36px; height: 4px; background: #d1d5db; border-radius: 2px; margin: 12px auto 8px; }
-        .bottom-sheet-content { flex: 1; overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+        /* V78.3: 手機版優化樣式 */
         
-        /* V78.0: 虛擬捲動容器 */
-        .virtual-list-container { height: 400px; overflow-y: auto; position: relative; }
-        .virtual-list-item { position: absolute; left: 0; right: 0; }
-        
-        /* V78.0: 數字輸入優化 */
+        /* 數字輸入優化 */
         .num-input { 
             -webkit-appearance: none; 
             -moz-appearance: textfield;
             text-align: right;
-            font-family: monospace;
-            font-weight: bold;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-weight: 600;
+        }
+        .num-input:focus { background: #eff6ff; border-color: #3b82f6; }
+        
+        /* Bottom Sheet 產品選擇器 */
+        .bottom-sheet-overlay { 
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); 
+            z-index: 60; opacity: 0; animation: fadeIn 0.2s ease-out forwards; 
+        }
+        @keyframes fadeIn { to { opacity: 1; } }
+        
+        .bottom-sheet { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: white; border-radius: 20px 20px 0 0; 
+            z-index: 61; max-height: 75vh; 
+            display: flex; flex-direction: column;
+            transform: translateY(100%); 
+            animation: slideUpSheet 0.3s ease-out forwards;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+        }
+        @keyframes slideUpSheet { to { transform: translateY(0); } }
+        
+        .bottom-sheet-handle { 
+            width: 36px; height: 4px; background: #d1d5db; 
+            border-radius: 2px; margin: 10px auto 6px; 
+            cursor: pointer;
+        }
+        .bottom-sheet-header { padding: 0 16px 12px; border-bottom: 1px solid #e5e7eb; }
+        .bottom-sheet-content { 
+            flex: 1; overflow-y: auto; padding: 12px 16px 20px; 
+            -webkit-overflow-scrolling: touch; 
         }
         
-        /* V78.0: 最近使用產品標籤 */
-        .recent-product-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 6px 12px;
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            color: #0369a1;
-            cursor: pointer;
-            transition: all 0.2s;
+        /* 產品列表項目 */
+        .product-item { 
+            padding: 12px; margin: 0 -4px; border-radius: 10px;
+            cursor: pointer; transition: background 0.15s;
+            border-bottom: 1px solid #f3f4f6;
         }
-        .recent-product-tag:hover { background: #e0f2fe; }
-        .recent-product-tag:active { transform: scale(0.95); }
+        .product-item:active { background: #eff6ff; }
+        
+        /* 最近使用標籤 */
+        .recent-tag {
+            display: inline-block; padding: 8px 14px;
+            background: #f0f9ff; border: 1px solid #bae6fd;
+            border-radius: 20px; font-size: 13px; font-weight: 600;
+            color: #0369a1; cursor: pointer;
+        }
+        .recent-tag:active { background: #e0f2fe; transform: scale(0.97); }
+        
+        /* 手機版卡片微調 */
+        @media (max-width: 640px) {
+            .ios-card { border-radius: 12px; }
+            .tag-badge { font-size: 10px; padding: 2px 6px; }
+            .company-tag { font-size: 14px; padding: 3px 8px; }
+        }
     </style>
 </head>
 <body>
@@ -161,50 +187,73 @@
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', DOMESTIC_FLAG];
         const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
         const PAYMENT_TERMS_DOMESTIC = ['現金', '月結 30 天', '月結 45 天', '月結 60 天', '其他'];
-        const PRODUCT_UNITS = ['包', '盒', '箱', '塊', '片', '公斤', '件'];
-        const INITIAL_PRODUCTS_DATA = [];
+        
+        // V73.0: 移除硬編碼的 ADMIN_EMAILS，改為完全從 Firestore settings/config 讀取
+        // 管理員和角色設定現在統一在 Firestore 中管理，提升安全性
 
+        // V72.0: 統一管理文字字串，便於維護和未來多語言支援
         const TEXT = {
+            // 系統
             APP_NAME: '貨櫃管理系統',
             LOADING: '系統啟動中...',
             LOADING_DATA: 'Loading...',
+            
+            // 登入
             LOGIN_TITLE: '貨櫃管理系統',
             LOGIN_STAFF: '員工登入',
             LOGIN_GUEST: '訪客登入',
             LOGIN_FAILED: '登入失敗',
             GUEST_LOGIN_FAILED: '訪客登入失敗',
             LOGOUT: '登出',
+            
+            // 權限與錯誤
             PERMISSION_DENIED: '權限不足',
             SAVE_FAILED: '儲存失敗',
             UPLOAD_FAILED: '上傳失敗',
+            
+            // 確認對話框
             CONFIRM_DELETE: '確定刪除?',
             CONFIRM_DELETE_FILE: '確定要刪除此附件嗎？',
+            
+            // 表單驗證
             REQUIRED_FIELDS: '請填寫必填欄位：',
             FIELD_CONTAINER: '櫃號',
             FIELD_ARRIVAL_DATE: '到港日',
             FIELD_SUPPLIER: '廠商',
             FIELD_PRODUCT_NAME: '至少一項產品名稱',
+            
+            // 狀態文字
             STATUS_ARRIVED: '已到港',
             STATUS_TODAY: '今日到港',
             STATUS_PENDING: '未定',
             STATUS_DAYS_LATER: ' 天後',
+            
+            // 付款狀態
             PAYMENT_PAID: '貨款已付',
             PAYMENT_UNPAID: '貨款未付',
             FLIGHT_FEE_PAID: '旅費已付',
             FLIGHT_FEE_UNPAID: '旅費未付',
+            
+            // 按鈕與操作
             BTN_SAVE: '儲存',
             BTN_CANCEL: '取消',
             BTN_ADD_PRODUCT: '+ 新增產品',
             BTN_SELECT_FILE: '選擇檔案 (可多選)',
             BTN_UPLOADING: '上傳中...',
+            
+            // 頁籤
             TAB_NOT_DEVANED: '未拆櫃',
             TAB_DEVANED: '已拆櫃',
             TAB_DOMESTIC: '國內採購',
+            
+            // 列表
             LIST_TITLE: '貨櫃列表',
             STATS_TITLE: '統計分析',
             NO_URGENT: '目前無急件',
             URGENT_TITLE: '近期到港急件',
             FILE_LIST_TITLE: '附件列表',
+            
+            // 表單標籤
             LABEL_IMPORT_COMPANY: '進口公司',
             LABEL_CONTAINER_NO: '櫃號',
             LABEL_SHIPPING_COMPANY: '船公司',
@@ -219,6 +268,8 @@
             LABEL_PAYMENT_TERM: '付款條件',
             LABEL_FLIGHT_FEE: '旅費',
             LABEL_ATTACHMENTS: '附件',
+            
+            // 產品明細
             PRODUCT_SECTION: '產品明細',
             PRODUCT_NAME: '品名',
             PRODUCT_SPEC: '規格',
@@ -229,8 +280,12 @@
             PRODUCT_PRICING_QTY: '計件',
             PRODUCT_PRICING_WEIGHT: '計重',
             PRODUCT_HINT: '(請至少填寫一項品名)',
+            
+            // 倉庫確認
             WAREHOUSE_CONFIRMED: '已收貨',
             WAREHOUSE_CONFIRM: '確認收貨',
+            
+            // 統計
             STATS_DASHBOARD: '統計儀表板',
             STATS_ALL_MONTHS: '全部月份',
             STATS_TOTAL_COUNT: '總筆數',
@@ -241,8 +296,12 @@
             STATS_MONTHLY_TABLE: '📅 月度採購統計表',
             STATS_TOP_SUPPLIERS: '🏆 前五大廠商',
             STATS_NO_DATA: '無足夠數據可顯示',
+            
+            // LINE 分享
             LINE_NOTIFY_DOMESTIC: '🚚 到貨通知',
             LINE_NOTIFY_FOREIGN: '🚢 到港通知',
+            
+            // V74.0: Excel 匯入
             IMPORT_EXCEL: '📥 匯入國內採購',
             IMPORT_TITLE: '匯入國內採購資料',
             IMPORT_SELECT_FILE: '選擇 Excel 檔案',
@@ -256,6 +315,8 @@
             IMPORT_ROW_COUNT: '共 {count} 筆資料',
             IMPORT_UPDATE_HINT: '（相同廠商+日期+品名將覆蓋更新）',
             IMPORT_COLUMN_MAPPING: '欄位對應',
+            
+            // V75.0: 產品主檔
             PRODUCTS_TITLE: '產品主檔',
             PRODUCTS_IMPORT: '📥 匯入庫存表',
             PRODUCTS_ADD: '+ 新增產品',
@@ -271,12 +332,6 @@
             PRODUCT_UNIT: '單位',
             PRODUCT_IS_ACTIVE: '啟用',
             PRODUCT_INACTIVE: '已停用',
-            // V78.0
-            SELECT_PRODUCT: '選擇產品',
-            RECENT_USED: '最近使用',
-            ALL_PRODUCTS: '全部產品',
-            NO_PRODUCTS: '尚無產品',
-            SEARCH_PRODUCT_HINT: '搜尋品名、品號...',
         };
 
         const initialFormState = { 
@@ -322,13 +377,14 @@
             if (typeof firebase !== 'undefined') { db = firebase.firestore(); auth = firebase.auth(); storage = firebase.storage(); }
         } catch (e) { console.error("Firebase Init Failed:", e); }
 
-        const { useState, useEffect, useMemo, useCallback, useRef } = React;
+        const { useState, useEffect, useMemo, useCallback } = React;
 
         // --- 2. Helpers ---
         const safeNum = (val) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
         const round2 = (num) => Math.round(safeNum(num) * 100) / 100;
         const format2 = (num) => safeNum(num).toFixed(2);
 
+        // V72.0: 修正日期處理，使用 UTC 避免時區問題
         const parseDate = (dateStr) => {
             if (!dateStr || typeof dateStr !== 'string') return new Date(0);
             try {
@@ -344,6 +400,7 @@
             }
         };
         
+        // V72.0: 計算兩個日期字串之間的天數差（正數表示 date1 在 date2 之後）
         const dateDiffDays = (dateStr1, dateStr2) => {
             return Math.round((parseDate(dateStr1) - parseDate(dateStr2)) / 86400000);
         };
@@ -360,224 +417,41 @@
         const isDomestic = (d) => d && d.customsBroker === DOMESTIC_FLAG;
         const isForeign = (d) => !isDomestic(d);
 
-        // --- V78.0: 3. Icons 移到組件外部，使用 React.memo 避免重複渲染 ---
-        const createIcon = (pathContent, size = 24) => React.memo(() => (
-            <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                {pathContent}
-            </svg>
-        ));
-        
+        // --- 3. Icons ---
         const Icons = {
-            Ship: React.memo(() => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>),
-            Anchor: React.memo(() => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>),
-            Plus: React.memo(() => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>),
-            Search: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>),
-            Trash2: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>),
-            Edit: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>),
-            Copy: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>),
-            FileCheck: React.memo(() => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>),
-            Globe: React.memo(() => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>),
-            Factory: React.memo(() => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>),
-            Paperclip: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>),
-            ArrowRight: React.memo(() => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>),
-            Download: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-3-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>),
-            LogOut: React.memo(() => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>),
-            Google: React.memo(() => <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>),
-            X: React.memo(() => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>),
-            Check: React.memo(() => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>),
-            Bell: React.memo(() => <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>),
-            MessageCircle: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>),
-            User: React.memo(() => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>),
-            Briefcase: React.memo(() => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>),
-            List: React.memo(() => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>),
-            Chart: React.memo(() => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>),
-            Grid: React.memo(() => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>),
-            Dollar: React.memo(() => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>),
-            Calendar: React.memo(() => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>),
-            Line: React.memo(() => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z"/><path d="M8 12h8"/></svg>),
-            Package: React.memo(() => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>),
-            Clock: React.memo(() => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>),
-            ChevronDown: React.memo(() => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>),
+            Ship: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.9 5.8 2.8 8"/><path d="M10 10 4.72 7.28a1 1 0 0 1 .11-1.79l9-4a1 1 0 0 1 .9 0l8.26 3.67a1 1 0 0 1 .13 1.77L14 10"/><path d="m14 10-4 4-4-3.7"/></svg>,
+            Anchor: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
+            Plus: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
+            Search: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            Trash2: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            Edit: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>,
+            Copy: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
+            FileCheck: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>,
+            Globe: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+            Factory: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>,
+            Paperclip: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,
+            ArrowRight: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
+            Download: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-3-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            LogOut: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
+            Google: ()=><svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"></path></svg>,
+            X: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Check: ()=><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,
+            Bell: ()=><svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>,
+            MessageCircle: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>,
+            User: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            Briefcase: ()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+            List: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
+            Chart: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>,
+            Grid: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+            Dollar: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+            Calendar: ()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+            Line: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z"/><path d="M8 12h8"/></svg>,
+            Package: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>
         };
         
         const I = Icons;
 
-        // --- V78.0: 4. 虛擬捲動 Hook ---
-        const useVirtualList = (items, itemHeight, containerHeight) => {
-            const [scrollTop, setScrollTop] = useState(0);
-            
-            const visibleCount = Math.ceil(containerHeight / itemHeight) + 2;
-            const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - 1);
-            const endIndex = Math.min(items.length, startIndex + visibleCount);
-            
-            const visibleItems = items.slice(startIndex, endIndex).map((item, idx) => ({
-                ...item,
-                _virtualIndex: startIndex + idx,
-                _style: {
-                    position: 'absolute',
-                    top: (startIndex + idx) * itemHeight,
-                    left: 0,
-                    right: 0,
-                    height: itemHeight,
-                }
-            }));
-            
-            const totalHeight = items.length * itemHeight;
-            
-            const handleScroll = useCallback((e) => {
-                setScrollTop(e.target.scrollTop);
-            }, []);
-            
-            return { visibleItems, totalHeight, handleScroll, startIndex };
-        };
-
-        // --- V78.0: 5. Bottom Sheet 產品選擇器組件 ---
-        const ProductPickerBottomSheet = React.memo(({ 
-            isOpen, 
-            onClose, 
-            products, 
-            recentProducts,
-            onSelect,
-            searchValue,
-            onSearchChange
-        }) => {
-            const inputRef = useRef(null);
-            
-            useEffect(() => {
-                if (isOpen && inputRef.current) {
-                    setTimeout(() => inputRef.current?.focus(), 300);
-                }
-            }, [isOpen]);
-            
-            // 過濾產品
-            const filteredProducts = useMemo(() => {
-                if (!searchValue.trim()) return products.filter(p => p.isActive !== false).slice(0, 100);
-                const term = searchValue.toLowerCase();
-                return products.filter(p => 
-                    p.isActive !== false && (
-                        (p.productId || '').toLowerCase().includes(term) ||
-                        (p.name || '').toLowerCase().includes(term) ||
-                        (p.spec || '').toLowerCase().includes(term)
-                    )
-                ).slice(0, 100);
-            }, [products, searchValue]);
-            
-            // 虛擬捲動
-            const { visibleItems, totalHeight, handleScroll } = useVirtualList(filteredProducts, 56, 300);
-            
-            if (!isOpen) return null;
-            
-            return (
-                <>
-                    <div className="bottom-sheet-overlay" onClick={onClose} />
-                    <div className="bottom-sheet">
-                        <div className="bottom-sheet-handle" />
-                        
-                        {/* 標題與搜尋 */}
-                        <div className="px-4 pb-3 border-b">
-                            <div className="flex justify-between items-center mb-3">
-                                <h3 className="font-bold text-lg">{TEXT.SELECT_PRODUCT}</h3>
-                                <button onClick={onClose} className="p-1 text-gray-400"><I.X /></button>
-                            </div>
-                            <div className="relative">
-                                <span className="absolute left-3 top-2.5 text-gray-400"><I.Search /></span>
-                                <input
-                                    ref={inputRef}
-                                    type="text"
-                                    value={searchValue}
-                                    onChange={e => onSearchChange(e.target.value)}
-                                    placeholder={TEXT.SEARCH_PRODUCT_HINT}
-                                    className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-xl outline-none text-sm"
-                                    enterKeyHint="search"
-                                />
-                            </div>
-                        </div>
-                        
-                        <div className="bottom-sheet-content">
-                            {/* 最近使用 */}
-                            {recentProducts.length > 0 && !searchValue && (
-                                <div className="py-3 border-b">
-                                    <div className="flex items-center gap-2 text-xs text-gray-500 font-bold mb-2">
-                                        <I.Clock /> {TEXT.RECENT_USED}
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {recentProducts.slice(0, 6).map((p, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => onSelect(p)}
-                                                className="recent-product-tag"
-                                            >
-                                                {p.name}
-                                                {p.spec && <span className="text-gray-400 text-xs">({p.spec})</span>}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* 產品列表 - 使用虛擬捲動 */}
-                            <div className="py-2">
-                                <div className="text-xs text-gray-500 font-bold mb-2">
-                                    {TEXT.ALL_PRODUCTS} ({filteredProducts.length})
-                                </div>
-                                
-                                {filteredProducts.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-400">{TEXT.NO_PRODUCTS}</div>
-                                ) : (
-                                    <div 
-                                        className="virtual-list-container"
-                                        onScroll={handleScroll}
-                                        style={{ height: Math.min(300, filteredProducts.length * 56) }}
-                                    >
-                                        <div style={{ height: totalHeight, position: 'relative' }}>
-                                            {visibleItems.map(p => (
-                                                <div
-                                                    key={p.id || p._virtualIndex}
-                                                    style={p._style}
-                                                    onClick={() => onSelect(p)}
-                                                    className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 active:bg-blue-50 cursor-pointer border-b border-gray-100"
-                                                >
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-bold text-gray-800 truncate">{p.name}</div>
-                                                        <div className="text-xs text-gray-500 truncate">
-                                                            {p.productId} {p.spec && `· ${p.spec}`}
-                                                        </div>
-                                                    </div>
-                                                    <I.ChevronDown className="text-gray-300 rotate-[-90deg]" />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </>
-            );
-        });
-
-        // --- V78.0: 6. 數字輸入組件（優化手機體驗）---
-        const NumericInput = React.memo(({ value, onChange, placeholder, className, ...props }) => {
-            const handleChange = useCallback((e) => {
-                const val = e.target.value.replace(/[^\d.-]/g, '');
-                onChange({ target: { value: val } });
-            }, [onChange]);
-            
-            return (
-                <input
-                    type="text"
-                    inputMode="decimal"
-                    pattern="[0-9]*"
-                    value={value}
-                    onChange={handleChange}
-                    placeholder={placeholder}
-                    className={`num-input ${className || ''}`}
-                    {...props}
-                />
-            );
-        });
-
-        // 4. MonthlySummaryTable
+        // 4. MonthlySummaryTable (V68.0: Replace Chart with Table)
         const MonthlySummaryTable = ({ data }) => {
             if (!data || data.length === 0) return <div className="text-gray-400 text-center py-4">無足夠數據可顯示</div>;
             return (
@@ -643,11 +517,13 @@
                 const top = Object.entries(supps).sort((a,b)=>b[1]-a[1]).slice(0,5);
                 const maxVal = (top.length>0 && top[0][1]>0) ? top[0][1] : 1;
 
+                // V68.0: Table Data Logic
                 const chartMap = {};
-                const chartList = [...list].sort((a,b) => (b.arrivalDate||'').localeCompare(a.arrivalDate||''));
+                // Sort list by date for table
+                const chartList = [...list].sort((a,b) => (b.arrivalDate||'').localeCompare(a.arrivalDate||'')); // Descending
                 chartList.forEach(s => {
                     if(!s.arrivalDate) return;
-                    const k = s.arrivalDate.substring(0, 7);
+                    const k = s.arrivalDate.substring(0, 7); // YYYY-MM
                     if(!chartMap[k]) chartMap[k] = {name:k, count:0, weight:0, TWD:0, USD:0};
                     
                     chartMap[k].count += 1;
@@ -711,11 +587,13 @@
             const [showValidationToast, setShowValidationToast] = useState(false);
             const [validationMessage, setValidationMessage] = useState('');
             
+            // V74.0: Excel 匯入相關狀態
             const [showImportModal, setShowImportModal] = useState(false);
             const [importData, setImportData] = useState([]);
             const [importProcessing, setImportProcessing] = useState(false);
             const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
             
+            // V75.0: 產品主檔相關狀態
             const [products, setProducts] = useState([]);
             const [productSearchTerm, setProductSearchTerm] = useState('');
             const [showProductModal, setShowProductModal] = useState(false);
@@ -723,17 +601,11 @@
             const [showProductImportModal, setShowProductImportModal] = useState(false);
             const [productImportData, setProductImportData] = useState([]);
             
-            // V78.0: 產品選擇器狀態（改用 Bottom Sheet）
-            const [activeProductPicker, setActiveProductPicker] = useState(null);
+            // V76.0: 產品選擇器狀態
+            const [activeProductPicker, setActiveProductPicker] = useState(null); // 目前開啟選擇器的產品索引
             const [productPickerSearch, setProductPickerSearch] = useState('');
-            
-            // V78.0: 最近使用的產品（從 localStorage 讀取）
-            const [recentProducts, setRecentProducts] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('recentProducts');
-                    return saved ? JSON.parse(saved) : [];
-                } catch { return []; }
-            });
+
+            // V72.0: 移除重複的 Icons 賦值，使用全域定義的 I
 
             // Actions
             const handleLogout = useCallback(() => { if(auth) auth.signOut(); else window.location.reload(); }, []);
@@ -758,41 +630,435 @@
                 link.download='貨櫃_'+new Date().toISOString().slice(0,10)+'.csv'; link.click(); 
             };
 
-            // V78.0: 選擇產品後更新最近使用
-            const handleSelectProduct = useCallback((idx, selectedProduct) => {
+            // V74.0: Excel 匯入功能
+            const EXCEL_COLUMN_MAP = {
+                '廠商': 'supplier',
+                '供應商': 'supplier',
+                '品名': 'productName',
+                '產品名稱': 'productName',
+                '規格': 'spec',
+                '單價': 'unitPrice',
+                '價格': 'unitPrice',
+                '數量': 'quantity',
+                '件數': 'quantity',
+                '重量': 'weight',
+                '批號': 'batchNumber',
+                '效期': 'expiryDate',
+                '有效期限': 'expiryDate',
+                '採購日期': 'arrivalDate',
+                '日期': 'arrivalDate',
+                '進貨日期': 'arrivalDate',
+            };
+
+            const parseExcelDate = (value) => {
+                if (!value) return '';
+                // Excel 日期序列值
+                if (typeof value === 'number') {
+                    const date = XLSX.SSF.parse_date_code(value);
+                    if (date) {
+                        const y = date.y;
+                        const m = String(date.m).padStart(2, '0');
+                        const d = String(date.d).padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    }
+                }
+                // 字串日期格式
+                if (typeof value === 'string') {
+                    // 處理 YYYY/MM/DD 或 YYYY-MM-DD
+                    const match = value.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+                    if (match) {
+                        return `${match[1]}-${match[2].padStart(2,'0')}-${match[3].padStart(2,'0')}`;
+                    }
+                    // 處理民國年 (113/01/15)
+                    const rocMatch = value.match(/(\d{2,3})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+                    if (rocMatch && parseInt(rocMatch[1]) < 200) {
+                        const year = parseInt(rocMatch[1]) + 1911;
+                        return `${year}-${rocMatch[2].padStart(2,'0')}-${rocMatch[3].padStart(2,'0')}`;
+                    }
+                }
+                return '';
+            };
+
+            const handleExcelImport = async (evt) => {
+                const file = evt.target.files[0];
+                if (!file) return;
+                evt.target.value = '';
+                
+                try {
+                    const data = await file.arrayBuffer();
+                    const workbook = XLSX.read(data);
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+                    
+                    if (jsonData.length === 0) {
+                        alert(TEXT.IMPORT_NO_DATA);
+                        return;
+                    }
+                    
+                    // 解析並轉換資料
+                    const headers = Object.keys(jsonData[0]);
+                    const columnMapping = {};
+                    headers.forEach(h => {
+                        const key = h.trim();
+                        if (EXCEL_COLUMN_MAP[key]) {
+                            columnMapping[key] = EXCEL_COLUMN_MAP[key];
+                        }
+                    });
+                    
+                    const parsedData = jsonData.map((row, idx) => {
+                        const item = { _rowIndex: idx + 2 }; // Excel 行號（含標題列）
+                        
+                        Object.entries(row).forEach(([key, value]) => {
+                            const mappedKey = columnMapping[key.trim()];
+                            if (mappedKey) {
+                                if (mappedKey === 'arrivalDate' || mappedKey === 'expiryDate') {
+                                    item[mappedKey] = parseExcelDate(value);
+                                } else if (mappedKey === 'unitPrice' || mappedKey === 'quantity' || mappedKey === 'weight') {
+                                    item[mappedKey] = safeNum(value);
+                                } else {
+                                    item[mappedKey] = String(value || '').trim();
+                                }
+                            }
+                        });
+                        
+                        // 產生唯一識別碼用於重複檢查
+                        item._uniqueKey = `${item.supplier || ''}_${item.arrivalDate || ''}_${item.productName || ''}`;
+                        
+                        return item;
+                    }).filter(item => item.supplier || item.productName); // 過濾空白列
+                    
+                    setImportData(parsedData);
+                    setShowImportModal(true);
+                    
+                } catch (error) {
+                    console.error('Excel 解析錯誤:', error);
+                    alert(TEXT.IMPORT_FAILED + ': ' + error.message);
+                }
+            };
+
+            const handleConfirmImport = async () => {
+                if (importData.length === 0) return;
+                if (!canCreate()) return alert(TEXT.PERMISSION_DENIED);
+                
+                setImportProcessing(true);
+                setImportProgress({ current: 0, total: importData.length });
+                
+                let successCount = 0;
+                let errorCount = 0;
+                
+                try {
+                    for (let i = 0; i < importData.length; i++) {
+                        const item = importData[i];
+                        setImportProgress({ current: i + 1, total: importData.length });
+                        
+                        // 建立採購單資料結構
+                        const shipmentData = {
+                            importCompany: IMPORT_COMPANIES[0],
+                            customsBroker: DOMESTIC_FLAG, // 國內採購
+                            containerNumber: `DOM-${item.arrivalDate?.replace(/-/g, '') || Date.now()}`,
+                            arrivalDate: item.arrivalDate || new Date().toISOString().split('T')[0],
+                            supplier: item.supplier || '',
+                            origin: '台灣',
+                            currency: 'TWD',
+                            paymentTerm: PAYMENT_TERMS_DOMESTIC[0],
+                            products: [{
+                                id: Date.now() + i,
+                                name: item.productName || '',
+                                spec: item.spec || '',
+                                unitPrice: item.unitPrice || 0,
+                                quantity: item.quantity || 0,
+                                weight: item.weight || 0,
+                                batchNumber: item.batchNumber || '',
+                                expiryDate: item.expiryDate || '',
+                                pricingMode: 'weight',
+                                boxCapacity: 1,
+                                amount: round2((item.weight || 0) * (item.unitPrice || 0))
+                            }],
+                            totalQuantity: item.quantity || 0,
+                            totalWeight: item.weight || 0,
+                            isPaid: false,
+                            warehouseConfirmed: false,
+                            attachments: [],
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                        };
+                        
+                        try {
+                            // 檢查是否有重複資料（相同廠商 + 日期 + 品名）
+                            const existingQuery = await db.collection('shipments')
+                                .where('customsBroker', '==', DOMESTIC_FLAG)
+                                .where('supplier', '==', shipmentData.supplier)
+                                .where('arrivalDate', '==', shipmentData.arrivalDate)
+                                .get();
+                            
+                            let existingDoc = null;
+                            existingQuery.forEach(doc => {
+                                const data = doc.data();
+                                const hasProduct = (data.products || []).some(p => p.name === item.productName);
+                                if (hasProduct) existingDoc = doc;
+                            });
+                            
+                            if (existingDoc) {
+                                // 覆蓋更新
+                                await db.collection('shipments').doc(existingDoc.id).update({
+                                    ...shipmentData,
+                                    createdAt: existingDoc.data().createdAt, // 保留原建立時間
+                                });
+                            } else {
+                                // 新增
+                                await db.collection('shipments').add(shipmentData);
+                            }
+                            successCount++;
+                        } catch (err) {
+                            console.error('匯入單筆失敗:', err);
+                            errorCount++;
+                        }
+                    }
+                    
+                    setShowImportModal(false);
+                    setImportData([]);
+                    showToast(`${TEXT.IMPORT_SUCCESS}：${successCount} 筆成功${errorCount > 0 ? `，${errorCount} 筆失敗` : ''}`);
+                    
+                } catch (error) {
+                    console.error('匯入失敗:', error);
+                    alert(TEXT.IMPORT_FAILED + ': ' + error.message);
+                } finally {
+                    setImportProcessing(false);
+                }
+            };
+
+            // V75.0: 產品主檔相關函數
+            const initialProductState = {
+                productId: '',
+                name: '',
+                spec: '',
+                unit: '包',
+                defaultPrice: 0,
+                defaultSupplier: '',
+                isActive: true
+            };
+
+            const PRODUCT_UNITS = ['包', '件', 'KG', '盒', '片', '尾', '斤', '桶', '箱', '塊'];
+
+            // V77.0: 內建產品主檔初始資料 (351筆)
+            const INITIAL_PRODUCTS_DATA = [{"productId":"A09134S20P","name":"無膨發蝦仁PD","spec":"36/40S*420G*20包(IQ10%)","unit":"件"},{"productId":"A0914510","name":"單凍白仁原料","spec":"40/50*10KG(IQ)","unit":"件"},{"productId":"A0915610","name":"單凍白仁原料","spec":"50/60*10KG(IQ)","unit":"件"},{"productId":"A0916710","name":"單凍白仁原料","spec":"60/70*10KG(IQ)","unit":"件"},{"productId":"A0916712","name":"單凍白仁原料","spec":"60/70*1K*12包(IQ20%)","unit":"件"},{"productId":"A0917910","name":"單凍白仁原料","spec":"70/90*10KG(IQ)","unit":"件"},{"productId":"A504BK16","name":"504白仁","spec":"BKN碎肉*2KG*8包","unit":"件"},{"productId":"AWE161010","name":"生留尾蝦(開背)PTO","spec":"16/20T(單凍,IQ10%)*1K*10包","unit":"件"},{"productId":"AWE161012","name":"生留尾蝦(開背)PTO","spec":"16/20T(單凍,IQ15%)*1K*15包","unit":"件"},{"productId":"AWE211010","name":"生留尾蝦(開背)PTO","spec":"21/25T(單凍,IQ10%)*1K*10包","unit":"件"},{"productId":"AWE211012_1","name":"生留尾蝦(開背)PTO","spec":"21/25T(單凍,IQ20%)*1K*12包","unit":"件"},{"productId":"AWE261012_1","name":"生留尾蝦(開背)PTO","spec":"26/30T(單凍,IQ20%)*1K*12包","unit":"件"},{"productId":"AWE311012_1","name":"生留尾蝦(開背)PTO","spec":"31/35T(單凍,IQ20%)*1K*12包","unit":"件"},{"productId":"AWE340012","name":"生留尾蝦(不開背)","spec":"30/40(單凍,IQ20%)*1KG*12包","unit":"件"},{"productId":"AWE450010_1","name":"生留尾蝦(不開背)","spec":"40/50(單凍,IQ15%)*1.15KG*10包","unit":"件"},{"productId":"AWE450010_3","name":"生留尾蝦(不開背)","spec":"40/50(單凍,IQ20%)*1KG*12包","unit":"件"},{"productId":"BC16118T","name":"熟白蝦","spec":"16/20*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BC21118T","name":"熟白蝦","spec":"21/25*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BC34118T","name":"熟白蝦","spec":"30/40*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BC45118T","name":"熟白蝦","spec":"40/50*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BC56118T","name":"熟白蝦","spec":"50/60*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BC67118T","name":"熟白蝦","spec":"60/70*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BC78118T","name":"熟白蝦","spec":"70/80*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BC91118T","name":"熟白蝦","spec":"90/110*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU16118T","name":"熟白蝦(有腸泥)","spec":"16/20*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU21118T","name":"熟白蝦(有腸泥)","spec":"21/25*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU34118T","name":"熟白蝦(有腸泥)","spec":"30/40*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU45118T","name":"熟白蝦(有腸泥)","spec":"40/50*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU56118T","name":"熟白蝦(有腸泥)","spec":"50/60*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU67118T","name":"熟白蝦(有腸泥)","spec":"60/70*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU78118T","name":"熟白蝦(有腸泥)","spec":"70/80*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BCU91118T","name":"熟白蝦(有腸泥)","spec":"90/110*1.1KG*8盒*傳鮮","unit":"件"},{"productId":"BMA101008_1","name":"金鑽蝦(越南)","spec":"8/12(有卵,IQ10%)*700G*10盒","unit":"件"},{"productId":"BMA21100812","name":"金鑽蝦(越南)","spec":"21/25(無卵,IQ20%)*650G*12盒","unit":"件"},{"productId":"BMA26100812_1","name":"金鑽蝦(越南)","spec":"26/30(無卵,IQ20%)*650G*12盒","unit":"件"},{"productId":"BMA31100812_2","name":"金鑽蝦(越南)","spec":"31/40(無卵,IQ15%)*650G*12盒","unit":"件"},{"productId":"BMA31100812_3","name":"金鑽蝦(越南)","spec":"31/40(無卵,IQ20%)*650G*12盒","unit":"件"},{"productId":"BMC21100612_1","name":"金鑽蝦(越南)","spec":"21/25(無卵,IQ20%)*600G*12盒","unit":"件"},{"productId":"BMC26100612_1","name":"金鑽蝦(越南)","spec":"26/30(無卵,IQ20%)*600G*12盒","unit":"件"},{"productId":"BMC31100612_1","name":"金鑽蝦(越南)","spec":"31/40(無卵,IQ20%)*600G*12盒","unit":"件"},{"productId":"BMW14100812","name":"金鑽蝦(越南)","spec":"13/15(有卵,IQ15%)*700G*12盒","unit":"件"},{"productId":"BMW21100812","name":"金鑽蝦(越南)","spec":"21/25(有卵,IQ10%)*700G*12盒","unit":"件"},{"productId":"BMW21100812_1","name":"金鑽蝦(越南)","spec":"21/25(有卵,IQ15%)*700G*12盒","unit":"件"},{"productId":"BMW26100812","name":"金鑽蝦(越南)","spec":"26/30(有卵,IQ10%)*700G*12盒","unit":"件"},{"productId":"BMW26100812_1","name":"金鑽蝦(越南)","spec":"26/30(有卵,IQ15%)*700G*12盒","unit":"件"},{"productId":"BMW31100812","name":"金鑽蝦(越南)","spec":"31/40(有卵,IQ10%)*700G*12盒","unit":"件"},{"productId":"BMW31100812_1","name":"金鑽蝦(越南)","spec":"31/40(有卵,IQ15%)*700G*12盒","unit":"件"},{"productId":"BMW41100812","name":"金鑽蝦(越南)","spec":"41/50(有卵,IQ10%)*700G*12盒","unit":"件"},{"productId":"BMW41100812_1","name":"金鑽蝦(越南)","spec":"41/50(有卵,IQ15%)*700G*12盒","unit":"件"},{"productId":"BMW51100812","name":"金鑽蝦(越南)","spec":"51/60(有卵,IQ10%)*700G*12盒","unit":"件"},{"productId":"BMW61100812","name":"金鑽蝦(越南)","spec":"61/70(有卵,IQ10%)*700G*12盒","unit":"件"},{"productId":"BMW71100812","name":"金鑽蝦(越南)","spec":"71/90(有卵,IQ10%)*700G*12盒","unit":"件"},{"productId":"BS21110","name":"生白蝦(IQ)原料","spec":"21/25*10KG(IQ)","unit":"件"},{"productId":"BS26110","name":"生白蝦(IQ)原料","spec":"26/30*10KG(IQ)","unit":"件"},{"productId":"BS31110","name":"生白蝦(IQ)原料","spec":"31/35*10KG(IQ)","unit":"件"},{"productId":"BS36110","name":"生白蝦(IQ)原料","spec":"36/40*10KG(IQ)","unit":"件"},{"productId":"BS41110","name":"生白蝦(IQ)原料","spec":"41/50*10KG(IQ)","unit":"件"},{"productId":"BS51110","name":"生白蝦(IQ)原料","spec":"51/60*10KG(IQ)","unit":"件"},{"productId":"BS61110","name":"生白蝦(IQ)原料","spec":"61/70*10KG(IQ)","unit":"件"},{"productId":"BS71110","name":"生白蝦(IQ)原料","spec":"71/90*10KG(IQ)","unit":"件"},{"productId":"C14DG1008","name":"草蝦-頂級","spec":"14(DG)*1KG*8包","unit":"件"},{"productId":"C18DG1008","name":"草蝦-頂級","spec":"18(DG)*1KG*8包","unit":"件"},{"productId":"C22DG1008","name":"草蝦-頂級","spec":"22(DG)*1KG*8包","unit":"件"},{"productId":"C27DG1008","name":"草蝦-頂級","spec":"27(DG)*1KG*8包","unit":"件"},{"productId":"C32DG1008","name":"草蝦-頂級","spec":"32(DG)*1KG*8包","unit":"件"},{"productId":"C37DG1008","name":"草蝦-頂級","spec":"37(DG)*1KG*8包","unit":"件"},{"productId":"CBI05FI06","name":"蟹味棒(松葉)","spec":"500G*6包(火鍋)","unit":"件"},{"productId":"CBI05FI12","name":"蟹味棒(松葉)","spec":"500G*12包(火鍋)","unit":"件"},{"productId":"CBI05SA12","name":"蟹味棒(松葉)","spec":"500G*12包(沙拉)","unit":"件"},{"productId":"CBI27FI10","name":"蟹味棒(松葉)","spec":"270G*10包(火鍋)","unit":"件"},{"productId":"CBK05CH12","name":"蟹味棒(韓國)","spec":"500G*12包(火鍋)","unit":"件"},{"productId":"CF05120808","name":"熟鳳尾蝦仁","spec":"50/70*800G*8包","unit":"件"},{"productId":"CF07120806","name":"熟鳳尾蝦仁","spec":"70/90*800G*6包","unit":"件"},{"productId":"CF07120808","name":"熟鳳尾蝦仁","spec":"70/90*800G*8包","unit":"件"},{"productId":"EL8001206","name":"剝殼鳳螺(去膏)","spec":"800G*6包","unit":"件"},{"productId":"EM04500310","name":"中捲(水煮)","spec":"4/6(去目)450G*10包","unit":"件"},{"productId":"EM04550310","name":"中捲(水煮)","spec":"4/6(留目)550G*10包","unit":"件"},{"productId":"EM06450310","name":"中捲(水煮)","spec":"6/8(去目)450G*10包","unit":"件"},{"productId":"EM08450306","name":"中捲(水煮)","spec":"8/10(去目)450G*6包","unit":"件"},{"productId":"EP04100010","name":"軟絲","spec":"4/6*1KG*10包","unit":"件"},{"productId":"EP06100010","name":"軟絲","spec":"6/8*1KG*10包","unit":"件"},{"productId":"FC0010","name":"魷魚膘","spec":"*10KG","unit":"件"},{"productId":"FCP101010","name":"魷魚清肉(包)","spec":"10/20*1KG*10包","unit":"件"},{"productId":"FCP201010","name":"魷魚清肉(包)","spec":"20/40*1KG*10包","unit":"件"},{"productId":"FCS102010","name":"魷魚清肉(散)","spec":"10/20*20KG","unit":"件"},{"productId":"FCS201810","name":"魷魚清肉(散)","spec":"20/40*18KG","unit":"件"},{"productId":"FEG101010","name":"魷魚耳(刻花)","spec":"10/20*1KG*10包","unit":"件"},{"productId":"FEG201010","name":"魷魚耳(刻花)","spec":"20/40*1KG*10包","unit":"件"},{"productId":"FH0020","name":"魷魚頭","spec":"*20KG","unit":"件"},{"productId":"FH0508","name":"魷魚頭","spec":"500G*8包","unit":"件"},{"productId":"FM101010","name":"熟魷魚肉(刻花)","spec":"10/20*1KG*10包","unit":"件"},{"productId":"FM201010","name":"熟魷魚肉(刻花)","spec":"20/40*1KG*10包","unit":"件"},{"productId":"FR061010","name":"魷魚圈(刻花)","spec":"6UP*1KG*10包","unit":"件"},{"productId":"FR101010","name":"魷魚圈(刻花)","spec":"10/20*1KG*10包","unit":"件"},{"productId":"FR201010","name":"魷魚圈(刻花)","spec":"20/40*1KG*10包","unit":"件"},{"productId":"FT0320","name":"魷魚鬚","spec":"*20KG","unit":"件"},{"productId":"FT031010","name":"魷魚鬚","spec":"300G*10包","unit":"件"},{"productId":"FT0420","name":"魷魚鬚","spec":"*20KG(印度)","unit":"件"},{"productId":"FT1010","name":"魷魚鬚","spec":"1KG*10包","unit":"件"},{"productId":"FT101010","name":"魷魚鬚(刻花)","spec":"10/20*1KG*10包","unit":"件"},{"productId":"FTC051010","name":"魷魚鬚(刻花切段)","spec":"500G*10包(牛)","unit":"件"},{"productId":"FW0320","name":"魷魚翅","spec":"*20KG(刻花)","unit":"件"},{"productId":"FW1010","name":"魷魚翅","spec":"1KG*10包(刻花)","unit":"件"},{"productId":"GJ61100012","name":"蝴蝶蝦","spec":"61/70(IQ10%)*1KG*12包(韓式)","unit":"件"},{"productId":"GLB1010","name":"蝴蝶蝦","spec":"*1KG*10包(韓式)","unit":"件"},{"productId":"H9091008","name":"草蝦(SG)","spec":"90/110*1KG*8包","unit":"件"},{"productId":"H9101008","name":"草蝦(SG)","spec":"100/120*1KG*8包","unit":"件"},{"productId":"H9111008","name":"草蝦(SG)","spec":"110/130*1KG*8包","unit":"件"},{"productId":"HCG1010","name":"比目魚鰭邊肉(煮)","spec":"*1KG*10包(格陵蘭)","unit":"件"},{"productId":"JC04100010","name":"(冰卷)魷魚","spec":"4/6*1KG*10包","unit":"件"},{"productId":"JC06100010","name":"(冰卷)魷魚","spec":"6/8*1KG*10包","unit":"件"},{"productId":"JC08100010","name":"(冰卷)魷魚","spec":"8/10*1KG*10包","unit":"件"},{"productId":"JC10100010","name":"(冰卷)魷魚","spec":"10/15*1KG*10包","unit":"件"},{"productId":"JC15100010","name":"(冰卷)魷魚","spec":"15/20*1KG*10包","unit":"件"},{"productId":"JF04100010","name":"魷魚4/6","spec":"4/6*1KG*10包(日)","unit":"件"},{"productId":"JGFH020304T","name":"人蔘烏骨雞","spec":"2~3KG/隻*4包*傳鮮","unit":"件"},{"productId":"JQ04027010","name":"小卷","spec":"4/6*270G*10包","unit":"件"},{"productId":"JQ04030010","name":"小卷","spec":"4/6*300G*10包","unit":"件"},{"productId":"JQ06027010","name":"小卷","spec":"6/8*270G*10包","unit":"件"},{"productId":"JQ06030010","name":"小卷","spec":"6/8*300G*10包","unit":"件"},{"productId":"JQ08027010","name":"小卷","spec":"8/12*270G*10包","unit":"件"},{"productId":"JQ08030010","name":"小卷","spec":"8/12*300G*10包","unit":"件"},{"productId":"JQF08030010","name":"小卷(包)","spec":"8/12*300G*10包","unit":"件"},{"productId":"K06500320","name":"蚵肉","spec":"6/9*500G*20包","unit":"件"},{"productId":"K69150010","name":"牡蠣肉","spec":"6/9*1.5KG*10包","unit":"件"},{"productId":"M9L150008","name":"淡菜(半殼)","spec":"9L(大)*1.5KG*8包","unit":"件"},{"productId":"M9L200010","name":"淡菜(半殼)","spec":"9L(大)*2KG*10包","unit":"件"},{"productId":"ML150008","name":"淡菜(半殼)","spec":"L(中)*1.5KG*8包","unit":"件"},{"productId":"ML200010","name":"淡菜(半殼)","spec":"L(中)*2KG*10包","unit":"件"},{"productId":"MM200010","name":"淡菜(半殼)","spec":"M(小)*2KG*10包","unit":"件"},{"productId":"MN100010","name":"淡菜肉","spec":"100/200*1KG*10包","unit":"件"},{"productId":"MN200010","name":"淡菜肉","spec":"200/300*1KG*10包","unit":"件"},{"productId":"MSFL100010","name":"燻鮭魚(長片)","spec":"1KG*10包(法國洛斯)","unit":"件"},{"productId":"MSFL050010_1","name":"燻鮭魚(長片)","spec":"500G*10包(法國洛斯)","unit":"件"},{"productId":"MSFL050010_2","name":"燻鮭魚(長片)","spec":"500G*10包(法國野生)","unit":"件"},{"productId":"MSS050005","name":"燻鮭魚(片)","spec":"500G*5包(蘇格蘭)","unit":"件"},{"productId":"MSS050010","name":"燻鮭魚(片)","spec":"500G*10包(蘇格蘭)","unit":"件"},{"productId":"MST100010","name":"燻鮭魚(碎)","spec":"1KG*10包(美)","unit":"件"},{"productId":"N91090010_1","name":"生白蝦(原料Block)","spec":"90/110*10KG(BLK)","unit":"件"},{"productId":"N91110","name":"生白蝦(原料Block)","spec":"90/110*10KG(BLK)","unit":"件"},{"productId":"OA0318","name":"赤嘴蛤(真空)","spec":"300G*18包","unit":"件"},{"productId":"OA0510","name":"赤嘴蛤(真空)","spec":"500G*10包","unit":"件"},{"productId":"OB0320","name":"白蛤(真空)","spec":"300G*20包","unit":"件"},{"productId":"OCA1010","name":"蛤蜊肉(生)","spec":"1KG*10包","unit":"件"},{"productId":"OCC1010","name":"蛤蜊肉(熟)","spec":"1KG*10包","unit":"件"},{"productId":"OCD60201010","name":"小蛤蜊(真空,熟,去沙)","spec":"60/100*1KG*10包","unit":"件"},{"productId":"OW0510","name":"大蛤(真空)","spec":"500G*10包","unit":"件"},{"productId":"OW0610","name":"大蛤(真空)","spec":"600G*10包","unit":"件"},{"productId":"P01FI100110","name":"魚板(松葉)","spec":"10片*1KG*10包(火鍋)","unit":"件"},{"productId":"P02SA100112","name":"魚板(松葉)","spec":"20片*1KG*12條(沙拉)","unit":"件"},{"productId":"P03GR100110","name":"魚板(松葉)","spec":"36片*1KG*10包(燒烤)","unit":"件"},{"productId":"R21W10B12","name":"生白蝦(大)","spec":"21/25(IQ10%)*1KG*12包","unit":"件"},{"productId":"R21W10B12_1","name":"生白蝦(大)","spec":"21/25(IQ15%)*1KG*12包","unit":"件"},{"productId":"R26W10B12","name":"生白蝦(大)","spec":"26/30(IQ10%)*1KG*12包","unit":"件"},{"productId":"R26W10B12_1","name":"生白蝦(大)","spec":"26/30(IQ15%)*1KG*12包","unit":"件"},{"productId":"R31W10B12","name":"生白蝦(大)","spec":"31/35(IQ10%)*1KG*12包","unit":"件"},{"productId":"R31W10B12_1","name":"生白蝦(大)","spec":"31/40(IQ15%)*1KG*12包","unit":"件"},{"productId":"R36W10B12","name":"生白蝦(大)","spec":"36/40(IQ10%)*1KG*12包","unit":"件"},{"productId":"R36W10B12_1","name":"生白蝦(大)","spec":"36/40(IQ15%)*1KG*12包","unit":"件"},{"productId":"R41W10B12","name":"生白蝦(大)","spec":"41/50(IQ10%)*1KG*12包","unit":"件"},{"productId":"R41W10B12_1","name":"生白蝦(大)","spec":"41/50(IQ15%)*1KG*12包","unit":"件"},{"productId":"R51W10B12","name":"生白蝦(大)","spec":"51/60(IQ10%)*1KG*12包","unit":"件"},{"productId":"R51W10B12_1","name":"生白蝦(大)","spec":"51/60(IQ15%)*1KG*12包","unit":"件"},{"productId":"R61W10B12","name":"生白蝦(大)","spec":"61/70(IQ10%)*1KG*12包","unit":"件"},{"productId":"R61W10B12_1","name":"生白蝦(大)","spec":"61/70(IQ15%)*1KG*12包","unit":"件"},{"productId":"R71W10B12","name":"生白蝦(大)","spec":"71/90(IQ10%)*1KG*12包","unit":"件"},{"productId":"R71W10B12_1","name":"生白蝦(大)","spec":"71/90(IQ15%)*1KG*12包","unit":"件"},{"productId":"R91W10B12","name":"生白蝦(大)","spec":"90/110(IQ10%)*1KG*12包","unit":"件"},{"productId":"R91W10B12_1","name":"生白蝦(大)","spec":"90/110(IQ15%)*1KG*12包","unit":"件"},{"productId":"S08M100010","name":"干貝(日)","spec":"S(8M)*1KG*10包","unit":"件"},{"productId":"S10M100010","name":"干貝(日)","spec":"M(10M)*1KG*10包","unit":"件"},{"productId":"S20M100010","name":"干貝(日)","spec":"L(20M)*1KG*10包","unit":"件"},{"productId":"S30M100010","name":"干貝(日)","spec":"2L(30M)*1KG*10包","unit":"件"},{"productId":"S40M100010","name":"干貝(日)","spec":"3L(40M)*1KG*10包","unit":"件"},{"productId":"S50M100010","name":"干貝(日)","spec":"4L(50M)*1KG*10包","unit":"件"},{"productId":"S60M100010","name":"干貝(日)","spec":"5L(60M)*1KG*10包","unit":"件"},{"productId":"SA02100010","name":"干貝(澳洲)","spec":"20/30*1KG*10包","unit":"件"},{"productId":"SA04100010","name":"干貝(澳洲)","spec":"40/60*1KG*10包","unit":"件"},{"productId":"SA06100010","name":"干貝(澳洲)","spec":"60/80*1KG*10包","unit":"件"},{"productId":"SAB1008","name":"熟鮑魚(澳洲)","spec":"12P*1KG*8包(帶殼)","unit":"件"},{"productId":"SC02100010","name":"干貝(加拿大)","spec":"20/30*1KG*10包","unit":"件"},{"productId":"SC04100010","name":"干貝(加拿大)","spec":"40/60*1KG*10包","unit":"件"},{"productId":"SC06100010","name":"干貝(加拿大)","spec":"60/80*1KG*10包","unit":"件"},{"productId":"SCA06100010","name":"干貝(加拿大野生)","spec":"60/80*1KG*10包","unit":"件"},{"productId":"SCM100010","name":"鮭魚丁","spec":"1KG*10包(小)","unit":"件"},{"productId":"SCM500020","name":"鮭魚腹鰭","spec":"5KG*20KG","unit":"件"},{"productId":"SCS100010","name":"鮭魚丁(大)","spec":"1KG*10包","unit":"件"},{"productId":"SD02100010","name":"干貝(祕魯)","spec":"20/30*1KG*10包","unit":"件"},{"productId":"SD04100010","name":"干貝(祕魯)","spec":"40/60*1KG*10包","unit":"件"},{"productId":"SD06100010","name":"干貝(祕魯)","spec":"60/80*1KG*10包","unit":"件"},{"productId":"SFN015006","name":"半殼扇貝","spec":"1#*500G*6包(紐)","unit":"件"},{"productId":"SFN030006","name":"半殼扇貝","spec":"3#*300G*6包(紐)","unit":"件"},{"productId":"SGE0810","name":"福氣魚卵(包)","spec":"800G*10包(冰)","unit":"件"},{"productId":"SJ02100010","name":"干貝(日生食)","spec":"21/25*1KG*10包","unit":"件"},{"productId":"SJ03100010","name":"干貝(日生食)","spec":"26/30*1KG*10包","unit":"件"},{"productId":"SJ04100010","name":"干貝(日生食)","spec":"36/40*1KG*10包","unit":"件"},{"productId":"SJ06100010","name":"干貝(日生食)","spec":"51/60*1KG*10包","unit":"件"},{"productId":"SJB02100010","name":"干貝(日碎)","spec":"S碎*1KG*10包","unit":"件"},{"productId":"SJB04100010","name":"干貝(日碎)","spec":"M碎*1KG*10包","unit":"件"},{"productId":"SJB04100810","name":"干貝(日碎)","spec":"M碎(100粒)800G*10包","unit":"件"},{"productId":"SN02100010","name":"干貝(越南)","spec":"20/30*1KG*10包","unit":"件"},{"productId":"SN04100010","name":"干貝(越南)","spec":"40/60*1KG*10包","unit":"件"},{"productId":"SN06100010","name":"干貝(越南)","spec":"60/80*1KG*10包","unit":"件"},{"productId":"SRTC1010","name":"鮭魚碎肉","spec":"1KG*10包*傳鮮","unit":"件"},{"productId":"SS02100010","name":"干貝(美)","spec":"U-10*1KG*10包","unit":"件"},{"productId":"SS04100010","name":"干貝(美)","spec":"40/60*1KG*10包","unit":"件"},{"productId":"SS06100010","name":"干貝(美)","spec":"60/80*1KG*10包","unit":"件"},{"productId":"SS10100010","name":"干貝(美)","spec":"10/20*1KG*10包","unit":"件"},{"productId":"SS20100010","name":"干貝(美)","spec":"20/30*1KG*10包","unit":"件"},{"productId":"SSF100010","name":"干貝(墨)","spec":"100/150*1KG*10包","unit":"件"},{"productId":"ST05100010","name":"干貝(台)","spec":"50/80*1KG*10包","unit":"件"},{"productId":"STCC1010","name":"鮭魚肚條*傳鮮","spec":"1KG*10包","unit":"件"},{"productId":"SU02100010","name":"干貝(美貝)","spec":"20/30*1KG*10包","unit":"件"},{"productId":"SU04100010","name":"干貝(美貝)","spec":"40/50*1KG*10包","unit":"件"},{"productId":"SU06100010","name":"干貝(美貝)","spec":"50/70*1KG*10包","unit":"件"},{"productId":"T05030008","name":"鯛魚片(台)","spec":"5/7oz*300G*8包","unit":"件"},{"productId":"T07030008","name":"鯛魚片(台)","spec":"7/9oz*300G*8包","unit":"件"},{"productId":"TF0018","name":"蒲燒鯛(片)","spec":"140G*18片*傳鮮","unit":"件"},{"productId":"TF0112","name":"蒲燒鯛(片)","spec":"1KG*12片*傳鮮","unit":"件"},{"productId":"TO220018T","name":"鯖魚一夜干","spec":"220G*18片*傳鮮","unit":"件"},{"productId":"TO260018T","name":"鯖魚一夜干","spec":"260G*18片*傳鮮","unit":"件"},{"productId":"TP100008","name":"薄鹽土魠魚","spec":"285G*8片*傳鮮","unit":"件"},{"productId":"TP100010","name":"薄鹽土魠魚","spec":"285G*10片*傳鮮","unit":"件"},{"productId":"TT05100010","name":"章魚腳(熟)","spec":"T5*1KG*10包","unit":"件"},{"productId":"U11000010","name":"剝殼蝦仁(代工)","spec":"1KG*10包(IQ)","unit":"件"},{"productId":"UA3611008","name":"無膨發蝦仁PD(代工)","spec":"36/40(IQ10%)*1KG*8包","unit":"件"},{"productId":"UA41090010","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ10%)*900G*10包","unit":"件"},{"productId":"UA4111008","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ10%)*1KG*8包","unit":"件"},{"productId":"UA5111008","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ10%)*1KG*8包","unit":"件"},{"productId":"UA5111010","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ10%)*1KG*10包","unit":"件"},{"productId":"UA6111010","name":"無膨發蝦仁PD(代工)","spec":"61/70(IQ10%)*1KG*10包","unit":"件"},{"productId":"UA7111010","name":"無膨發蝦仁PD(代工)","spec":"71/90(IQ10%)*1KG*10包","unit":"件"},{"productId":"UA9111010","name":"無膨發蝦仁PD(代工)","spec":"91/110(IQ10%)*1KG*10包","unit":"件"},{"productId":"UB21040012","name":"無膨發蝦仁PD(代工)","spec":"21/25(IQ20%)*400G*12包","unit":"件"},{"productId":"UB26040012","name":"無膨發蝦仁PD(代工)","spec":"26/30(IQ20%)*400G*12包","unit":"件"},{"productId":"UB31040012","name":"無膨發蝦仁PD(代工)","spec":"31/40(IQ20%)*400G*12包","unit":"件"},{"productId":"UB36040010","name":"無膨發蝦仁PD(代工)","spec":"36/40(IQ20%)*400G*10包","unit":"件"},{"productId":"UB36040012","name":"無膨發蝦仁PD(代工)","spec":"36/40(IQ20%)*400G*12包","unit":"件"},{"productId":"UB41040010","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ20%)*400G*10包","unit":"件"},{"productId":"UB41040012","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ20%)*400G*12包","unit":"件"},{"productId":"UB51040010","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ20%)*400G*10包","unit":"件"},{"productId":"UB51040012","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ20%)*400G*12包","unit":"件"},{"productId":"UB61040012","name":"無膨發蝦仁PD(代工)","spec":"61/70(IQ20%)*400G*12包","unit":"件"},{"productId":"UB71040012","name":"無膨發蝦仁PD(代工)","spec":"71/90(IQ20%)*400G*12包","unit":"件"},{"productId":"UB91040012","name":"無膨發蝦仁PD(代工)","spec":"91/110(IQ20%)*400G*12包","unit":"件"},{"productId":"UC31050010","name":"無膨發蝦仁PD(代工)","spec":"31/40(IQ20%)*500G*10包","unit":"件"},{"productId":"UC36050010","name":"無膨發蝦仁PD(代工)","spec":"36/40(IQ20%)*500G*10包","unit":"件"},{"productId":"UC41050010","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ20%)*500G*10包","unit":"件"},{"productId":"UC51050010","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ20%)*500G*10包","unit":"件"},{"productId":"UC61050010","name":"無膨發蝦仁PD(代工)","spec":"61/70(IQ20%)*500G*10包","unit":"件"},{"productId":"UC71050010","name":"無膨發蝦仁PD(代工)","spec":"71/90(IQ20%)*500G*10包","unit":"件"},{"productId":"UC91050010","name":"無膨發蝦仁PD(代工)","spec":"91/110(IQ20%)*500G*10包","unit":"件"},{"productId":"UD36100010","name":"無膨發蝦仁PD(代工)","spec":"36/40(IQ20%)*1KG*10包","unit":"件"},{"productId":"UD41100010","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ20%)*1KG*10包","unit":"件"},{"productId":"UD51100010","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ20%)*1KG*10包","unit":"件"},{"productId":"UD61100010","name":"無膨發蝦仁PD(代工)","spec":"61/70(IQ20%)*1KG*10包","unit":"件"},{"productId":"UD71100010","name":"無膨發蝦仁PD(代工)","spec":"71/90(IQ20%)*1KG*10包","unit":"件"},{"productId":"UD91100010","name":"無膨發蝦仁PD(代工)","spec":"91/110(IQ20%)*1KG*10包","unit":"件"},{"productId":"UF21100010","name":"白蝦仁(去腸)","spec":"21/25(IQ15%)*1KG*10包(代工)","unit":"件"},{"productId":"UF26100010","name":"白蝦仁(去腸)","spec":"26/30(IQ15%)*1KG*10包(代工)","unit":"件"},{"productId":"UF31100010","name":"白蝦仁(去腸)","spec":"31/40(IQ15%)*1KG*10包(代工)","unit":"件"},{"productId":"UF41100010","name":"白蝦仁(去腸)","spec":"41/50(IQ15%)*1KG*10包(代工)","unit":"件"},{"productId":"UF51100010","name":"白蝦仁(去腸)","spec":"51/60(IQ15%)*1KG*10包(代工)","unit":"件"},{"productId":"UF61100010","name":"白蝦仁(去腸)","spec":"61/70(IQ15%)*1KG*10包(代工)","unit":"件"},{"productId":"UF71100010","name":"白蝦仁(去腸)","spec":"71/90(IQ15%)*1KG*10包(代工)","unit":"件"},{"productId":"UK41045010","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ20%)*450G*10包","unit":"件"},{"productId":"UK51045010","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ20%)*450G*10包","unit":"件"},{"productId":"UK61045010","name":"無膨發蝦仁PD(代工)","spec":"61/70(IQ20%)*450G*10包","unit":"件"},{"productId":"UK71045010","name":"無膨發蝦仁PD(代工)","spec":"71/90(IQ20%)*450G*10包","unit":"件"},{"productId":"UK91045010","name":"無膨發蝦仁PD(代工)","spec":"91/110(IQ20%)*450G*10包","unit":"件"},{"productId":"UL41090010","name":"無膨發蝦仁PD(代工)","spec":"41/50(IQ20%)*900G*10包","unit":"件"},{"productId":"UL51090010","name":"無膨發蝦仁PD(代工)","spec":"51/60(IQ20%)*900G*10包","unit":"件"},{"productId":"UL61090010","name":"無膨發蝦仁PD(代工)","spec":"61/70(IQ20%)*900G*10包","unit":"件"},{"productId":"UL71090010","name":"無膨發蝦仁PD(代工)","spec":"71/90(IQ20%)*900G*10包","unit":"件"},{"productId":"UL91090010","name":"無膨發蝦仁PD(代工)","spec":"91/110(IQ20%)*900G*10包","unit":"件"},{"productId":"UM36042020","name":"蝦仁PD(小裝)","spec":"36/40(IQ20%)*420G*20包","unit":"件"},{"productId":"UM41042020","name":"蝦仁PD(小裝)","spec":"41/50(IQ20%)*420G*20包","unit":"件"},{"productId":"UM51042020","name":"蝦仁PD(小裝)","spec":"51/60(IQ20%)*420G*20包","unit":"件"},{"productId":"UM61042020","name":"蝦仁PD(小裝)","spec":"61/70(IQ20%)*420G*20包","unit":"件"},{"productId":"UM71042020","name":"蝦仁PD(小裝)","spec":"71/90(IQ20%)*420G*20包","unit":"件"},{"productId":"UM91042020","name":"蝦仁PD(小裝)","spec":"91/110(IQ20%)*420G*20包","unit":"件"},{"productId":"UN36042020","name":"蝦仁PD(小裝)","spec":"36/40(IQ10%)*420G*20包","unit":"件"},{"productId":"UN41042020","name":"蝦仁PD(小裝)","spec":"41/50(IQ10%)*420G*20包","unit":"件"},{"productId":"UN51042020","name":"蝦仁PD(小裝)","spec":"51/60(IQ10%)*420G*20包","unit":"件"},{"productId":"UN61042020","name":"蝦仁PD(小裝)","spec":"61/70(IQ10%)*420G*20包","unit":"件"},{"productId":"UN71042020","name":"蝦仁PD(小裝)","spec":"71/90(IQ10%)*420G*20包","unit":"件"},{"productId":"UN91042020","name":"蝦仁PD(小裝)","spec":"91/110(IQ10%)*420G*20包","unit":"件"},{"productId":"W0206","name":"曼波魚(皮)","spec":"200G*6包","unit":"件"},{"productId":"W0510","name":"曼波魚(皮)","spec":"500G*10包","unit":"件"},{"productId":"WD41100015","name":"生白蝦仁PD(DV)","spec":"41/50(IQ15%)*1KG*15包","unit":"件"},{"productId":"WD41100020","name":"生白蝦仁PD(DV)","spec":"41/50(IQ15%)*1KG*20包","unit":"件"},{"productId":"WD51100015","name":"生白蝦仁PD(DV)","spec":"51/60(IQ15%)*1KG*15包","unit":"件"},{"productId":"WD51100020","name":"生白蝦仁PD(DV)","spec":"51/60(IQ15%)*1KG*20包","unit":"件"},{"productId":"WD61100015","name":"生白蝦仁PD(DV)","spec":"61/70(IQ15%)*1KG*15包","unit":"件"},{"productId":"WD61100020","name":"生白蝦仁PD(DV)","spec":"61/70(IQ15%)*1KG*20包","unit":"件"},{"productId":"WD71100015","name":"生白蝦仁PD(DV)","spec":"71/90(IQ15%)*1KG*15包","unit":"件"},{"productId":"WD71100020","name":"生白蝦仁PD(DV)","spec":"71/90(IQ15%)*1KG*20包","unit":"件"},{"productId":"WD91100015","name":"生白蝦仁PD(DV)","spec":"91/110(IQ15%)*1KG*15包","unit":"件"},{"productId":"WD91100020","name":"生白蝦仁PD(DV)","spec":"91/110(IQ15%)*1KG*20包","unit":"件"},{"productId":"X100010","name":"海膽(冷)","spec":"100G*10盒(日)","unit":"件"},{"productId":"Y01050012","name":"蟹管肉","spec":"特A(230G)*12瓶","unit":"件"},{"productId":"Y02050012","name":"蟹管肉","spec":"A(200G)*12瓶","unit":"件"},{"productId":"Y03050012","name":"蟹管肉","spec":"B(170G)*12瓶","unit":"件"},{"productId":"YT100006","name":"雪蟹腳(熟)","spec":"1KG*6包","unit":"件"},{"productId":"YT100010","name":"雪蟹腳(熟)","spec":"1KG*10包","unit":"件"},{"productId":"Z021004","name":"龍蝦(活凍)","spec":"200/250*10KG*4盒","unit":"件"},{"productId":"Z023510","name":"龍蝦(生)","spec":"200/300*3.5KG*10盒","unit":"件"},{"productId":"Z043510","name":"龍蝦(生)","spec":"300/400*3.5KG*10盒","unit":"件"},{"productId":"Z101","name":"101","spec":"","unit":"包"}];
+
+            const handleProductExcelImport = async (evt) => {
+                const file = evt.target.files[0];
+                if (!file) return;
+                evt.target.value = '';
+                
+                try {
+                    const data = await file.arrayBuffer();
+                    const workbook = XLSX.read(data);
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
+                    
+                    // 找到標題列（品號、品名、規格）
+                    let headerRowIndex = -1;
+                    for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+                        const row = jsonData[i];
+                        if (row && row.some(cell => cell === '品號' || cell === '品名')) {
+                            headerRowIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    if (headerRowIndex === -1) {
+                        alert('找不到標題列（品號、品名、規格）');
+                        return;
+                    }
+                    
+                    const headers = jsonData[headerRowIndex];
+                    const colIndex = {
+                        productId: headers.findIndex(h => h === '品號'),
+                        name: headers.findIndex(h => h === '品名'),
+                        spec: headers.findIndex(h => h === '規格'),
+                        unit: headers.findIndex(h => h === '單位')
+                    };
+                    
+                    // 解析資料列
+                    const parsedProducts = {};
+                    for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        const productId = row[colIndex.productId];
+                        const name = row[colIndex.name];
+                        const spec = row[colIndex.spec];
+                        const unit = colIndex.unit >= 0 ? row[colIndex.unit] : '';
+                        
+                        // 跳過空白列或小計列
+                        if (!productId || !name || productId === '品號') continue;
+                        
+                        // 使用品號+規格作為唯一鍵
+                        const key = `${productId}_${spec || ''}`;
+                        if (!parsedProducts[key]) {
+                            parsedProducts[key] = {
+                                productId: String(productId).trim(),
+                                name: String(name).trim(),
+                                spec: String(spec || '').trim(),
+                                unit: PRODUCT_UNITS.includes(unit) ? unit : '包',
+                                defaultPrice: 0,
+                                defaultSupplier: '',
+                                isActive: true
+                            };
+                        }
+                    }
+                    
+                    const productList = Object.values(parsedProducts);
+                    if (productList.length === 0) {
+                        alert(TEXT.IMPORT_NO_DATA);
+                        return;
+                    }
+                    
+                    setProductImportData(productList);
+                    setShowProductImportModal(true);
+                    
+                } catch (error) {
+                    console.error('Excel 解析錯誤:', error);
+                    alert(TEXT.IMPORT_FAILED + ': ' + error.message);
+                }
+            };
+
+            const handleConfirmProductImport = async () => {
+                if (productImportData.length === 0) return;
+                if (!canCreate()) return alert(TEXT.PERMISSION_DENIED);
+                
+                setImportProcessing(true);
+                setImportProgress({ current: 0, total: productImportData.length });
+                
+                let successCount = 0;
+                let errorCount = 0;
+                
+                try {
+                    // 批次寫入，每批 500 筆
+                    const batchSize = 500;
+                    for (let i = 0; i < productImportData.length; i += batchSize) {
+                        const batch = db.batch();
+                        const chunk = productImportData.slice(i, i + batchSize);
+                        
+                        for (const item of chunk) {
+                            // 使用品號+規格作為文件 ID
+                            const docId = `${item.productId}_${item.spec}`.replace(/[\/\\*?\"<>|]/g, '_');
+                            const docRef = db.collection('products').doc(docId);
+                            batch.set(docRef, {
+                                ...item,
+                                updatedAt: new Date().toISOString()
+                            }, { merge: true });
+                        }
+                        
+                        await batch.commit();
+                        successCount += chunk.length;
+                        setImportProgress({ current: Math.min(i + batchSize, productImportData.length), total: productImportData.length });
+                    }
+                    
+                    setShowProductImportModal(false);
+                    setProductImportData([]);
+                    showToast(`${TEXT.IMPORT_SUCCESS}：${successCount} 筆產品`);
+                    
+                } catch (error) {
+                    console.error('匯入失敗:', error);
+                    alert(TEXT.IMPORT_FAILED + ': ' + error.message);
+                } finally {
+                    setImportProcessing(false);
+                }
+            };
+
+            const handleSaveProduct = async () => {
+                if (!editingProduct) return;
+                if (!canCreate()) return alert(TEXT.PERMISSION_DENIED);
+                
+                if (!editingProduct.productId || !editingProduct.name) {
+                    alert('請填寫品號和品名');
+                    return;
+                }
+                
+                try {
+                    const docId = `${editingProduct.productId}_${editingProduct.spec || ''}`.replace(/[\/\\*?\"<>|]/g, '_');
+                    await db.collection('products').doc(docId).set({
+                        ...editingProduct,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                    
+                    setShowProductModal(false);
+                    setEditingProduct(null);
+                    showToast('儲存成功');
+                } catch (error) {
+                    alert(TEXT.SAVE_FAILED + ': ' + error.message);
+                }
+            };
+
+            const handleDeleteProduct = async (product) => {
+                if (!canDelete()) return alert(TEXT.PERMISSION_DENIED);
+                if (!confirm(`確定要刪除 ${product.name} (${product.spec}) 嗎？`)) return;
+                
+                try {
+                    const docId = `${product.productId}_${product.spec || ''}`.replace(/[\/\\*?\"<>|]/g, '_');
+                    await db.collection('products').doc(docId).delete();
+                    showToast('已刪除');
+                } catch (error) {
+                    alert(TEXT.SAVE_FAILED + ': ' + error.message);
+                }
+            };
+
+            const filteredProducts = useMemo(() => {
+                if (!productSearchTerm.trim()) return products;
+                const term = productSearchTerm.toLowerCase();
+                return products.filter(p => 
+                    (p.productId || '').toLowerCase().includes(term) ||
+                    (p.name || '').toLowerCase().includes(term) ||
+                    (p.spec || '').toLowerCase().includes(term) ||
+                    (p.defaultSupplier || '').toLowerCase().includes(term)
+                );
+            }, [products, productSearchTerm]);
+
+            // V76.0: 產品選擇器篩選結果
+            const pickerFilteredProducts = useMemo(() => {
+                if (!productPickerSearch.trim()) return products.filter(p => p.isActive !== false).slice(0, 50);
+                const term = productPickerSearch.toLowerCase();
+                return products.filter(p => 
+                    p.isActive !== false && (
+                        (p.productId || '').toLowerCase().includes(term) ||
+                        (p.name || '').toLowerCase().includes(term) ||
+                        (p.spec || '').toLowerCase().includes(term)
+                    )
+                ).slice(0, 50);
+            }, [products, productPickerSearch]);
+
+            // V76.0: 選擇產品後自動帶入規格
+            const handleSelectProduct = (idx, selectedProduct) => {
                 const np = [...formData.products];
                 np[idx] = {
                     ...np[idx],
                     name: selectedProduct.name || '',
                     spec: selectedProduct.spec || '',
+                    // 可選：帶入預設單價
+                    // unitPrice: selectedProduct.defaultPrice || np[idx].unitPrice || 0,
                 };
                 setFormData(prev => ({ ...prev, products: np }));
                 setActiveProductPicker(null);
                 setProductPickerSearch('');
                 
-                // 更新最近使用
-                setRecentProducts(prev => {
-                    const filtered = prev.filter(p => p.name !== selectedProduct.name || p.spec !== selectedProduct.spec);
-                    const updated = [{ name: selectedProduct.name, spec: selectedProduct.spec, productId: selectedProduct.productId }, ...filtered].slice(0, 10);
-                    try { localStorage.setItem('recentProducts', JSON.stringify(updated)); } catch {}
-                    return updated;
-                });
-                
+                // 清除驗證錯誤
                 if (validationErrors.products) {
                     setValidationErrors(prev => ({...prev, products: false}));
                 }
-            }, [formData.products, validationErrors.products]);
+            };
 
+            // V69.0 Update: Line message content
             const handleShareToLine = (s) => {
                 const isDom = isDomestic(s);
                 let text = `${isDom ? TEXT.LINE_NOTIFY_DOMESTIC : TEXT.LINE_NOTIFY_FOREIGN}\n`;
                 text += `日期：${s.arrivalDate}\n`;
                 text += `櫃號：${s.containerNumber}\n`;
                 text += `廠商：${s.supplier}\n`;
+                // V69.0 Additions:
                 text += `拆櫃日：${s.devanningDate || '未定'}\n`;
                 text += `拆櫃地：${s.devanningLocation || '未定'}\n\n`;
                 
                 (s.products || []).forEach((p, i) => {
+                    // V69.0 Additions: Batch Number
                     text += `${i+1}. ${p.name} ${p.spec ? p.spec : ''} (批:${p.batchNumber||'無'}) - ${p.quantity}件\n`; 
                 });
                 window.open("https://line.me/R/msg/text/?" + encodeURIComponent(text), '_blank');
@@ -829,14 +1095,18 @@
                 setEditingId(null); setView('form'); 
             };
 
+            // V70.0: 表單驗證函數
             const validateForm = () => {
                 const errors = {};
+                const isDom = isDomestic(formData);
                 
+                // 新增時的必填驗證
                 if (!editingId) {
                     if (!formData.containerNumber?.trim()) errors.containerNumber = true;
                     if (!formData.arrivalDate) errors.arrivalDate = true;
                     if (!formData.supplier?.trim()) errors.supplier = true;
                     
+                    // 產品明細驗證：至少要有一個產品名稱
                     const hasValidProduct = (formData.products || []).some(p => p.name?.trim());
                     if (!hasValidProduct) errors.products = true;
                 }
@@ -854,6 +1124,7 @@
                 e.preventDefault();
                 if(!canEdit()) return alert(TEXT.PERMISSION_DENIED);
                 
+                // V70.0: 執行表單驗證
                 const errors = validateForm();
                 setValidationErrors(errors);
                 
@@ -913,59 +1184,62 @@
             const handleInputChange = (e) => {
                 const {name,value,type,checked}=e.target;
                 setFormData(p => ({...p, [name]: type==='checkbox'?checked:value}));
+                // V70.0: 清除該欄位的驗證錯誤
                 if (validationErrors[name]) {
                     setValidationErrors(prev => ({...prev, [name]: false}));
                 }
             };
             
+            // V71.0: 需要重新計算金額的欄位
             const AMOUNT_FIELDS = ['quantity', 'weight', 'unitPrice', 'pricingMode', 'boxCapacity'];
+            // V71.0: 需要重新計算總和的欄位
             const TOTAL_FIELDS = ['quantity', 'weight'];
 
-            const handleProductChange = useCallback((idx, f, v) => {
-                setFormData(prev => {
-                    const np = [...prev.products]; 
-                    np[idx] = {...np[idx], [f]:v};
-                    const p = np[idx];
+            const handleProductChange = (idx, f, v) => {
+                const np = [...formData.products]; np[idx] = {...np[idx], [f]:v};
+                const p = np[idx];
 
-                    if (f === 'spec') {
-                        const match = v.match(/(\d+)\s*(?:盒|包|塊|片)/);
-                        if (match) { p.boxCapacity = parseFloat(match[1]); }
-                    }
+                if (f === 'spec') {
+                    const match = v.match(/(\d+)\s*(?:盒|包|塊|片)/);
+                    if (match) { p.boxCapacity = parseFloat(match[1]); }
+                }
 
-                    if (AMOUNT_FIELDS.includes(f) || f === 'spec') {
-                        const q = safeNum(p.quantity);
-                        const b = safeNum(p.boxCapacity) || 1;
-                        const w = safeNum(p.weight);
-                        const u = safeNum(p.unitPrice);
+                // V71.0: 只在金額相關欄位變更時才重新計算
+                if (AMOUNT_FIELDS.includes(f) || f === 'spec') {
+                    const q = safeNum(p.quantity);
+                    const b = safeNum(p.boxCapacity) || 1;
+                    const w = safeNum(p.weight);
+                    const u = safeNum(p.unitPrice);
 
-                        if(p.pricingMode==='weight') { p.amount = round2(w * u); } 
-                        else { p.amount = round2(q * b * u); }
-                    }
+                    if(p.pricingMode==='weight') { p.amount = round2(w * u); } 
+                    else { p.amount = round2(q * b * u); }
+                }
 
-                    if (TOTAL_FIELDS.includes(f)) {
-                        return {
-                            ...prev, 
-                            products: np, 
-                            totalQuantity: np.reduce((s,i) => s + safeNum(i.quantity), 0), 
-                            totalWeight: round2(np.reduce((s,i) => s + safeNum(i.weight), 0))
-                        };
-                    } else {
-                        return {...prev, products: np};
-                    }
-                });
+                // V71.0: 只在數量/重量欄位變更時才重新計算總和
+                if (TOTAL_FIELDS.includes(f)) {
+                    setFormData(prev => ({
+                        ...prev, 
+                        products: np, 
+                        totalQuantity: np.reduce((s,i) => s + safeNum(i.quantity), 0), 
+                        totalWeight: round2(np.reduce((s,i) => s + safeNum(i.weight), 0))
+                    }));
+                } else {
+                    setFormData(prev => ({...prev, products: np}));
+                }
                 
+                // V70.0: 若修改品名，清除產品驗證錯誤
                 if (f === 'name' && v?.trim() && validationErrors.products) {
                     setValidationErrors(prev => ({...prev, products: false}));
                 }
-            }, [validationErrors.products]);
+            };
 
             const addProductRow = (e) => {
                 if(e) e.preventDefault();
+                // V68.0: 預設 weight, boxCapacity=1
                 setFormData(p => ({...p, products:[...(p.products||[]), {id:Date.now(), name:'', quantity:0, weight:0, unitPrice:0, amount:0, pricingMode:'weight', boxCapacity: 1}]}));
             };
             const duplicateProductRow = (idx) => { const p=formData.products[idx]; setFormData(prev=>({...prev, products:[...prev.products.slice(0,idx+1), {...p, id:Date.now()}, ...prev.products.slice(idx+1)]})); };
             const removeProductRow = (idx) => { const np=formData.products.filter((_,i)=>i!==idx); setFormData(prev=>({...prev, products:np})); };
-            
             const handleFileUpload = async (evt) => {
                 const files = Array.from(evt.target.files);
                 if (files.length === 0) return;
@@ -1012,27 +1286,65 @@
                     setLoading(false);
                 });
                 
+                // V73.0: 完全從 Firestore 讀取角色設定，不再使用硬編碼的 ADMIN_EMAILS
                 db.collection('settings').doc('config').get().then(doc => {
                     if(doc.exists) {
                         const d = doc.data();
                         const email = user.email;
                         
+                        // 優先檢查 user_roles 對應
                         if(d.user_roles && d.user_roles[email]) {
                             setUserRole(d.user_roles[email]);
                         }
+                        // 其次檢查 admin_emails 清單
                         else if(d.admin_emails && d.admin_emails.includes(email)) {
                             setUserRole('MANAGER');
                         }
+                        // 若都沒有設定，保持 GUEST
                     }
+                    // 若 config 文件不存在，保持 GUEST（更安全的預設值）
                 }).catch(err => {
                     console.warn('無法讀取設定:', err);
+                    // 發生錯誤時保持 GUEST 角色
                 });
                 
                 return () => unsub();
             }, [user]);
 
+            // V77.0: 產品主檔監聽 + 自動初始化
             useEffect(() => {
                 if (!user || !db) return;
+                
+                // V77.0: 首次載入時檢查是否需要初始化
+                const initializeIfEmpty = async () => {
+                    try {
+                        const snapshot = await db.collection('products').limit(1).get();
+                        if (snapshot.empty && INITIAL_PRODUCTS_DATA.length > 0) {
+                            console.log('產品主檔為空，開始初始化 ' + INITIAL_PRODUCTS_DATA.length + ' 筆產品...');
+                            const batchSize = 500;
+                            for (let i = 0; i < INITIAL_PRODUCTS_DATA.length; i += batchSize) {
+                                const batch = db.batch();
+                                const chunk = INITIAL_PRODUCTS_DATA.slice(i, i + batchSize);
+                                for (const p of chunk) {
+                                    const docId = (p.productId + '_' + (p.spec || '')).replace(/[\/\\*?"<>|]/g, '_');
+                                    batch.set(db.collection('products').doc(docId), { 
+                                        ...p, 
+                                        defaultPrice: 0,
+                                        defaultSupplier: '',
+                                        isActive: true,
+                                        updatedAt: new Date().toISOString() 
+                                    });
+                                }
+                                await batch.commit();
+                            }
+                            console.log('產品主檔初始化完成！');
+                        }
+                    } catch (e) { 
+                        console.warn('產品主檔初始化檢查失敗:', e); 
+                    }
+                };
+                
+                initializeIfEmpty();
                 
                 const unsub = db.collection('products').orderBy('name').onSnapshot(s => {
                     const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1056,67 +1368,44 @@
             const canEditWarehouseFields = () => ['MANAGER', 'PURCHASING', 'WAREHOUSE', 'QC'].includes(userRole);
             const canEditQCFields = () => ['MANAGER', 'QC'].includes(userRole);
 
-            // V78.0: 優化過濾邏輯 - 合併所有判斷到單一 filter
+            // Filter
             const todayStr = new Date().toISOString().split('T')[0];
+            
+            // V71.0: 優化搜尋效能 - 建立搜尋索引
+            const searchableShipments = useMemo(() => {
+                return shipments.map(s => ({
+                    ...s,
+                    _searchText: [
+                        s.containerNumber,
+                        s.supplier,
+                        s.importCompany,
+                        s.customsBroker,
+                        s.origin,
+                        s.customsDeclarationNo,
+                        s.importPermitNo,
+                        ...(s.products || []).flatMap(p => [p.name, p.spec, p.batchNumber])
+                    ].filter(Boolean).join(' ').toLowerCase()
+                }));
+            }, [shipments]);
 
             const filteredList = useMemo(() => {
-                if (!Array.isArray(shipments)) return [];
+                let list = Array.isArray(searchableShipments) ? searchableShipments : [];
                 
-                const searchLower = searchTerm.toLowerCase();
-                const hasSearch = searchTerm.length > 0;
+                // V71.0: 優化搜尋 - 使用預建的搜尋索引
+                if (searchTerm) {
+                    const term = searchTerm.toLowerCase();
+                    list = list.filter(s => s._searchText.includes(term));
+                }
                 
-                // 單次遍歷完成所有過濾
-                const result = shipments.filter(s => {
-                    // 1. Tab 過濾
-                    const isDom = s.customsBroker === DOMESTIC_FLAG;
-                    const isFor = !isDom;
-                    const isDevaned = s.devanningDate && s.devanningDate <= todayStr;
-                    
-                    let passTab = false;
-                    switch (currentTab) {
-                        case 'UNPAID': passTab = !s.isPaid; break;
-                        case 'DOMESTIC': passTab = isDom; break;
-                        case 'DEVANED': passTab = isFor && isDevaned; break;
-                        default: passTab = isFor && !isDevaned; // NOT_DEVANED
-                    }
-                    if (!passTab) return false;
-                    
-                    // 2. 搜尋過濾（只在有搜尋詞時執行）
-                    if (hasSearch) {
-                        const searchFields = [
-                            s.containerNumber,
-                            s.supplier,
-                            s.importCompany,
-                            s.customsBroker,
-                            s.origin,
-                            s.customsDeclarationNo,
-                            s.importPermitNo
-                        ];
-                        
-                        // 先檢查基本欄位
-                        const matchBasic = searchFields.some(f => f && f.toLowerCase().includes(searchLower));
-                        if (matchBasic) return true;
-                        
-                        // 再檢查產品（較耗效能）
-                        return (s.products || []).some(p => 
-                            (p.name && p.name.toLowerCase().includes(searchLower)) ||
-                            (p.spec && p.spec.toLowerCase().includes(searchLower)) ||
-                            (p.batchNumber && p.batchNumber.toLowerCase().includes(searchLower))
-                        );
-                    }
-                    
-                    return true;
-                });
+                if(currentTab==='UNPAID') list=list.filter(s=>!s.isPaid);
+                else if(currentTab==='DOMESTIC') list=list.filter(s=>isDomestic(s));
+                else if(currentTab==='DEVANED') list=list.filter(s=>isForeign(s)&&s.devanningDate&&s.devanningDate<=todayStr);
+                else list=list.filter(s=>isForeign(s)&&(!s.devanningDate||s.devanningDate>todayStr));
                 
-                // 排序
-                return result.sort((a, b) => {
-                    if (currentTab === 'DEVANED') {
-                        return (b.devanningDate || '') > (a.devanningDate || '') ? 1 : -1;
-                    }
-                    return (a.arrivalDate || '') > (b.arrivalDate || '') ? 1 : -1;
-                });
-            }, [shipments, searchTerm, currentTab, todayStr]);
+                return list.sort((a,b) => (currentTab==='DEVANED' ? (b.devanningDate>a.devanningDate?1:-1) : (a.arrivalDate>b.arrivalDate?1:-1)));
+            }, [searchableShipments, searchTerm, currentTab]);
             
+            // V71.0: 優化急件計算 - 合併 urgentCount 和 urgentList，避免重複遍歷
             const { urgentCount, urgentList } = useMemo(() => {
                 const todayParsed = parseDate(todayStr);
                 const list = shipments.filter(s => {
@@ -1125,21 +1414,9 @@
                     return diff >= 0 && diff <= 3;
                 }).sort((a, b) => a.arrivalDate > b.arrivalDate ? 1 : -1);
                 return { urgentCount: list.length, urgentList: list };
-            }, [shipments, todayStr]);
+            }, [shipments]);
             
             const unpaidCount = useMemo(() => shipments.filter(s => !s.isPaid).length, [shipments]);
-
-            // 產品主檔過濾
-            const filteredProducts = useMemo(() => {
-                if (!productSearchTerm.trim()) return products;
-                const term = productSearchTerm.toLowerCase();
-                return products.filter(p => 
-                    (p.productId || '').toLowerCase().includes(term) ||
-                    (p.name || '').toLowerCase().includes(term) ||
-                    (p.spec || '').toLowerCase().includes(term) ||
-                    (p.defaultSupplier || '').toLowerCase().includes(term)
-                );
-            }, [products, productSearchTerm]);
 
             if(loading) return <div className="flex h-screen items-center justify-center text-gray-500">Loading...</div>;
             if(!user) return <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full"><div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 text-3xl"><I.Ship /></div><h1 className="text-2xl font-bold mb-8">{TEXT.LOGIN_TITLE}</h1><button onClick={handleAdminLogin} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow mb-3 flex justify-center gap-2"><I.Google /> {TEXT.LOGIN_STAFF}</button><button onClick={handleGuestLogin} className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-bold flex justify-center gap-2"><I.User /> {TEXT.LOGIN_GUEST}</button></div></div>;
@@ -1147,18 +1424,8 @@
             return (
                 <ErrorBoundary>
                 <div className="min-h-screen bg-slate-100 pb-20 md:pb-0 md:pl-64">
+                    {/* V70.0: Validation Toast */}
                     {showValidationToast && <div className="validation-toast">{validationMessage}</div>}
-                    
-                    {/* V78.0: 產品選擇器 Bottom Sheet */}
-                    <ProductPickerBottomSheet
-                        isOpen={activeProductPicker !== null}
-                        onClose={() => { setActiveProductPicker(null); setProductPickerSearch(''); }}
-                        products={products}
-                        recentProducts={recentProducts}
-                        onSelect={(p) => handleSelectProduct(activeProductPicker, p)}
-                        searchValue={productPickerSearch}
-                        onSearchChange={setProductPickerSearch}
-                    />
                     
                     {/* Notification Modal */}
                     {showNotifications && (
@@ -1166,7 +1433,7 @@
                             <div className="modal-content" onClick={e=>e.stopPropagation()}>
                                 <div className="flex justify-between items-center mb-4 border-b pb-2"><h3 className="font-bold text-lg text-gray-800">{TEXT.URGENT_TITLE} ({urgentCount})</h3><button onClick={()=>setShowNotifications(false)}><I.X /></button></div>
                                 {urgentList.length===0 ? <div className="text-center text-gray-400 py-4">{TEXT.NO_URGENT}</div> : urgentList.map(s=>(
-                                    <div key={s.id} onClick={()=>{handleEdit(s);setShowNotifications(false)}} className="p-3 bg-gray-50 rounded-xl mb-2 cursor-pointer hover:bg-blue-50 transition-colors">
+                                    <div key={s.id} className="mb-3 p-3 bg-red-50 rounded-lg border border-red-100 cursor-pointer" onClick={()=>{setShowNotifications(false); setFormData({...initialFormState, ...s}); setEditingId(s.id); setView('form');}}>
                                         <div className="flex justify-between font-bold text-sm text-gray-800"><span>{s.containerNumber}</span><span className="text-red-600">{s.arrivalDate}</span></div>
                                         <div className="text-xs text-gray-500 mt-1">{s.supplier}</div>
                                     </div>
@@ -1192,12 +1459,345 @@
                         </div>
                     )}
 
+                    {/* V74.0: Excel Import Modal */}
+                    {showImportModal && (
+                        <div className="modal-overlay" onClick={() => !importProcessing && setShowImportModal(false)}>
+                            <div className="modal-content" style={{maxWidth: '600px', maxHeight: '85vh'}} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h3 className="font-bold text-lg text-gray-800">{TEXT.IMPORT_TITLE}</h3>
+                                    {!importProcessing && <button onClick={() => setShowImportModal(false)}><I.X /></button>}
+                                </div>
+                                
+                                <div className="text-sm text-gray-500 mb-3">
+                                    {TEXT.IMPORT_ROW_COUNT.replace('{count}', importData.length)}
+                                    <span className="ml-2 text-orange-500">{TEXT.IMPORT_UPDATE_HINT}</span>
+                                </div>
+                                
+                                {/* 預覽表格 */}
+                                <div className="overflow-x-auto mb-4 border rounded-lg" style={{maxHeight: '300px'}}>
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-gray-100 sticky top-0">
+                                            <tr>
+                                                <th className="px-2 py-2 text-left">#</th>
+                                                <th className="px-2 py-2 text-left">廠商</th>
+                                                <th className="px-2 py-2 text-left">品名</th>
+                                                <th className="px-2 py-2 text-left">規格</th>
+                                                <th className="px-2 py-2 text-right">單價</th>
+                                                <th className="px-2 py-2 text-right">數量</th>
+                                                <th className="px-2 py-2 text-right">重量</th>
+                                                <th className="px-2 py-2 text-left">日期</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {importData.slice(0, 50).map((item, idx) => (
+                                                <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                    <td className="px-2 py-1.5 text-gray-400">{item._rowIndex}</td>
+                                                    <td className="px-2 py-1.5 font-medium">{item.supplier || '-'}</td>
+                                                    <td className="px-2 py-1.5">{item.productName || '-'}</td>
+                                                    <td className="px-2 py-1.5 text-gray-500">{item.spec || '-'}</td>
+                                                    <td className="px-2 py-1.5 text-right text-emerald-600">{item.unitPrice || 0}</td>
+                                                    <td className="px-2 py-1.5 text-right text-blue-600">{item.quantity || 0}</td>
+                                                    <td className="px-2 py-1.5 text-right text-orange-500">{item.weight || 0}</td>
+                                                    <td className="px-2 py-1.5 text-gray-500">{item.arrivalDate || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {importData.length > 50 && (
+                                        <div className="text-center py-2 text-gray-400 text-xs bg-gray-50">
+                                            ... 還有 {importData.length - 50} 筆資料未顯示
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* 進度條 */}
+                                {importProcessing && (
+                                    <div className="mb-4">
+                                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                            <span>{TEXT.IMPORT_PROCESSING}</span>
+                                            <span>{importProgress.current} / {importProgress.total}</span>
+                                        </div>
+                                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-blue-500 transition-all duration-300"
+                                                style={{width: `${(importProgress.current / importProgress.total) * 100}%`}}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* 按鈕 */}
+                                <div className="flex gap-3">
+                                    <button 
+                                        onClick={() => setShowImportModal(false)} 
+                                        disabled={importProcessing}
+                                        className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-bold disabled:opacity-50"
+                                    >
+                                        {TEXT.IMPORT_CANCEL}
+                                    </button>
+                                    <button 
+                                        onClick={handleConfirmImport} 
+                                        disabled={importProcessing || importData.length === 0}
+                                        className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50"
+                                    >
+                                        {importProcessing ? TEXT.IMPORT_PROCESSING : TEXT.IMPORT_CONFIRM}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* V75.0: 產品編輯/新增 Modal */}
+                    {showProductModal && editingProduct && (
+                        <div className="modal-overlay" onClick={() => setShowProductModal(false)}>
+                            <div className="modal-content" style={{maxWidth: '500px'}} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h3 className="font-bold text-lg text-gray-800">
+                                        {editingProduct.id ? TEXT.PRODUCTS_EDIT_TITLE : TEXT.PRODUCTS_ADD_TITLE}
+                                    </h3>
+                                    <button onClick={() => setShowProductModal(false)}><I.X /></button>
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-600 mb-1">{TEXT.PRODUCT_ID} *</label>
+                                            <input 
+                                                type="text"
+                                                value={editingProduct.productId || ''}
+                                                onChange={e => setEditingProduct(p => ({...p, productId: e.target.value}))}
+                                                className="w-full border rounded-lg p-2.5 font-mono"
+                                                placeholder="A09134S20P"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-600 mb-1">{TEXT.PRODUCT_NAME} *</label>
+                                            <input 
+                                                type="text"
+                                                value={editingProduct.name || ''}
+                                                onChange={e => setEditingProduct(p => ({...p, name: e.target.value}))}
+                                                className="w-full border rounded-lg p-2.5"
+                                                placeholder="品名"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">{TEXT.PRODUCT_SPEC}</label>
+                                        <input 
+                                            type="text"
+                                            value={editingProduct.spec || ''}
+                                            onChange={e => setEditingProduct(p => ({...p, spec: e.target.value}))}
+                                            className="w-full border rounded-lg p-2.5"
+                                            placeholder="36/40S*420G*20包(IQ10%)"
+                                        />
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-600 mb-1">{TEXT.PRODUCT_UNIT}</label>
+                                            <select 
+                                                value={editingProduct.unit || '包'}
+                                                onChange={e => setEditingProduct(p => ({...p, unit: e.target.value}))}
+                                                className="w-full border rounded-lg p-2.5"
+                                            >
+                                                {PRODUCT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-600 mb-1">{TEXT.PRODUCT_DEFAULT_PRICE}</label>
+                                            <input 
+                                                type="number"
+                                                value={editingProduct.defaultPrice || ''}
+                                                onChange={e => setEditingProduct(p => ({...p, defaultPrice: safeNum(e.target.value)}))}
+                                                className="w-full border rounded-lg p-2.5 text-right"
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-600 mb-1">{TEXT.PRODUCT_DEFAULT_SUPPLIER}</label>
+                                        <input 
+                                            type="text"
+                                            value={editingProduct.defaultSupplier || ''}
+                                            onChange={e => setEditingProduct(p => ({...p, defaultSupplier: e.target.value}))}
+                                            className="w-full border rounded-lg p-2.5"
+                                            placeholder="預設供應商"
+                                        />
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            type="checkbox"
+                                            id="productIsActive"
+                                            checked={editingProduct.isActive !== false}
+                                            onChange={e => setEditingProduct(p => ({...p, isActive: e.target.checked}))}
+                                            className="w-4 h-4"
+                                        />
+                                        <label htmlFor="productIsActive" className="text-sm text-gray-600">{TEXT.PRODUCT_IS_ACTIVE}</label>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-3 mt-6">
+                                    <button 
+                                        onClick={() => setShowProductModal(false)}
+                                        className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-bold"
+                                    >
+                                        {TEXT.BTN_CANCEL}
+                                    </button>
+                                    <button 
+                                        onClick={handleSaveProduct}
+                                        className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold"
+                                    >
+                                        {TEXT.BTN_SAVE}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* V75.0: 產品匯入 Modal */}
+                    {showProductImportModal && (
+                        <div className="modal-overlay" onClick={() => !importProcessing && setShowProductImportModal(false)}>
+                            <div className="modal-content" style={{maxWidth: '700px', maxHeight: '85vh'}} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h3 className="font-bold text-lg text-gray-800">{TEXT.PRODUCTS_IMPORT_TITLE}</h3>
+                                    {!importProcessing && <button onClick={() => setShowProductImportModal(false)}><I.X /></button>}
+                                </div>
+                                
+                                <div className="text-sm text-gray-500 mb-3">
+                                    {TEXT.IMPORT_ROW_COUNT.replace('{count}', productImportData.length)}
+                                    <span className="ml-2 text-orange-500">{TEXT.PRODUCTS_IMPORT_HINT}</span>
+                                </div>
+                                
+                                {/* 預覽表格 */}
+                                <div className="overflow-x-auto mb-4 border rounded-lg" style={{maxHeight: '350px'}}>
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-gray-100 sticky top-0">
+                                            <tr>
+                                                <th className="px-2 py-2 text-left">品號</th>
+                                                <th className="px-2 py-2 text-left">品名</th>
+                                                <th className="px-2 py-2 text-left">規格</th>
+                                                <th className="px-2 py-2 text-left">單位</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {productImportData.slice(0, 100).map((item, idx) => (
+                                                <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                    <td className="px-2 py-1.5 font-mono text-gray-500">{item.productId}</td>
+                                                    <td className="px-2 py-1.5 font-medium">{item.name}</td>
+                                                    <td className="px-2 py-1.5 text-gray-600">{item.spec || '-'}</td>
+                                                    <td className="px-2 py-1.5 text-gray-500">{item.unit}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {productImportData.length > 100 && (
+                                        <div className="text-center py-2 text-gray-400 text-xs bg-gray-50">
+                                            ... 還有 {productImportData.length - 100} 筆資料未顯示
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* 進度條 */}
+                                {importProcessing && (
+                                    <div className="mb-4">
+                                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                            <span>{TEXT.IMPORT_PROCESSING}</span>
+                                            <span>{importProgress.current} / {importProgress.total}</span>
+                                        </div>
+                                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-blue-500 transition-all duration-300"
+                                                style={{width: `${(importProgress.current / importProgress.total) * 100}%`}}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* 按鈕 */}
+                                <div className="flex gap-3">
+                                    <button 
+                                        onClick={() => setShowProductImportModal(false)} 
+                                        disabled={importProcessing}
+                                        className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-bold disabled:opacity-50"
+                                    >
+                                        {TEXT.IMPORT_CANCEL}
+                                    </button>
+                                    <button 
+                                        onClick={handleConfirmProductImport} 
+                                        disabled={importProcessing || productImportData.length === 0}
+                                        className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50"
+                                    >
+                                        {importProcessing ? TEXT.IMPORT_PROCESSING : TEXT.IMPORT_CONFIRM}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* V78.3: 產品選擇 Bottom Sheet (手機優化) */}
+                    {activeProductPicker !== null && products.length > 0 && (
+                        <>
+                            <div className="bottom-sheet-overlay" onClick={() => setActiveProductPicker(null)} />
+                            <div className="bottom-sheet">
+                                <div className="bottom-sheet-handle" onClick={() => setActiveProductPicker(null)} />
+                                
+                                <div className="bottom-sheet-header">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h3 className="font-bold text-lg text-gray-800">選擇產品</h3>
+                                        <button onClick={() => setActiveProductPicker(null)} className="p-1 text-gray-400"><I.X /></button>
+                                    </div>
+                                    
+                                    {/* 搜尋框 */}
+                                    <input 
+                                        type="text"
+                                        value={productPickerSearch}
+                                        onChange={e => setProductPickerSearch(e.target.value)}
+                                        placeholder="搜尋品號、品名、規格..."
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-base bg-gray-50 focus:bg-white focus:border-blue-500 outline-none"
+                                        autoFocus
+                                    />
+                                </div>
+                                
+                                <div className="bottom-sheet-content">
+                                    {/* 產品列表 */}
+                                    {pickerFilteredProducts.length === 0 ? (
+                                        <div className="p-8 text-center text-gray-400">無符合的產品</div>
+                                    ) : (
+                                        pickerFilteredProducts.map(prod => (
+                                            <div 
+                                                key={prod.id}
+                                                onClick={() => handleSelectProduct(activeProductPicker, prod)}
+                                                className="product-item"
+                                            >
+                                                <div className="font-bold text-gray-800">{prod.name}</div>
+                                                <div className="text-sm text-gray-500 flex justify-between mt-1">
+                                                    <span className="text-blue-600">{prod.spec || '無規格'}</span>
+                                                    <span className="text-gray-400 font-mono text-xs">{prod.productId}</span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                    
+                                    {/* 底部資訊 */}
+                                    <div className="py-4 text-xs text-gray-400 text-center">
+                                        顯示 {pickerFilteredProducts.length} 筆 / 共 {products.filter(p => p.isActive !== false).length} 筆產品
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v78.3</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}</nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
-                    <main className="p-4 max-w-4xl mx-auto pb-24">
+                    <main className="p-4 max-w-4xl mx-auto">
                         {view === 'list' && (
                             <div className="space-y-4">
-                                <div className="sticky top-14 md:top-0 z-20 bg-[#F3F4F6] pt-2 pb-2 space-y-3">
+                                <div className="sticky top-0 z-20 bg-[#F3F4F6] -mt-4 pt-4 pb-2 space-y-3">
                                     <div className="flex gap-2 items-center">
                                         <div className="relative flex-1"><span className="absolute left-3 top-3 text-gray-400"><I.Search /></span><input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="搜尋..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border-none shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                         {canSeePrice() && (
@@ -1207,6 +1807,7 @@
                                         )}
                                         <button onClick={()=>setDisplayMode(displayMode==='card'?'table':'card')} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600"><I.List /></button>
                                         
+                                        {/* 電腦版四大天王 */}
                                         <div className="hidden md:flex gap-2">
                                             <div onClick={()=>setShowNotifications(true)} className="relative p-2.5 bg-white rounded-xl shadow-sm text-gray-600 cursor-pointer hover:bg-gray-50"><I.Bell />{urgentCount>0&&<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}</div>
                                             <button onClick={handleExport} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600 hover:bg-gray-50"><I.Download /></button>
@@ -1217,6 +1818,14 @@
                                         <button onClick={()=>setCurrentTab('NOT_DEVANED')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${currentTab==='NOT_DEVANED'?'bg-blue-600 text-white shadow':'bg-white text-gray-600 border'}`}>未拆櫃 <span className={`ml-1 text-xs ${currentTab==='NOT_DEVANED'?'text-blue-100':'text-gray-400'}`}>{shipments.filter(s=>isForeign(s)&&(!s.devanningDate||s.devanningDate>todayStr)).length}</span></button>
                                         <button onClick={()=>setCurrentTab('DEVANED')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${currentTab==='DEVANED'?'bg-blue-600 text-white shadow':'bg-white text-gray-600 border'}`}>已拆櫃 <span className={`ml-1 text-xs ${currentTab==='DEVANED'?'text-blue-100':'text-gray-400'}`}>{shipments.filter(s=>isForeign(s)&&s.devanningDate&&s.devanningDate<=todayStr).length}</span></button>
                                         <button onClick={()=>setCurrentTab('DOMESTIC')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${currentTab==='DOMESTIC'?'bg-blue-600 text-white shadow':'bg-white text-gray-600 border'}`}>國內採購 <span className={`ml-1 text-xs ${currentTab==='DOMESTIC'?'text-blue-100':'text-gray-400'}`}>{shipments.filter(s=>isDomestic(s)).length}</span></button>
+                                        
+                                        {/* V74.0: Excel 匯入按鈕 */}
+                                        {canCreate() && currentTab === 'DOMESTIC' && (
+                                            <label className="px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap bg-emerald-500 text-white shadow cursor-pointer hover:bg-emerald-600 transition-colors">
+                                                {TEXT.IMPORT_EXCEL}
+                                                <input type="file" accept=".xlsx,.xls" onChange={handleExcelImport} className="hidden" />
+                                            </label>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1243,12 +1852,19 @@
                                     <div className="space-y-3">
                                         {filteredList.map(item => {
                                             const totalAmount = (item.products || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                                            const totalWeight = (item.products || []).reduce((sum, p) => sum + (Number(p.weight) || 0), 0);
+                                            const totalQty = (item.products || []).reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
                                             const currSymbol = item.currency === 'USD' ? 'US$' : 'NT$';
+                                            
                                             const isDevanned = item.devanningDate && item.devanningDate <= todayStr;
                                             const mainDate = parseDate(item.arrivalDate);
+                                            
+                                            const hasAttachments = (item.attachments && item.attachments.length > 0) || item.docUrl;
+                                            const attCount = item.attachments ? item.attachments.length : (item.docUrl ? 1 : 0);
 
                                             return (
                                             <div key={item.id} className="ios-card p-4" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
+                                                {/* V63.0: 卡片頭部 - 完整資訊 (含船公司) */}
                                                 <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="mb-1"><span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span></div>
@@ -1258,7 +1874,12 @@
                                                             {item.customsBroker && <span className="tag-badge bg-gray-100 text-gray-600"><I.FileCheck />{item.customsBroker}</span>}
                                                             <span className="tag-badge bg-gray-100 text-gray-600"><I.Factory />{item.supplier}</span>
                                                             {item.origin && <span className="tag-badge bg-gray-100 text-gray-600"><I.Globe />{item.origin}</span>}
+                                                            {/* 船公司顯示 */}
                                                             {item.shippingCompany && <span className="tag-badge bg-gray-100 text-gray-600"><I.Ship />{item.shippingCompany}</span>}
+                                                            
+                                                            {/* 紫色官方單號區 */}
+                                                            {item.customsDeclarationNo && <span className="tag-badge bg-purple-50 text-purple-700 border border-purple-100"><I.FileCheck />報關單:{item.customsDeclarationNo}</span>}
+                                                            {item.importPermitNo && <span className="tag-badge bg-purple-50 text-purple-700 border border-purple-100"><I.FileCheck />許可證:{item.importPermitNo}</span>}
                                                         </div>
 
                                                         <div className="flex flex-wrap gap-1">
@@ -1266,8 +1887,10 @@
                                                             {item.devanningDate && <span className="tag-badge bg-blue-50 text-blue-600"><I.Calendar />{item.devanningDate}</span>}
                                                         </div>
                                                     </div>
+                                                    {/* 右側操作區 */}
                                                     <div className="flex flex-col items-end gap-2">
                                                          <div className="flex gap-1 relative z-10">
+                                                            {/* V47.0: 智慧附件按鈕 */}
                                                             {((item.attachments && item.attachments.length > 0) || item.docUrl) && (
                                                                 <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative">
                                                                     <I.Paperclip />
@@ -1284,6 +1907,7 @@
                                                     </div>
                                                 </div>
 
+                                                {/* 產品明細 */}
                                                 <div className="space-y-3">
                                                     {(item.products || []).map((p,i)=>(
                                                         <div key={i} className="flex flex-col border-b border-gray-50 pb-2 last:border-0 last:pb-0">
@@ -1293,6 +1917,7 @@
                                                                 <div className="flex items-center gap-2 mr-auto sm:ml-0 flex-wrap justify-start text-gray-600">
                                                                     <span className="text-xs text-gray-400">{p.pricingMode==='weight'?'[重]':'[數]'}</span>
                                                                     <span className="font-mono text-base">{format2(safeNum(p.weight))}kg</span>
+                                                                    {/* V69.0: 隱藏訪客金額 (列表明細) */}
                                                                     {canSeePrice()&&<><span className="text-gray-300">|</span><span className="font-mono text-base">${format2(safeNum(p.unitPrice))}</span><span className="text-gray-300">|</span><span className="font-bold text-emerald-600 font-mono text-base">${format2(safeNum(p.amount))}</span></>}
                                                                 </div>
                                                                 <span className="ml-auto text-base font-bold text-blue-600 font-mono">{safeNum(p.quantity).toLocaleString()} 件</span>
@@ -1302,13 +1927,30 @@
                                                     ))}
                                                 </div>
                                                 
+                                                {/* 卡片底部合計與狀態 */}
                                                 <div className="mt-3 pt-2 bg-gray-50 -mx-4 -mb-4 p-3 border-t border-gray-200">
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="flex gap-3">
-                                                            <span className="font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()} 件</span>
-                                                            <span className="text-orange-500">{format2(safeNum(item.totalWeight))} kg</span>
+                                                    <div className="grid grid-cols-3 gap-2 text-lg mb-2 font-mono font-bold text-gray-700 border-b border-gray-300 pb-2">
+                                                        <div className="text-left">{format2(totalWeight)}kg</div>
+                                                        {/* V69.0: 訪客隱藏總金額 */}
+                                                        <div className="text-center text-emerald-700">
+                                                            {canSeePrice() ? `${currSymbol}${format2(totalAmount)}` : '***'}
                                                         </div>
-                                                        {canSeePrice() && <span className={`font-bold text-lg ${item.isPaid?'text-gray-600':'text-red-600'}`}>{currSymbol} {format2(totalAmount)}</span>}
+                                                        <div className="text-right text-blue-700">{totalQty.toLocaleString()}件</div>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex gap-3 items-center">
+                                                            {/* V69.0: 訪客隱藏付款狀態 */}
+                                                            {canSeePrice() && (
+                                                                <>
+                                                                    <span className={item.isPaid?"amt-paid":"amt-unpaid"}>{item.isPaid?'貨款已付':'貨款未付'}</span>
+                                                                    {item.flightFee > 0 && <span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{item.flightFeePaid?'旅費已付':'旅費未付'}</span>}
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <label className={`tag-badge cursor-pointer border ${item.warehouseConfirmed ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`} onClick={e => e.stopPropagation()}>
+                                                            <input type="checkbox" className="w-4 h-4 rounded mr-1 cursor-pointer accent-green-600" checked={item.warehouseConfirmed || false} onChange={(e) => handleWarehouseConfirm(e, item)} disabled={!canEditWarehouseFields()} />
+                                                            <span className={item.warehouseConfirmed ? 'font-bold' : ''}>{item.warehouseConfirmed ? '已收貨' : '確認收貨'}</span>
+                                                        </label>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1317,47 +1959,88 @@
                                 )}
                             </div>
                         )}
-
+                        
                         {view === 'stats' && <Dashboard shipments={shipments} canSeePrice={canSeePrice} />}
 
+                        {/* V75.0: 產品主檔頁面 */}
                         {view === 'products' && (
-                            <div className="space-y-4 pb-20">
-                                <div className="flex items-center gap-2">
+                            <div className="space-y-4">
+                                {/* 頂部操作列 */}
+                                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
                                     <div className="relative flex-1">
-                                        <span className="absolute left-3 top-2.5 text-gray-400"><I.Search /></span>
                                         <input 
-                                            value={productSearchTerm} 
-                                            onChange={e => setProductSearchTerm(e.target.value)} 
+                                            type="text" 
                                             placeholder={TEXT.PRODUCTS_SEARCH_HINT}
-                                            className="w-full pl-10 pr-4 py-2 rounded-xl border-none shadow-sm outline-none"
+                                            value={productSearchTerm}
+                                            onChange={e => setProductSearchTerm(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-2.5 bg-white border rounded-xl text-sm"
                                         />
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><I.Search /></span>
+                                    </div>
+                                    {canCreate() && (
+                                        <div className="flex gap-2">
+                                            <label className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-bold text-sm cursor-pointer hover:bg-emerald-600 transition-colors flex items-center gap-2">
+                                                {TEXT.PRODUCTS_IMPORT}
+                                                <input type="file" accept=".xlsx,.xls" onChange={handleProductExcelImport} className="hidden" />
+                                            </label>
+                                            <button 
+                                                onClick={() => { setEditingProduct({...initialProductState}); setShowProductModal(true); }}
+                                                className="px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
+                                            >
+                                                {TEXT.PRODUCTS_ADD}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 統計資訊 */}
+                                <div className="bg-white rounded-xl p-4 border shadow-sm">
+                                    <div className="flex gap-6 text-sm">
+                                        <div><span className="text-gray-500">總產品數：</span><span className="font-bold text-blue-600">{products.length}</span></div>
+                                        <div><span className="text-gray-500">啟用中：</span><span className="font-bold text-emerald-600">{products.filter(p => p.isActive !== false).length}</span></div>
+                                        <div><span className="text-gray-500">搜尋結果：</span><span className="font-bold">{filteredProducts.length}</span></div>
                                     </div>
                                 </div>
 
+                                {/* 產品列表 */}
                                 {filteredProducts.length === 0 ? (
-                                    <div className="text-center py-12 text-gray-400">{TEXT.PRODUCTS_EMPTY}</div>
+                                    <div className="bg-white rounded-xl p-8 border shadow-sm text-center text-gray-400">
+                                        {products.length === 0 ? TEXT.PRODUCTS_EMPTY : '無符合搜尋條件的產品'}
+                                    </div>
                                 ) : (
-                                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="px-3 py-2 text-left font-bold text-gray-600">品號</th>
-                                                    <th className="px-3 py-2 text-left font-bold text-gray-600">品名</th>
-                                                    <th className="px-3 py-2 text-left font-bold text-gray-600 hidden sm:table-cell">規格</th>
-                                                    <th className="px-3 py-2 text-right font-bold text-gray-600">單價</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {filteredProducts.slice(0, 100).map(p => (
-                                                    <tr key={p.id} className="border-t hover:bg-gray-50">
-                                                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.productId}</td>
-                                                        <td className="px-3 py-2 font-bold">{p.name} {p.isActive === false && <span className="text-red-400 text-xs">({TEXT.PRODUCT_INACTIVE})</span>}</td>
-                                                        <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{p.spec}</td>
-                                                        <td className="px-3 py-2 text-right font-mono text-emerald-600">{p.defaultPrice || '-'}</td>
+                                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-gray-50 border-b">
+                                                    <tr>
+                                                        <th className="px-3 py-3 text-left font-bold text-gray-600">{TEXT.PRODUCT_ID}</th>
+                                                        <th className="px-3 py-3 text-left font-bold text-gray-600">{TEXT.PRODUCT_NAME}</th>
+                                                        <th className="px-3 py-3 text-left font-bold text-gray-600">{TEXT.PRODUCT_SPEC}</th>
+                                                        <th className="px-3 py-3 text-left font-bold text-gray-600">{TEXT.PRODUCT_UNIT}</th>
+                                                        <th className="px-3 py-3 text-right font-bold text-gray-600">{TEXT.PRODUCT_DEFAULT_PRICE}</th>
+                                                        <th className="px-3 py-3 text-left font-bold text-gray-600">{TEXT.PRODUCT_DEFAULT_SUPPLIER}</th>
+                                                        <th className="px-3 py-3 text-center font-bold text-gray-600">操作</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody>
+                                                    {filteredProducts.slice(0, 100).map((p, idx) => (
+                                                        <tr key={p.id} className={`border-b hover:bg-blue-50 cursor-pointer ${p.isActive === false ? 'opacity-50 bg-gray-50' : ''} ${idx % 2 === 0 ? '' : 'bg-gray-50/50'}`}
+                                                            onClick={() => { setEditingProduct({...p}); setShowProductModal(true); }}>
+                                                            <td className="px-3 py-2.5 font-mono text-xs text-gray-500">{p.productId}</td>
+                                                            <td className="px-3 py-2.5 font-bold">{p.name} {p.isActive === false && <span className="text-xs text-red-500 ml-1">({TEXT.PRODUCT_INACTIVE})</span>}</td>
+                                                            <td className="px-3 py-2.5 text-gray-600">{p.spec || '-'}</td>
+                                                            <td className="px-3 py-2.5 text-gray-500">{p.unit || '-'}</td>
+                                                            <td className="px-3 py-2.5 text-right text-emerald-600 font-bold">{p.defaultPrice > 0 ? p.defaultPrice.toLocaleString() : '-'}</td>
+                                                            <td className="px-3 py-2.5 text-gray-500">{p.defaultSupplier || '-'}</td>
+                                                            <td className="px-3 py-2.5 text-center">
+                                                                <button onClick={(e) => { e.stopPropagation(); setEditingProduct({...p}); setShowProductModal(true); }} className="text-blue-500 hover:text-blue-700 p-1"><I.Edit /></button>
+                                                                {canDelete() && <button onClick={(e) => { e.stopPropagation(); handleDeleteProduct(p); }} className="text-red-400 hover:text-red-600 p-1 ml-1"><I.Trash2 /></button>}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                         {filteredProducts.length > 100 && (
                                             <div className="text-center py-3 text-gray-400 text-sm border-t">
                                                 顯示前 100 筆，共 {filteredProducts.length} 筆（請使用搜尋縮小範圍）
@@ -1372,11 +2055,13 @@
                             <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
                                 <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><I.X /></button></div>
                                 <form onSubmit={handleSubmit} className="space-y-4">
+                                    {/* V52.0: 1. 基礎資訊 (11欄位 4x2 佈局) */}
                                     <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm mb-3">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                             <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                                             <div><label className={!editingId ? 'label-required' : ''}>櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 font-mono uppercase ${validationErrors.containerNumber ? 'input-error' : ''}`} placeholder="櫃號" /></div>
                                             
+                                            {/* V63.0 新增船公司 */}
                                             <div><label>船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="船公司" /></div>
 
                                             <div><label className={!editingId ? 'label-required' : ''}>到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.arrivalDate ? 'input-error' : ''}`} /></div>
@@ -1392,6 +2077,7 @@
                                         </div>
                                     </div>
                                     
+                                    {/* 2. 財務專區 (橫向) */}
                                     {canSeePrice() && (
                                         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 mb-3 flex flex-wrap items-end gap-3">
                                              <div className="flex-1 min-w-[140px]">
@@ -1401,13 +2087,7 @@
                                              {canEditFlightFee() && isForeign(formData) && (
                                                 <div className="w-24">
                                                    <label>旅費</label>
-                                                   {/* V78.0: 使用 NumericInput */}
-                                                   <NumericInput 
-                                                       value={formData.flightFee} 
-                                                       onChange={e => handleInputChange({target: {name: 'flightFee', value: e.target.value, type: 'text'}})} 
-                                                       className="w-full bg-white border rounded input-bg-style" 
-                                                       placeholder="0" 
-                                                   />
+                                                   <input type="text" inputMode="decimal" name="flightFee" value={formData.flightFee} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleInputChange({target:{name:'flightFee',value:e.target.value.replace(/[^\d.-]/g,''),type:'text'}})} className="w-full bg-white border rounded input-bg-style num-input" placeholder="0" />
                                                 </div>
                                              )}
                                              <div className="flex items-center gap-3 pb-2 ml-auto">
@@ -1417,6 +2097,7 @@
                                         </div>
                                     )}
 
+                                    {/* 3. 產品明細 (九宮格 3x3) */}
                                     <div className="pt-2">
                                         <div className="flex justify-between items-center mb-2">
                                             <h3 className={`font-bold text-lg ${validationErrors.products ? 'text-red-600' : 'text-gray-700'}`}>
@@ -1428,11 +2109,11 @@
                                         <div className="space-y-3">{formData.products.map((p, idx) => (
                                             <div key={p.id} className={`bg-white border rounded-xl p-3 relative shadow-sm ${validationErrors.products && idx === 0 ? 'border-red-300' : ''}`}>
                                                 <div className="grid grid-cols-3 gap-2">
-                                                    {/* V78.0: 品名改為觸發 Bottom Sheet */}
+                                                    {/* V76.0: 品名改為按鈕觸發選擇視窗 */}
                                                     <div className="relative">
                                                         <div 
                                                             onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }}
-                                                            className={`input-bg-style rounded p-1 font-bold w-full cursor-pointer flex items-center justify-between ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'input-error' : ''} ${products.length > 0 ? 'hover:bg-blue-50 active:bg-blue-100' : ''}`}
+                                                            className={`input-bg-style rounded p-1 font-bold w-full cursor-pointer flex items-center justify-between ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'input-error' : ''} ${products.length > 0 ? 'hover:bg-blue-50' : ''}`}
                                                         >
                                                             <span className={p.name ? 'text-gray-800' : 'text-gray-400'}>{p.name || '點擊選擇品名'}</span>
                                                             {products.length > 0 && <span className="text-blue-500 text-xs">▼</span>}
@@ -1441,12 +2122,13 @@
                                                     <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
                                                     <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="quantity">計件</option><option value="weight">計重</option></select>
                                                     
-                                                    {/* V78.0: 數字輸入使用 NumericInput */}
-                                                    <NumericInput value={p.quantity} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-blue-600" placeholder="件數" />
-                                                    <NumericInput value={p.weight} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-orange-500" placeholder="重量" />
+                                                    {/* V78.3: 數字輸入優化 - 使用 inputMode 並自動全選 0 值 */}
+                                                    <input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="input-bg-style num-input rounded p-1 text-blue-600" placeholder="件數" />
+                                                    <input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="input-bg-style num-input rounded p-1 text-orange-500" placeholder="重量" />
                                                     
+                                                    {/* V69.0: 訪客編輯頁隱藏單價 */}
                                                     {canSeePrice() ? (
-                                                        <NumericInput value={p.unitPrice} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1" placeholder="單價" />
+                                                        <input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="input-bg-style num-input rounded p-1" placeholder="單價" />
                                                     ) : (
                                                         <div className="input-bg-style rounded p-1 text-right flex items-center justify-end text-gray-300">***</div>
                                                     )}
@@ -1454,6 +2136,7 @@
                                                     <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
                                                     <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
                                                     <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">
+                                                        {/* V69.0: 訪客編輯頁隱藏小計 */}
                                                         {canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${format2(safeNum(p.amount))}</span> : <span>***</span>}
                                                         {(canEditDomesticFull() || canManage()) && (
                                                             <div className="flex gap-1">
@@ -1467,6 +2150,7 @@
                                         ))}</div>
                                     </div>
                                     
+                                    {/* 多檔案上傳 - V51.0 權限驗證 */}
                                     <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                                         <label className="block text-xs font-bold text-gray-500 mb-2">附件 ({formData.attachments?.length || 0})</label>
                                         <div className="space-y-2">
