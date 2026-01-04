@@ -1027,9 +1027,36 @@
             
             // V79.0: 智能匯入功能狀態
             const [showImportSelector, setShowImportSelector] = useState(false); // 顯示匯入方式選擇器
-            const [pdfText, setPdfText] = useState(''); // PDF 提取的文字內容
-            const [pdfFileName, setPdfFileName] = useState(''); // PDF 檔名
+            const [parsedDocuments, setParsedDocuments] = useState([]); // 已解析的文件 [{name, type, text}]
             const [isParsing, setIsParsing] = useState(false); // 正在解析 PDF
+            const [parseProgress, setParseProgress] = useState(''); // 解析進度提示
+            
+            // V79.0: AI 自動填入相關狀態
+            const [aiExtractedData, setAiExtractedData] = useState(null); // AI 提取的結構化資料
+            const [showAiPreview, setShowAiPreview] = useState(false); // 顯示 AI 解析預覽確認
+            const [isAiProcessing, setIsAiProcessing] = useState(false); // AI 正在處理
+            const [fieldSources, setFieldSources] = useState({}); // 各欄位的資料來源
+            const [fieldConflicts, setFieldConflicts] = useState({}); // 欄位衝突
+            
+            // V79.0: Gemini API Key 設定
+            const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+            const [geminiApiKey, setGeminiApiKey] = useState(() => {
+                try { return localStorage.getItem('gemini_api_key') || ''; } 
+                catch { return ''; }
+            });
+            const [tempApiKey, setTempApiKey] = useState('');
+            
+            // 儲存 API Key 到 localStorage
+            const saveApiKey = (key) => {
+                try {
+                    localStorage.setItem('gemini_api_key', key);
+                    setGeminiApiKey(key);
+                    setShowApiKeyModal(false);
+                    alert('API Key 已儲存！');
+                } catch (e) {
+                    alert('儲存失敗: ' + e.message);
+                }
+            };
 
             // V72.0: 移除重複的 Icons 賦值，使用全域定義的 I
 
@@ -1056,40 +1083,136 @@
                 link.download='貨櫃_'+new Date().toISOString().slice(0,10)+'.csv'; link.click(); 
             };
 
-            // V79.0: PDF 解析功能
-            const handlePdfUpload = async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
+            // V79.0: PDF 解析功能 - 支援多檔案
+            const detectDocumentType = (text, fileName) => {
+                const lowerText = text.toLowerCase();
+                const lowerName = fileName.toLowerCase();
                 
-                if (file.type !== 'application/pdf') {
+                // 根據檔名和內容判斷文件類型
+                if (lowerName.includes('invoice') || lowerText.includes('commercial invoice') || lowerText.includes('unit price') || lowerText.includes('amount')) {
+                    return { type: 'invoice', label: 'Commercial Invoice', icon: '📄' };
+                }
+                if (lowerName.includes('packing') || lowerText.includes('packing list') || lowerText.includes('gross weight') || lowerText.includes('net weight')) {
+                    return { type: 'packing', label: 'Packing List', icon: '📦' };
+                }
+                if (lowerName.includes('bl') || lowerName.includes('lading') || lowerText.includes('bill of lading') || lowerText.includes('b/l no')) {
+                    return { type: 'bl', label: 'Bill of Lading', icon: '🚢' };
+                }
+                if (lowerText.includes('到貨通知') || lowerText.includes('arrival notice') || lowerText.includes('船到日') || lowerText.includes('eta')) {
+                    return { type: 'arrival', label: '到貨通知', icon: '📬' };
+                }
+                if (lowerText.includes('效期') || lowerText.includes('expiry') || lowerText.includes('batch') || lowerText.includes('批號')) {
+                    return { type: 'expiry', label: '批號效期清單', icon: '📋' };
+                }
+                return { type: 'other', label: '其他文件', icon: '📎' };
+            };
+            
+            const handlePdfUpload = async (e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+                
+                const pdfFiles = files.filter(f => f.type === 'application/pdf');
+                if (pdfFiles.length === 0) {
                     alert('請上傳 PDF 檔案');
                     return;
                 }
                 
                 setIsParsing(true);
-                setPdfFileName(file.name);
+                const newDocs = [];
                 
                 try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    let fullText = '';
-                    
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        const pageText = textContent.items.map(item => item.str).join(' ');
-                        fullText += pageText + '\n\n';
+                    for (let i = 0; i < pdfFiles.length; i++) {
+                        const file = pdfFiles[i];
+                        setParseProgress(`解析文件 (${i + 1}/${pdfFiles.length}): ${file.name}`);
+                        
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        let fullText = '';
+                        
+                        for (let p = 1; p <= pdf.numPages; p++) {
+                            const page = await pdf.getPage(p);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => item.str).join(' ');
+                            fullText += pageText + '\n';
+                        }
+                        
+                        const docType = detectDocumentType(fullText, file.name);
+                        newDocs.push({
+                            id: Date.now() + '_' + i,
+                            name: file.name,
+                            text: fullText.trim(),
+                            ...docType
+                        });
                     }
                     
-                    setPdfText(fullText.trim());
-                    setShowImportSelector(false);
-                    setFormStep(1);
-                    setView('form');
+                    const allDocs = [...parsedDocuments, ...newDocs];
+                    setParsedDocuments(allDocs);
+                    setIsParsing(false);
+                    
+                    // 根據是否有 API Key 決定處理方式
+                    if (geminiApiKey) {
+                        // 有 API Key，呼叫 AI 處理
+                        await processWithAI(allDocs);
+                    } else {
+                        // 無 API Key，直接進入表單（手動模式）
+                        setShowImportSelector(false);
+                        setFormStep(1);
+                        setView('form');
+                    }
+                    
+                } catch (err) {
+                    console.error('PDF 解析錯誤:', err);
+                    alert('PDF 解析失敗: ' + err.message);
+                    setIsParsing(false);
+                } finally {
+                    setParseProgress('');
+                    e.target.value = '';
+                }
+            };
+            
+            // V79.0: 補充上傳（各步驟使用，不觸發 AI）
+            const handleSupplementUpload = async (e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+                
+                const pdfFiles = files.filter(f => f.type === 'application/pdf');
+                if (pdfFiles.length === 0) return;
+                
+                setIsParsing(true);
+                const newDocs = [];
+                
+                try {
+                    for (let i = 0; i < pdfFiles.length; i++) {
+                        const file = pdfFiles[i];
+                        setParseProgress(`解析中: ${file.name}`);
+                        
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        let fullText = '';
+                        
+                        for (let p = 1; p <= pdf.numPages; p++) {
+                            const page = await pdf.getPage(p);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => item.str).join(' ');
+                            fullText += pageText + '\n';
+                        }
+                        
+                        const docType = detectDocumentType(fullText, file.name);
+                        newDocs.push({
+                            id: Date.now() + '_' + i,
+                            name: file.name,
+                            text: fullText.trim(),
+                            ...docType
+                        });
+                    }
+                    
+                    setParsedDocuments(prev => [...prev, ...newDocs]);
                 } catch (err) {
                     console.error('PDF 解析錯誤:', err);
                     alert('PDF 解析失敗: ' + err.message);
                 } finally {
                     setIsParsing(false);
+                    setParseProgress('');
                     e.target.value = '';
                 }
             };
@@ -1098,8 +1221,10 @@
             const handleStartNewContainer = () => {
                 setFormData(initialFormState);
                 setEditingId(null);
-                setPdfText('');
-                setPdfFileName('');
+                setParsedDocuments([]);
+                setAiExtractedData(null);
+                setFieldSources({});
+                setFieldConflicts({});
                 setShowImportSelector(true);
             };
             
@@ -1110,10 +1235,297 @@
                 setView('form');
             };
             
-            // V79.0: 清除 PDF 預覽
-            const handleClearPdf = () => {
-                setPdfText('');
-                setPdfFileName('');
+            // V79.0: 移除已解析的文件
+            const handleRemoveDocument = (docId) => {
+                setParsedDocuments(prev => prev.filter(d => d.id !== docId));
+            };
+            
+            // V79.0: 取得特定類型的文件
+            const getDocumentByType = (type) => {
+                return parsedDocuments.find(d => d.type === type);
+            };
+            
+            // V79.0: Gemini API 解析提示詞
+            const GEMINI_PARSE_PROMPT = `你是一個專業的進口貨櫃文件解析助手。請分析以下報關文件內容，提取結構化資料。
+
+## 文件類型說明
+- Commercial Invoice（商業發票）：包含金額、單價、批號、廠商資訊
+- Packing List（裝箱單）：包含櫃號、件數、重量
+- Bill of Lading（提單）：包含船名、航次、提單號碼
+- 到貨通知：包含到港日、拆櫃地、船公司
+
+## 欄位對應規則
+- SIZE (如 20/30, 30/40) → 規格（蝦類每磅數量）
+- CTN → 件數
+- NET WEIGHT → 淨重 (kg)
+- PACKING (如 650G*12B) → 包裝規格
+- PRICE → 單價 (USD/KG)
+- S/N 或 BATCH → 批號
+- CONTAINER NUMBER → 櫃號
+- ETA 或 船到日 → 到港日
+
+## 產地代碼對照
+ECUADOR=厄瓜多, PANAMA=巴拿馬, GUATEMALA=瓜地馬拉, HONDURAS=宏都拉斯, THAILAND=泰國, INDONESIA=印尼, INDIA=印度, CHINA=中國, CHILE=智利
+
+## 品名翻譯對照
+WHITE SHRIMPS/VANNAMEI=白蝦, HOSO=帶頭帶殼, HLSO=去頭帶殼, P&D=去殼去腸泥, SALMON BELLY=鮭魚肚, B GRADE=B級
+
+## 進口公司識別
+- 8WAY UNIVERSAL 或 53610086 → 八方環球
+- 其他 → 崇文冷凍
+
+請以 JSON 格式回傳，格式如下：
+{
+  "containerNumber": "櫃號",
+  "importCompany": "八方環球 或 崇文冷凍",
+  "arrivalDate": "YYYY-MM-DD 格式",
+  "supplier": "廠商名稱",
+  "origin": "產地（中文）",
+  "shippingCompany": "船公司",
+  "devanningLocation": "拆櫃地",
+  "products": [
+    {
+      "name": "品名（中文）",
+      "spec": "規格",
+      "quantity": 件數,
+      "weight": 重量KG,
+      "unitPrice": 單價,
+      "batchNumber": "批號",
+      "pricingMode": "weight"
+    }
+  ],
+  "totalQuantity": 總件數,
+  "totalWeight": 總重量,
+  "confidence": "high/medium/low"
+}
+
+只回傳 JSON，不要有其他文字。
+
+## 以下是要解析的文件內容：
+
+`;
+            
+            // V79.0: AI 解析 - 直接呼叫 Gemini API
+            const processWithAI = async (documents) => {
+                // 檢查 API Key
+                if (!geminiApiKey) {
+                    setShowImportSelector(false);
+                    setTempApiKey('');
+                    setShowApiKeyModal(true);
+                    return;
+                }
+                
+                setIsAiProcessing(true);
+                setParseProgress('AI 正在分析文件內容...');
+                
+                try {
+                    // 組合所有文件內容
+                    const combinedContent = documents.map(doc => 
+                        `=== ${doc.label} (${doc.name}) ===\n${doc.text}`
+                    ).join('\n\n');
+                    
+                    // 直接呼叫 Gemini API
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{ text: GEMINI_PARSE_PROMPT + combinedContent }]
+                            }],
+                            generationConfig: {
+                                temperature: 0.1,
+                                maxOutputTokens: 4096
+                            }
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        if (response.status === 400 && errorData.error?.message?.includes('API key')) {
+                            throw new Error('API Key 無效，請重新設定');
+                        }
+                        throw new Error(errorData.error?.message || 'AI 服務暫時無法使用');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    // 提取回應文字
+                    const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!responseText) {
+                        throw new Error('AI 回應為空');
+                    }
+                    
+                    // 解析 JSON
+                    let parsedData;
+                    try {
+                        const jsonStr = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                        parsedData = JSON.parse(jsonStr);
+                    } catch (parseError) {
+                        console.error('JSON 解析錯誤:', parseError, responseText);
+                        throw new Error('AI 回應格式錯誤，請重試');
+                    }
+                    
+                    // 處理 AI 回傳的結構化資料
+                    processAiResult(parsedData, documents);
+                    
+                } catch (err) {
+                    console.error('AI 解析錯誤:', err);
+                    
+                    if (err.message.includes('API Key')) {
+                        setGeminiApiKey('');
+                        localStorage.removeItem('gemini_api_key');
+                        setTempApiKey('');
+                        setShowApiKeyModal(true);
+                    } else {
+                        const useManual = confirm(
+                            'AI 解析失敗: ' + err.message + 
+                            '\n\n是否改用手動填寫模式？\n（您仍可參考已上傳的文件內容）'
+                        );
+                        if (useManual) {
+                            setShowImportSelector(false);
+                            setFormStep(1);
+                            setView('form');
+                        }
+                    }
+                } finally {
+                    setIsAiProcessing(false);
+                    setParseProgress('');
+                }
+            };
+            
+            // V79.0: 處理 AI 回傳結果，建立欄位來源對照
+            const processAiResult = (data, documents) => {
+                const sources = {};
+                const conflicts = {};
+                
+                // 定義欄位對應
+                const fieldMapping = {
+                    containerNumber: { label: '櫃號', priority: ['packing', 'bl', 'arrival', 'invoice'] },
+                    arrivalDate: { label: '到港日', priority: ['arrival', 'bl'] },
+                    supplier: { label: '廠商', priority: ['invoice', 'packing'] },
+                    origin: { label: '產地', priority: ['invoice', 'packing'] },
+                    shippingCompany: { label: '船公司', priority: ['bl', 'arrival'] },
+                    devanningLocation: { label: '拆櫃地', priority: ['arrival'] },
+                    importCompany: { label: '進口公司', priority: ['invoice', 'bl', 'arrival'] }
+                };
+                
+                // 處理每個欄位
+                Object.keys(fieldMapping).forEach(field => {
+                    if (data[field]) {
+                        const value = data[field];
+                        const sourceDoc = documents.find(d => fieldMapping[field].priority.includes(d.type));
+                        sources[field] = {
+                            value: value.value || value,
+                            source: sourceDoc?.label || '自動識別',
+                            confidence: value.confidence || 'high',
+                            alternatives: value.alternatives || []
+                        };
+                        
+                        // 檢查是否有衝突（同一欄位多個不同值）
+                        if (value.alternatives && value.alternatives.length > 0) {
+                            conflicts[field] = [
+                                { value: value.value || value, source: sourceDoc?.label },
+                                ...value.alternatives.map(alt => ({ value: alt.value, source: alt.source }))
+                            ];
+                        }
+                    }
+                });
+                
+                // 處理產品明細
+                if (data.products && Array.isArray(data.products)) {
+                    sources.products = {
+                        value: data.products,
+                        source: 'Invoice / Packing List',
+                        confidence: 'high'
+                    };
+                }
+                
+                setAiExtractedData(data);
+                setFieldSources(sources);
+                setFieldConflicts(conflicts);
+                setShowAiPreview(true);
+            };
+            
+            // V79.0: 確認 AI 解析結果，填入表單
+            const confirmAiExtraction = () => {
+                if (!aiExtractedData) return;
+                
+                const newFormData = { ...initialFormState };
+                
+                // 填入基本欄位
+                const simpleFields = ['containerNumber', 'arrivalDate', 'supplier', 'origin', 
+                    'shippingCompany', 'devanningLocation', 'importCompany', 'customsBroker'];
+                
+                simpleFields.forEach(field => {
+                    if (fieldSources[field]) {
+                        newFormData[field] = fieldSources[field].value;
+                    }
+                });
+                
+                // 填入產品明細
+                if (fieldSources.products && fieldSources.products.value.length > 0) {
+                    newFormData.products = fieldSources.products.value.map((p, idx) => ({
+                        id: Date.now() + idx,
+                        name: p.name || '',
+                        spec: p.spec || '',
+                        quantity: p.quantity || 0,
+                        weight: p.weight || 0,
+                        unitPrice: p.unitPrice || 0,
+                        batchNumber: p.batchNumber || '',
+                        expiryDate: p.expiryDate || '',
+                        pricingMode: p.pricingMode || 'weight',
+                        amount: (p.pricingMode === 'quantity' ? p.quantity : p.weight) * (p.unitPrice || 0)
+                    }));
+                }
+                
+                setFormData(newFormData);
+                setShowAiPreview(false);
+                setFormStep(1);
+                setView('form');
+            };
+            
+            // V79.0: 修改單一欄位的值（從衝突中選擇）
+            const selectFieldValue = (field, value, source) => {
+                setFieldSources(prev => ({
+                    ...prev,
+                    [field]: { ...prev[field], value, source }
+                }));
+                // 清除該欄位的衝突標記
+                setFieldConflicts(prev => {
+                    const newConflicts = { ...prev };
+                    delete newConflicts[field];
+                    return newConflicts;
+                });
+            };
+            
+            // V79.0: 取消 AI 預填，改用手動
+            const cancelAiExtraction = () => {
+                setShowAiPreview(false);
+                setAiExtractedData(null);
+                setFieldSources({});
+                setFieldConflicts({});
+                setFormStep(1);
+                setView('form');
+            };
+            
+            // V79.0: 信心度顏色
+            const getConfidenceColor = (confidence) => {
+                switch(confidence) {
+                    case 'high': return 'text-green-600 bg-green-50 border-green-200';
+                    case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                    case 'low': return 'text-red-600 bg-red-50 border-red-200';
+                    default: return 'text-gray-600 bg-gray-50 border-gray-200';
+                }
+            };
+            
+            // V79.0: 信心度文字
+            const getConfidenceLabel = (confidence) => {
+                switch(confidence) {
+                    case 'high': return '✓ 高信心';
+                    case 'medium': return '? 中等';
+                    case 'low': return '! 需確認';
+                    default: return '';
+                }
             };
 
             // V74.0: Excel 匯入功能
@@ -1916,15 +2328,32 @@
                     {/* V79.0: 智能匯入選擇器 Modal */}
                     {showImportSelector && (
                         <div className="modal-overlay" onClick={() => !isParsing && setShowImportSelector(false)}>
-                            <div className="modal-content" style={{maxWidth: '420px'}} onClick={e => e.stopPropagation()}>
+                            <div className="modal-content" style={{maxWidth: '480px'}} onClick={e => e.stopPropagation()}>
                                 <div className="flex justify-between items-center mb-4 border-b pb-3">
                                     <h3 className="font-bold text-xl text-gray-800">新增貨櫃</h3>
                                     {!isParsing && <button onClick={() => setShowImportSelector(false)} className="p-1 hover:bg-gray-100 rounded-full"><I.X /></button>}
                                 </div>
                                 
-                                <p className="text-gray-500 text-sm mb-6">請選擇建立方式</p>
+                                <p className="text-gray-500 text-sm mb-4">請選擇建立方式</p>
                                 
-                                <div className="import-method-selector" style={{flexDirection: 'column', padding: 0}}>
+                                {/* AI 狀態提示 */}
+                                {geminiApiKey ? (
+                                    <div className="mb-4 p-2 bg-green-50 rounded-lg border border-green-200 text-xs text-green-700 flex items-center gap-2">
+                                        <I.Check /> AI 智能解析已啟用
+                                    </div>
+                                ) : (
+                                    <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-sm text-yellow-700">
+                                        <div className="flex items-center gap-2 font-bold mb-1">
+                                            <I.AlertCircle /> 尚未設定 AI 功能
+                                        </div>
+                                        <div className="text-xs">
+                                            上傳文件後會顯示文字內容供參考，
+                                            <button onClick={() => {setShowImportSelector(false); setTempApiKey(''); setShowApiKeyModal(true);}} className="text-blue-600 underline ml-1">設定 API Key</button> 可啟用自動填入
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <div className="space-y-3">
                                     {/* 手動填寫 */}
                                     <div className="import-method-card" onClick={handleManualEntry} style={{flexDirection: 'row', padding: '16px 20px'}}>
                                         <div className="import-method-icon" style={{width: '44px', height: '44px', background: 'var(--color-primary)'}}>
@@ -1943,22 +2372,234 @@
                                             {isParsing ? <div className="spinner" style={{width: '24px', height: '24px', borderWidth: '2px', borderTopColor: 'white'}}></div> : <I.FileText />}
                                         </div>
                                         <div style={{flex: 1, textAlign: 'left', marginLeft: '16px'}}>
-                                            <div className="import-method-title">{isParsing ? '解析中...' : '上傳文件'}</div>
-                                            <div className="import-method-desc" style={{textAlign: 'left'}}>上傳 PDF 自動擷取內容</div>
+                                            <div className="import-method-title">{isParsing ? '解析中...' : '上傳報關文件'}</div>
+                                            <div className="import-method-desc" style={{textAlign: 'left'}}>
+                                                {isParsing ? parseProgress : (geminiApiKey ? 'AI 自動解析並填入表單' : '上傳後可參考文字內容填寫')}
+                                            </div>
                                         </div>
                                         {!isParsing && <I.ChevronRight />}
-                                        <input type="file" accept=".pdf" onChange={handlePdfUpload} className="hidden" disabled={isParsing} />
+                                        <input type="file" accept=".pdf" multiple onChange={handlePdfUpload} className="hidden" disabled={isParsing} />
                                     </label>
                                 </div>
                                 
-                                <div className="mt-6 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                    <div className="flex items-start gap-2">
-                                        <I.Info />
-                                        <div className="text-xs text-blue-700">
-                                            <strong>提示：</strong>上傳 Invoice、Packing List 或到貨通知書，系統會自動擷取文字內容供您參考填寫。
-                                        </div>
+                                <div className="mt-6 p-3 bg-gray-50 rounded-lg border">
+                                    <div className="text-xs font-bold text-gray-500 mb-2">支援的文件類型</div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                        <div className="flex items-center gap-2"><span>📄</span> Commercial Invoice</div>
+                                        <div className="flex items-center gap-2"><span>📦</span> Packing List</div>
+                                        <div className="flex items-center gap-2"><span>🚢</span> Bill of Lading</div>
+                                        <div className="flex items-center gap-2"><span>📬</span> 到貨通知</div>
+                                        <div className="flex items-center gap-2"><span>📋</span> 批號效期清單</div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* V79.0: AI 解析預覽確認 Modal */}
+                    {showAiPreview && aiExtractedData && (
+                        <div className="modal-overlay" onClick={() => {}}>
+                            <div className="modal-content" style={{maxWidth: '600px', maxHeight: '90vh'}} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-3">
+                                    <div>
+                                        <h3 className="font-bold text-xl text-gray-800">AI 解析結果</h3>
+                                        <p className="text-sm text-gray-500 mt-1">請確認以下資料是否正確</p>
+                                    </div>
+                                </div>
+                                
+                                {/* 已識別的文件 */}
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {parsedDocuments.map(doc => (
+                                        <span key={doc.id} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
+                                            {doc.icon} {doc.label}
+                                        </span>
+                                    ))}
+                                </div>
+                                
+                                {/* 衝突提示 */}
+                                {Object.keys(fieldConflicts).length > 0 && (
+                                    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                                        <div className="flex items-center gap-2 text-yellow-700 font-bold text-sm mb-2">
+                                            <I.AlertCircle /> 發現資料衝突，請選擇正確的值
+                                        </div>
+                                        {Object.entries(fieldConflicts).map(([field, options]) => (
+                                            <div key={field} className="mt-2 p-2 bg-white rounded border">
+                                                <div className="text-xs text-gray-500 mb-2">{field === 'containerNumber' ? '櫃號' : field === 'arrivalDate' ? '到港日' : field}</div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {options.map((opt, idx) => (
+                                                        <button key={idx} type="button" onClick={() => selectFieldValue(field, opt.value, opt.source)}
+                                                            className={`px-3 py-1.5 rounded-lg text-sm border ${fieldSources[field]?.value === opt.value ? 'bg-blue-100 border-blue-400 text-blue-700' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                                                            <span className="font-medium">{opt.value}</span>
+                                                            <span className="text-xs text-gray-400 ml-1">({opt.source})</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                {/* 解析結果預覽 */}
+                                <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-2">
+                                    {/* 基本資訊 */}
+                                    <div className="p-3 bg-gray-50 rounded-xl">
+                                        <div className="font-bold text-sm text-gray-700 mb-3">基本資訊</div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {[
+                                                { key: 'containerNumber', label: '櫃號' },
+                                                { key: 'arrivalDate', label: '到港日' },
+                                                { key: 'supplier', label: '廠商' },
+                                                { key: 'origin', label: '產地' },
+                                                { key: 'importCompany', label: '進口公司' },
+                                                { key: 'shippingCompany', label: '船公司' },
+                                                { key: 'devanningLocation', label: '拆櫃地' }
+                                            ].map(({ key, label }) => fieldSources[key] && (
+                                                <div key={key} className={`p-2 rounded-lg border ${getConfidenceColor(fieldSources[key].confidence)}`}>
+                                                    <div className="text-xs text-gray-500 flex justify-between">
+                                                        <span>{label}</span>
+                                                        <span className="text-[10px]">{fieldSources[key].source}</span>
+                                                    </div>
+                                                    <div className="font-bold text-sm mt-1">{fieldSources[key].value || '-'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* 產品明細 */}
+                                    {fieldSources.products && fieldSources.products.value.length > 0 && (
+                                        <div className="p-3 bg-gray-50 rounded-xl">
+                                            <div className="font-bold text-sm text-gray-700 mb-3">
+                                                產品明細 ({fieldSources.products.value.length} 項)
+                                            </div>
+                                            <div className="space-y-2">
+                                                {fieldSources.products.value.map((p, idx) => (
+                                                    <div key={idx} className="p-2 bg-white rounded-lg border text-sm">
+                                                        <div className="font-bold text-gray-800">{p.name || '未識別品名'}</div>
+                                                        <div className="text-xs text-gray-500 mt-1">{p.spec}</div>
+                                                        <div className="flex gap-4 mt-2 text-xs">
+                                                            <span className="text-blue-600">件數: {p.quantity}</span>
+                                                            <span className="text-orange-500">重量: {p.weight} kg</span>
+                                                            {p.unitPrice > 0 && <span className="text-green-600">單價: ${p.unitPrice}</span>}
+                                                            {p.batchNumber && <span className="text-gray-500">批號: {p.batchNumber}</span>}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* 操作按鈕 */}
+                                <div className="flex gap-3 mt-4 pt-4 border-t">
+                                    <button type="button" onClick={cancelAiExtraction} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">
+                                        改用手動填寫
+                                    </button>
+                                    <button type="button" onClick={confirmAiExtraction} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">
+                                        確認並填入表單
+                                    </button>
+                                </div>
+                                
+                                <div className="mt-3 text-center text-xs text-gray-400">
+                                    填入後您仍可在表單中修改任何欄位
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* AI 處理中提示 */}
+                    {isAiProcessing && (
+                        <div className="modal-overlay">
+                            <div className="modal-content" style={{maxWidth: '320px', textAlign: 'center'}}>
+                                <div className="spinner mx-auto mb-4" style={{width: '48px', height: '48px'}}></div>
+                                <div className="font-bold text-lg text-gray-800 mb-2">AI 正在分析文件</div>
+                                <div className="text-sm text-gray-500">{parseProgress || '請稍候...'}</div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* V79.0: Gemini API Key 設定 Modal */}
+                    {showApiKeyModal && (
+                        <div className="modal-overlay" onClick={() => setShowApiKeyModal(false)}>
+                            <div className="modal-content" style={{maxWidth: '450px'}} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-3">
+                                    <h3 className="font-bold text-xl text-gray-800">設定 AI 解析功能</h3>
+                                    <button onClick={() => setShowApiKeyModal(false)} className="p-1 hover:bg-gray-100 rounded-full"><I.X /></button>
+                                </div>
+                                
+                                <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                                    <div className="text-sm text-blue-800">
+                                        <strong>如何取得 API Key？</strong>
+                                        <ol className="mt-2 ml-4 list-decimal space-y-1 text-blue-700">
+                                            <li>前往 <a href="https://aistudio.google.com/apikey" target="_blank" className="underline font-bold">Google AI Studio</a></li>
+                                            <li>使用 Google 帳號登入</li>
+                                            <li>點擊「Create API Key」</li>
+                                            <li>複製產生的 Key 貼到下方</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <label className="form-label-lg">Gemini API Key</label>
+                                    <input 
+                                        type="password" 
+                                        value={tempApiKey} 
+                                        onChange={e => setTempApiKey(e.target.value)}
+                                        className="form-input-lg font-mono"
+                                        placeholder="AIzaSy..."
+                                    />
+                                    <div className="text-xs text-gray-400 mt-2">
+                                        API Key 會儲存在您的瀏覽器中，不會上傳到伺服器
+                                    </div>
+                                </div>
+                                
+                                {geminiApiKey && (
+                                    <div className="mb-4 p-2 bg-green-50 rounded-lg border border-green-200 text-sm text-green-700 flex items-center gap-2">
+                                        <I.Check /> 已設定 API Key
+                                    </div>
+                                )}
+                                
+                                <div className="flex gap-3">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowApiKeyModal(false)} 
+                                        className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold"
+                                    >
+                                        取消
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => {
+                                            if (tempApiKey.trim()) {
+                                                saveApiKey(tempApiKey.trim());
+                                                // 如果有待處理的文件，繼續處理
+                                                if (parsedDocuments.length > 0) {
+                                                    processWithAI(parsedDocuments);
+                                                }
+                                            } else {
+                                                alert('請輸入 API Key');
+                                            }
+                                        }} 
+                                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold"
+                                    >
+                                        儲存
+                                    </button>
+                                </div>
+                                
+                                {geminiApiKey && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => {
+                                            if (confirm('確定要清除 API Key 嗎？')) {
+                                                localStorage.removeItem('gemini_api_key');
+                                                setGeminiApiKey('');
+                                                setTempApiKey('');
+                                            }
+                                        }}
+                                        className="w-full mt-3 py-2 text-red-500 text-sm font-bold"
+                                    >
+                                        清除已儲存的 API Key
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
@@ -2319,7 +2960,7 @@
                         </>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V79.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}</nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V79.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button>{canCreate()&&view==='list'&&<button onClick={handleStartNewContainer} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
@@ -2766,19 +3407,31 @@
                                     </div>
                                 )}
                                 
-                                {/* V79.0: PDF 文字預覽區域 */}
-                                {pdfText && !editingId && (
-                                    <div className="pdf-preview-container mb-4">
-                                        <div className="pdf-preview-header">
-                                            <div className="pdf-preview-title">
-                                                <I.FileText />
-                                                <span>{pdfFileName}</span>
+                                {/* V79.0: 已解析文件預覽區域 */}
+                                {parsedDocuments.length > 0 && !editingId && (
+                                    <div className="mb-4 p-3 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl border border-emerald-200">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                                                <I.FileCheck />
+                                                <span>已載入 {parsedDocuments.length} 份文件</span>
                                             </div>
-                                            <button type="button" onClick={handleClearPdf} className="text-gray-400 hover:text-red-500 p-1">
-                                                <I.X />
-                                            </button>
+                                            <label className="text-xs text-blue-600 font-bold cursor-pointer hover:underline flex items-center gap-1">
+                                                <I.FilePlus />
+                                                <span>補充上傳</span>
+                                                <input type="file" accept=".pdf" multiple onChange={handleSupplementUpload} className="hidden" />
+                                            </label>
                                         </div>
-                                        <div className="pdf-preview-content">{pdfText}</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {parsedDocuments.map(doc => (
+                                                <div key={doc.id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border text-sm shadow-sm">
+                                                    <span>{doc.icon}</span>
+                                                    <span className="font-medium text-gray-700">{doc.label}</span>
+                                                    <button type="button" onClick={() => handleRemoveDocument(doc.id)} className="text-gray-400 hover:text-red-500 ml-1">
+                                                        <I.X />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                                 
@@ -2792,6 +3445,30 @@
                                                 {formStep === 1 && (
                                                     <div className="space-y-4">
                                                         <div className="step-title"><div className="step-name">基本資訊</div></div>
+                                                        
+                                                        {/* V79.0: 相關文件參考 */}
+                                                        {(getDocumentByType('invoice') || getDocumentByType('packing')) && (
+                                                            <details className="bg-blue-50 rounded-xl border border-blue-200 overflow-hidden">
+                                                                <summary className="px-4 py-3 cursor-pointer font-bold text-sm text-blue-700 flex items-center gap-2">
+                                                                    <I.Eye /> 參考文件內容（Invoice / Packing List）
+                                                                </summary>
+                                                                <div className="px-4 pb-4 max-h-48 overflow-y-auto">
+                                                                    {getDocumentByType('invoice') && (
+                                                                        <div className="mb-3">
+                                                                            <div className="text-xs font-bold text-gray-500 mb-1">📄 {getDocumentByType('invoice').name}</div>
+                                                                            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white p-2 rounded border">{getDocumentByType('invoice').text.substring(0, 1500)}...</pre>
+                                                                        </div>
+                                                                    )}
+                                                                    {getDocumentByType('packing') && (
+                                                                        <div>
+                                                                            <div className="text-xs font-bold text-gray-500 mb-1">📦 {getDocumentByType('packing').name}</div>
+                                                                            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white p-2 rounded border">{getDocumentByType('packing').text.substring(0, 1500)}...</pre>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </details>
+                                                        )}
+                                                        
                                                         <div><label className="form-label-lg">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} className="form-input-lg">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                                                         <div><label className="form-label-lg">櫃號 <span className="required">*</span></label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} className={`form-input-lg font-mono uppercase ${validationErrors.containerNumber ? 'error' : ''}`} placeholder="輸入櫃號" /></div>
                                                         <div><label className="form-label-lg">到港日 <span className="required">*</span></label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className={`form-input-lg ${validationErrors.arrivalDate ? 'error' : ''}`} /></div>
@@ -2806,6 +3483,38 @@
                                                 {formStep === 2 && (
                                                     <div className="space-y-4">
                                                         <div className="step-title"><div className="step-name">報關資訊</div></div>
+                                                        
+                                                        {/* V79.0: 相關文件參考 */}
+                                                        {(getDocumentByType('bl') || getDocumentByType('arrival')) && (
+                                                            <details className="bg-blue-50 rounded-xl border border-blue-200 overflow-hidden">
+                                                                <summary className="px-4 py-3 cursor-pointer font-bold text-sm text-blue-700 flex items-center gap-2">
+                                                                    <I.Eye /> 參考文件內容（B/L / 到貨通知）
+                                                                </summary>
+                                                                <div className="px-4 pb-4 max-h-48 overflow-y-auto">
+                                                                    {getDocumentByType('bl') && (
+                                                                        <div className="mb-3">
+                                                                            <div className="text-xs font-bold text-gray-500 mb-1">🚢 {getDocumentByType('bl').name}</div>
+                                                                            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white p-2 rounded border">{getDocumentByType('bl').text.substring(0, 1500)}...</pre>
+                                                                        </div>
+                                                                    )}
+                                                                    {getDocumentByType('arrival') && (
+                                                                        <div>
+                                                                            <div className="text-xs font-bold text-gray-500 mb-1">📬 {getDocumentByType('arrival').name}</div>
+                                                                            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white p-2 rounded border">{getDocumentByType('arrival').text.substring(0, 1500)}...</pre>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </details>
+                                                        )}
+                                                        
+                                                        {/* 補充上傳區 */}
+                                                        {parsedDocuments.length > 0 && !getDocumentByType('bl') && !getDocumentByType('arrival') && (
+                                                            <label className="flex items-center justify-center gap-2 p-3 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 text-sm text-gray-500">
+                                                                <I.FilePlus /> 補充上傳 B/L 或到貨通知
+                                                                <input type="file" accept=".pdf" multiple onChange={handleSupplementUpload} className="hidden" />
+                                                            </label>
+                                                        )}
+                                                        
                                                         <div><label className="form-label-lg">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} className="form-input-lg" placeholder="輸入船公司" /></div>
                                                         <div><label className="form-label-lg">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} className="form-input-lg">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                                                         <div><label className="form-label-lg">報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} className="form-input-lg" placeholder="輸入報關單號" /></div>
@@ -2836,6 +3545,38 @@
                                                 {formStep === 4 && (
                                                     <div className="space-y-4">
                                                         <div className="step-title"><div className="step-name">產品明細</div></div>
+                                                        
+                                                        {/* V79.0: 相關文件參考 */}
+                                                        {(getDocumentByType('invoice') || getDocumentByType('expiry')) && (
+                                                            <details className="bg-blue-50 rounded-xl border border-blue-200 overflow-hidden">
+                                                                <summary className="px-4 py-3 cursor-pointer font-bold text-sm text-blue-700 flex items-center gap-2">
+                                                                    <I.Eye /> 參考文件內容（Invoice / 批號效期）
+                                                                </summary>
+                                                                <div className="px-4 pb-4 max-h-48 overflow-y-auto">
+                                                                    {getDocumentByType('invoice') && (
+                                                                        <div className="mb-3">
+                                                                            <div className="text-xs font-bold text-gray-500 mb-1">📄 {getDocumentByType('invoice').name}</div>
+                                                                            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white p-2 rounded border">{getDocumentByType('invoice').text.substring(0, 2000)}...</pre>
+                                                                        </div>
+                                                                    )}
+                                                                    {getDocumentByType('expiry') && (
+                                                                        <div>
+                                                                            <div className="text-xs font-bold text-gray-500 mb-1">📋 {getDocumentByType('expiry').name}</div>
+                                                                            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white p-2 rounded border">{getDocumentByType('expiry').text}</pre>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </details>
+                                                        )}
+                                                        
+                                                        {/* 補充上傳區 */}
+                                                        {parsedDocuments.length > 0 && !getDocumentByType('expiry') && (
+                                                            <label className="flex items-center justify-center gap-2 p-3 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 text-sm text-gray-500">
+                                                                <I.FilePlus /> 補充上傳批號效期清單
+                                                                <input type="file" accept=".pdf" multiple onChange={handleSupplementUpload} className="hidden" />
+                                                            </label>
+                                                        )}
+                                                        
                                                         {validationErrors.products && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg">請至少填寫一項品名</div>}
                                                         <div className="space-y-4">
                                                             {formData.products.map((p, idx) => (
