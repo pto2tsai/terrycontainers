@@ -1358,7 +1358,7 @@ Invoice 頂部通常會有廠商名稱，例如 "IOCEAN LLC" 或其他公司名�
   "confidence": "high/medium/low"
 }
 
-只回傳 JSON，不要有其他文字。
+重要：請直接回傳 JSON，不要加任何說明文字、markdown 標記或其他內容。回應必須以 { 開頭，以 } 結尾。
 
 ## 以下是要解析的文件內容：
 
@@ -1414,13 +1414,28 @@ Invoice 頂部通常會有廠商名稱，例如 "IOCEAN LLC" 或其他公司名�
                         throw new Error('AI 回應為空');
                     }
                     
-                    // 解析 JSON
+                    console.log('AI 原始回應:', responseText); // 除錯用
+                    
+                    // 解析 JSON（增強容錯）
                     let parsedData;
                     try {
-                        const jsonStr = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                        // 移除 markdown 標記
+                        let jsonStr = responseText
+                            .replace(/```json\s*/gi, '')
+                            .replace(/```\s*/g, '')
+                            .trim();
+                        
+                        // 嘗試找到 JSON 物件的開始和結束
+                        const startIdx = jsonStr.indexOf('{');
+                        const endIdx = jsonStr.lastIndexOf('}');
+                        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                            jsonStr = jsonStr.substring(startIdx, endIdx + 1);
+                        }
+                        
                         parsedData = JSON.parse(jsonStr);
                     } catch (parseError) {
-                        console.error('JSON 解析錯誤:', parseError, responseText);
+                        console.error('JSON 解析錯誤:', parseError);
+                        console.error('原始回應:', responseText);
                         throw new Error('AI 回應格式錯誤，請重試');
                     }
                     
