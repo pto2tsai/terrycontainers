@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 (v78.3 手機優化版)</title>
+    <title>貨櫃管理系統 (v78.5 手機友善表單)</title>
     
     <script>
         window.onerror = function(msg, url, line, col, error) {
@@ -93,70 +93,164 @@
         .sidebar-link:hover { background: #f3f4f6; color: #374151; }
         .sidebar-link.active { background: #eff6ff; color: #2563eb; }
         
-        /* V78.3: 手機版優化樣式 */
+        /* V78.5: 手機友善表單樣式 */
         
-        /* 數字輸入優化 */
-        .num-input { 
-            -webkit-appearance: none; 
-            -moz-appearance: textfield;
-            text-align: right;
-            font-family: ui-monospace, SFMono-Regular, monospace;
-            font-weight: 600;
+        /* 大輸入框 */
+        .form-input-lg {
+            width: 100%;
+            height: 52px;
+            padding: 0 16px;
+            background: #f9fafb;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 17px;
+            color: #111827;
+            box-sizing: border-box;
+            transition: all 0.2s;
         }
-        .num-input:focus { background: #eff6ff; border-color: #3b82f6; }
+        .form-input-lg:focus {
+            background: white;
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        .form-input-lg::placeholder { color: #9ca3af; }
+        .form-input-lg:disabled { background: #f3f4f6; color: #6b7280; }
+        .form-input-lg.num-input { text-align: right; font-family: ui-monospace, monospace; font-weight: 600; }
+        .form-input-lg.error { border-color: #ef4444; background: #fef2f2; }
         
-        /* Bottom Sheet 產品選擇器 */
+        /* 大標籤 */
+        .form-label-lg {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        .form-label-lg .required { color: #ef4444; margin-left: 4px; }
+        
+        /* 步驟指示器 */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            transition: all 0.3s;
+        }
+        .step-dot.active { background: #2563eb; transform: scale(1.2); }
+        .step-dot.done { background: #10b981; }
+        
+        /* 步驟標題 */
+        .step-title {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .step-title .step-num { font-size: 14px; color: #6b7280; font-weight: 600; }
+        .step-title .step-name { font-size: 22px; font-weight: bold; color: #111827; margin-top: 4px; }
+        
+        /* 折疊區塊 */
+        .accordion-section {
+            background: white;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .accordion-section.active { border-color: #3b82f6; }
+        .accordion-section.has-error { border-color: #ef4444; }
+        
+        .accordion-header {
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .accordion-header:active { background: #f9fafb; }
+        .accordion-section.active .accordion-header { background: #eff6ff; }
+        
+        .accordion-title { font-size: 17px; font-weight: bold; color: #374151; }
+        .accordion-section.active .accordion-title { color: #1e40af; }
+        .accordion-subtitle { font-size: 13px; color: #9ca3af; margin-top: 2px; }
+        
+        .accordion-arrow { font-size: 18px; color: #9ca3af; transition: transform 0.2s; }
+        .accordion-section.active .accordion-arrow { transform: rotate(90deg); color: #3b82f6; }
+        
+        .accordion-content {
+            padding: 0 16px 16px;
+            display: none;
+        }
+        .accordion-section.active .accordion-content { display: block; }
+        
+        /* 產品卡片（大版本） */
+        .product-card-lg {
+            background: #f9fafb;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .product-card-lg.error { border-color: #fca5a5; background: #fef2f2; }
+        
+        /* 產品選擇按鈕 */
+        .product-picker-btn {
+            width: 100%;
+            height: 52px;
+            padding: 0 16px;
+            background: #f0f9ff;
+            border: 1.5px solid #93c5fd;
+            border-radius: 12px;
+            font-size: 17px;
+            color: #1e40af;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .product-picker-btn:active { background: #dbeafe; }
+        .product-picker-btn.empty { color: #9ca3af; background: #f9fafb; border-color: #e5e7eb; }
+        
+        /* Bottom Sheet */
         .bottom-sheet-overlay { 
             position: fixed; inset: 0; background: rgba(0,0,0,0.5); 
             z-index: 60; opacity: 0; animation: fadeIn 0.2s ease-out forwards; 
         }
         @keyframes fadeIn { to { opacity: 1; } }
-        
         .bottom-sheet { 
             position: fixed; bottom: 0; left: 0; right: 0; 
             background: white; border-radius: 20px 20px 0 0; 
-            z-index: 61; max-height: 75vh; 
+            z-index: 61; max-height: 80vh; 
             display: flex; flex-direction: column;
             transform: translateY(100%); 
             animation: slideUpSheet 0.3s ease-out forwards;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
         }
         @keyframes slideUpSheet { to { transform: translateY(0); } }
+        .bottom-sheet-handle { width: 40px; height: 5px; background: #d1d5db; border-radius: 3px; margin: 12px auto 8px; }
+        .bottom-sheet-header { padding: 0 20px 16px; border-bottom: 1px solid #e5e7eb; }
+        .bottom-sheet-content { flex: 1; overflow-y: auto; padding: 12px 20px 24px; -webkit-overflow-scrolling: touch; }
         
-        .bottom-sheet-handle { 
-            width: 36px; height: 4px; background: #d1d5db; 
-            border-radius: 2px; margin: 10px auto 6px; 
-            cursor: pointer;
-        }
-        .bottom-sheet-header { padding: 0 16px 12px; border-bottom: 1px solid #e5e7eb; }
-        .bottom-sheet-content { 
-            flex: 1; overflow-y: auto; padding: 12px 16px 20px; 
-            -webkit-overflow-scrolling: touch; 
-        }
-        
-        /* 產品列表項目 */
-        .product-item { 
-            padding: 12px; margin: 0 -4px; border-radius: 10px;
-            cursor: pointer; transition: background 0.15s;
+        /* 產品列表項目（大版本） */
+        .product-item-lg { 
+            padding: 16px; 
+            margin: 0 -8px; 
+            border-radius: 12px;
+            cursor: pointer; 
             border-bottom: 1px solid #f3f4f6;
         }
-        .product-item:active { background: #eff6ff; }
-        
-        /* 最近使用標籤 */
-        .recent-tag {
-            display: inline-block; padding: 8px 14px;
-            background: #f0f9ff; border: 1px solid #bae6fd;
-            border-radius: 20px; font-size: 13px; font-weight: 600;
-            color: #0369a1; cursor: pointer;
-        }
-        .recent-tag:active { background: #e0f2fe; transform: scale(0.97); }
-        
-        /* 手機版卡片微調 */
-        @media (max-width: 640px) {
-            .ios-card { border-radius: 12px; }
-            .tag-badge { font-size: 10px; padding: 2px 6px; }
-            .company-tag { font-size: 14px; padding: 3px 8px; }
-        }
+        .product-item-lg:active { background: #eff6ff; }
+        .product-item-lg .name { font-size: 17px; font-weight: 600; color: #111827; }
+        .product-item-lg .spec { font-size: 15px; color: #3b82f6; margin-top: 4px; }
+        .product-item-lg .code { font-size: 13px; color: #9ca3af; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -604,6 +698,10 @@
             // V76.0: 產品選擇器狀態
             const [activeProductPicker, setActiveProductPicker] = useState(null); // 目前開啟選擇器的產品索引
             const [productPickerSearch, setProductPickerSearch] = useState('');
+            
+            // V78.5: 表單步驟/折疊狀態
+            const [formStep, setFormStep] = useState(1); // 新增時的步驟 (1-4)
+            const [openSections, setOpenSections] = useState(['basic']); // 編輯時展開的區塊
 
             // V72.0: 移除重複的 Icons 賦值，使用全域定義的 I
 
@@ -1084,7 +1182,7 @@
                     customsDeclarationNo: item.customsDeclarationNo || '', importPermitNo: item.importPermitNo || '',
                     shippingCompany: item.shippingCompany || ''
                 }); 
-                setEditingId(item.id); setView('form'); 
+                setEditingId(item.id); setOpenSections(['basic']); setView('form'); 
             };
 
             const handleDuplicateShipment = (s) => { 
@@ -1092,7 +1190,7 @@
                 const {id, ...d} = s; const merged = { ...initialFormState, ...d };
                 const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()})); 
                 setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, flightFee: 0, flightFeePaid: false}); 
-                setEditingId(null); setView('form'); 
+                setEditingId(null); setFormStep(1); setView('form'); 
             };
 
             // V70.0: 表單驗證函數
@@ -1433,7 +1531,7 @@
                             <div className="modal-content" onClick={e=>e.stopPropagation()}>
                                 <div className="flex justify-between items-center mb-4 border-b pb-2"><h3 className="font-bold text-lg text-gray-800">{TEXT.URGENT_TITLE} ({urgentCount})</h3><button onClick={()=>setShowNotifications(false)}><I.X /></button></div>
                                 {urgentList.length===0 ? <div className="text-center text-gray-400 py-4">{TEXT.NO_URGENT}</div> : urgentList.map(s=>(
-                                    <div key={s.id} className="mb-3 p-3 bg-red-50 rounded-lg border border-red-100 cursor-pointer" onClick={()=>{setShowNotifications(false); setFormData({...initialFormState, ...s}); setEditingId(s.id); setView('form');}}>
+                                    <div key={s.id} className="mb-3 p-3 bg-red-50 rounded-lg border border-red-100 cursor-pointer" onClick={()=>{setShowNotifications(false); setFormData({...initialFormState, ...s}); setEditingId(s.id); setOpenSections(['basic']); setView('form');}}>
                                         <div className="flex justify-between font-bold text-sm text-gray-800"><span>{s.containerNumber}</span><span className="text-red-600">{s.arrivalDate}</span></div>
                                         <div className="text-xs text-gray-500 mt-1">{s.supplier}</div>
                                     </div>
@@ -1737,62 +1835,55 @@
                         </div>
                     )}
 
-                    {/* V78.3: 產品選擇 Bottom Sheet (手機優化) */}
+                    {/* V78.5: 產品選擇 Bottom Sheet */}
                     {activeProductPicker !== null && products.length > 0 && (
                         <>
                             <div className="bottom-sheet-overlay" onClick={() => setActiveProductPicker(null)} />
                             <div className="bottom-sheet">
                                 <div className="bottom-sheet-handle" onClick={() => setActiveProductPicker(null)} />
-                                
                                 <div className="bottom-sheet-header">
                                     <div className="flex justify-between items-center mb-3">
-                                        <h3 className="font-bold text-lg text-gray-800">選擇產品</h3>
-                                        <button onClick={() => setActiveProductPicker(null)} className="p-1 text-gray-400"><I.X /></button>
+                                        <h3 className="font-bold text-xl text-gray-800">選擇產品</h3>
+                                        <button onClick={() => setActiveProductPicker(null)} className="p-2 text-gray-400 bg-gray-100 rounded-full"><I.X /></button>
                                     </div>
-                                    
-                                    {/* 搜尋框 */}
                                     <input 
                                         type="text"
                                         value={productPickerSearch}
                                         onChange={e => setProductPickerSearch(e.target.value)}
                                         placeholder="搜尋品號、品名、規格..."
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-base bg-gray-50 focus:bg-white focus:border-blue-500 outline-none"
+                                        className="form-input-lg"
                                         autoFocus
                                     />
                                 </div>
-                                
                                 <div className="bottom-sheet-content">
-                                    {/* 產品列表 */}
                                     {pickerFilteredProducts.length === 0 ? (
-                                        <div className="p-8 text-center text-gray-400">無符合的產品</div>
+                                        <div className="p-8 text-center text-gray-400 text-lg">無符合的產品</div>
                                     ) : (
                                         pickerFilteredProducts.map(prod => (
                                             <div 
                                                 key={prod.id}
                                                 onClick={() => handleSelectProduct(activeProductPicker, prod)}
-                                                className="product-item"
+                                                className="product-item-lg"
                                             >
-                                                <div className="font-bold text-gray-800">{prod.name}</div>
-                                                <div className="text-sm text-gray-500 flex justify-between mt-1">
-                                                    <span className="text-blue-600">{prod.spec || '無規格'}</span>
-                                                    <span className="text-gray-400 font-mono text-xs">{prod.productId}</span>
+                                                <div className="name">{prod.name}</div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="spec">{prod.spec || '無規格'}</span>
+                                                    <span className="code">{prod.productId}</span>
                                                 </div>
                                             </div>
                                         ))
                                     )}
-                                    
-                                    {/* 底部資訊 */}
-                                    <div className="py-4 text-xs text-gray-400 text-center">
-                                        顯示 {pickerFilteredProducts.length} 筆 / 共 {products.filter(p => p.isActive !== false).length} 筆產品
+                                    <div className="py-4 text-sm text-gray-400 text-center">
+                                        顯示 {pickerFilteredProducts.length} 筆 / 共 {products.filter(p => p.isActive !== false).length} 筆
                                     </div>
                                 </div>
                             </div>
                         </>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v78.3</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}</nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 v78.5</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}</nav><div className="p-4 border-t"><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
 
-                    <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
+                    <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button>{canCreate()&&view==='list'&&<button onClick={()=>{setFormData(initialFormState);setEditingId(null);setFormStep(1);setView('form')}} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
                     <main className="p-4 max-w-4xl mx-auto">
                         {view === 'list' && (
@@ -1811,7 +1902,7 @@
                                         <div className="hidden md:flex gap-2">
                                             <div onClick={()=>setShowNotifications(true)} className="relative p-2.5 bg-white rounded-xl shadow-sm text-gray-600 cursor-pointer hover:bg-gray-50"><I.Bell />{urgentCount>0&&<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}</div>
                                             <button onClick={handleExport} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600 hover:bg-gray-50"><I.Download /></button>
-                                            {canCreate() && <button onClick={()=>{setFormData(initialFormState);setEditingId(null);setView('form')}} className="p-2.5 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50"><I.Plus /></button>}
+                                            {canCreate() && <button onClick={()=>{setFormData(initialFormState);setEditingId(null);setFormStep(1);setView('form')}} className="p-2.5 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50"><I.Plus /></button>}
                                         </div>
                                     </div>
                                     <div className="flex overflow-x-auto gap-2 pb-1">
@@ -1839,7 +1930,7 @@
                                                     const curr = item.currency === 'USD' ? 'US$' : 'NT$';
                                                     const showFlightFee = isForeign(item) || canManage();
                                                     return (
-                                                    <tr key={item.id} onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
+                                                    <tr key={item.id} onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setOpenSections(['basic']); setView('form');}}>
                                                         <td className="whitespace-nowrap">{item.arrivalDate}</td><td className="font-bold">{item.containerNumber}</td><td className="truncate max-w-[80px]">{item.supplier}</td><td className="truncate max-w-[100px]">{(item.products||[]).map(p=>p.name).join(',')}</td><td className="text-right font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()}</td><td className="text-right text-orange-500">{format2(safeNum(item.totalWeight))}</td>
                                                         {canSeePrice()&&<td className="text-right whitespace-nowrap"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
                                                         {canEditFlightFee()&&<td className="text-right whitespace-nowrap">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
@@ -1863,7 +1954,7 @@
                                             const attCount = item.attachments ? item.attachments.length : (item.docUrl ? 1 : 0);
 
                                             return (
-                                            <div key={item.id} className="ios-card p-4" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setView('form');}}>
+                                            <div key={item.id} className="ios-card p-4" onClick={()=>{setFormData({...initialFormState, ...item}); setEditingId(item.id); setOpenSections(['basic']); setView('form');}}>
                                                 {/* V63.0: 卡片頭部 - 完整資訊 (含船公司) */}
                                                 <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
                                                     <div className="flex-1 min-w-0">
@@ -2052,126 +2143,359 @@
                         )}
 
                         {view === 'form' && (
-                            <div className="ios-card p-5 animate-[fade-in_0.3s_ease-out]">
-                                <div className="flex justify-between mb-4 border-b pb-2"><h2 className="font-bold text-lg">{editingId?'編輯':'新增'}</h2><button onClick={()=>setView('list')} className="text-gray-400"><I.X /></button></div>
-                                <form onSubmit={handleSubmit} className="space-y-4">
-                                    {/* V52.0: 1. 基礎資訊 (11欄位 4x2 佈局) */}
-                                    <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm mb-3">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                            <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                            <div><label className={!editingId ? 'label-required' : ''}>櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 font-mono uppercase ${validationErrors.containerNumber ? 'input-error' : ''}`} placeholder="櫃號" /></div>
-                                            
-                                            {/* V63.0 新增船公司 */}
-                                            <div><label>船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="船公司" /></div>
-
-                                            <div><label className={!editingId ? 'label-required' : ''}>到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.arrivalDate ? 'input-error' : ''}`} /></div>
-                                            <div><label>報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-                                            
-                                            <div><label>報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="報關單號" /></div>
-                                            <div><label>輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="許可證號" /></div>
-                                            
-                                            <div><label className={!editingId ? 'label-required' : ''}>廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.supplier ? 'input-error' : ''}`} placeholder="廠商" /></div>
-                                            <div><label>產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
-                                            <div><label>拆櫃地</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div>
-                                            <div><label>拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div>
-                                        </div>
+                            <div className="ios-card p-4 md:p-5 animate-[fade-in_0.3s_ease-out]">
+                                {/* V78.5: 混合模式表單 - 新增用分步驟，編輯用折疊 */}
+                                
+                                {/* 頭部 */}
+                                <div className="flex justify-between items-center mb-4 pb-3 border-b">
+                                    <div className="flex items-center gap-3">
+                                        {!editingId && formStep > 1 && (
+                                            <button type="button" onClick={() => setFormStep(formStep - 1)} className="text-gray-400 p-1">
+                                                <I.ChevronLeft />
+                                            </button>
+                                        )}
+                                        <h2 className="font-bold text-lg">{editingId ? '編輯貨櫃' : '新增貨櫃'}</h2>
                                     </div>
-                                    
-                                    {/* 2. 財務專區 (橫向) */}
-                                    {canSeePrice() && (
-                                        <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 mb-3 flex flex-wrap items-end gap-3">
-                                             <div className="flex-1 min-w-[140px]">
-                                                <label>付款條件</label>
-                                                <input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" />
-                                             </div>
-                                             {canEditFlightFee() && isForeign(formData) && (
-                                                <div className="w-24">
-                                                   <label>旅費</label>
-                                                   <input type="text" inputMode="decimal" name="flightFee" value={formData.flightFee} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleInputChange({target:{name:'flightFee',value:e.target.value.replace(/[^\d.-]/g,''),type:'text'}})} className="w-full bg-white border rounded input-bg-style num-input" placeholder="0" />
-                                                </div>
-                                             )}
-                                             <div className="flex items-center gap-3 pb-2 ml-auto">
-                                                <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>
-                                                {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}
-                                             </div>
-                                        </div>
+                                    {editingId ? (
+                                        <button onClick={()=>setView('list')} className="text-gray-400 p-1"><I.X /></button>
+                                    ) : (
+                                        <div className="text-sm text-gray-500">{formStep}/4</div>
                                     )}
-
-                                    {/* 3. 產品明細 (九宮格 3x3) */}
-                                    <div className="pt-2">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h3 className={`font-bold text-lg ${validationErrors.products ? 'text-red-600' : 'text-gray-700'}`}>
-                                                產品明細 {!editingId && <span className="text-red-500 text-sm">*</span>}
-                                                {validationErrors.products && <span className="text-red-500 text-xs ml-2">(請至少填寫一項品名)</span>}
-                                            </h3>
-                                            {(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}
-                                        </div>
-                                        <div className="space-y-3">{formData.products.map((p, idx) => (
-                                            <div key={p.id} className={`bg-white border rounded-xl p-3 relative shadow-sm ${validationErrors.products && idx === 0 ? 'border-red-300' : ''}`}>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    {/* V76.0: 品名改為按鈕觸發選擇視窗 */}
-                                                    <div className="relative">
-                                                        <div 
-                                                            onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }}
-                                                            className={`input-bg-style rounded p-1 font-bold w-full cursor-pointer flex items-center justify-between ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'input-error' : ''} ${products.length > 0 ? 'hover:bg-blue-50' : ''}`}
-                                                        >
-                                                            <span className={p.name ? 'text-gray-800' : 'text-gray-400'}>{p.name || '點擊選擇品名'}</span>
-                                                            {products.length > 0 && <span className="text-blue-500 text-xs">▼</span>}
+                                </div>
+                                
+                                {/* 步驟指示器 (僅新增模式且為手機版) */}
+                                {!editingId && (
+                                    <div className="step-indicator md:hidden">
+                                        {[1,2,3,4].map(s => (
+                                            <div key={s} className={`step-dot ${formStep === s ? 'active' : ''} ${formStep > s ? 'done' : ''}`} />
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                <form onSubmit={handleSubmit}>
+                                    {/* ===== 新增模式：手機分步驟 / 電腦全顯示 ===== */}
+                                    {!editingId && (
+                                        <>
+                                            {/* 手機版：分步驟 */}
+                                            <div className="md:hidden">
+                                                {/* 步驟 1: 基本資訊 */}
+                                                {formStep === 1 && (
+                                                    <div className="space-y-4">
+                                                        <div className="step-title"><div className="step-name">基本資訊</div></div>
+                                                        <div><label className="form-label-lg">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} className="form-input-lg">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                        <div><label className="form-label-lg">櫃號 <span className="required">*</span></label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} className={`form-input-lg font-mono uppercase ${validationErrors.containerNumber ? 'error' : ''}`} placeholder="輸入櫃號" /></div>
+                                                        <div><label className="form-label-lg">到港日 <span className="required">*</span></label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className={`form-input-lg ${validationErrors.arrivalDate ? 'error' : ''}`} /></div>
+                                                        <div><label className="form-label-lg">廠商 <span className="required">*</span></label><input name="supplier" value={formData.supplier} onChange={handleInputChange} className={`form-input-lg ${validationErrors.supplier ? 'error' : ''}`} placeholder="輸入廠商名稱" /></div>
+                                                        <div><label className="form-label-lg">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} className="form-input-lg" placeholder="輸入產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
+                                                        <button type="button" onClick={() => setFormStep(2)} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg mt-4">下一步：報關資訊 →</button>
+                                                        <button type="button" onClick={()=>setView('list')} className="w-full py-3 text-gray-500 font-bold">取消</button>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* 步驟 2: 報關資訊 */}
+                                                {formStep === 2 && (
+                                                    <div className="space-y-4">
+                                                        <div className="step-title"><div className="step-name">報關資訊</div></div>
+                                                        <div><label className="form-label-lg">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} className="form-input-lg" placeholder="輸入船公司" /></div>
+                                                        <div><label className="form-label-lg">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} className="form-input-lg">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                        <div><label className="form-label-lg">報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} className="form-input-lg" placeholder="輸入報關單號" /></div>
+                                                        <div><label className="form-label-lg">輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} className="form-input-lg" placeholder="輸入許可證號" /></div>
+                                                        <div><label className="form-label-lg">拆櫃地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="form-input-lg" placeholder="輸入拆櫃地點" /></div>
+                                                        <div><label className="form-label-lg">拆櫃日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="form-input-lg" /></div>
+                                                        <button type="button" onClick={() => setFormStep(3)} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg mt-4">下一步：付款資訊 →</button>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* 步驟 3: 付款資訊 */}
+                                                {formStep === 3 && (
+                                                    <div className="space-y-4">
+                                                        <div className="step-title"><div className="step-name">付款資訊</div></div>
+                                                        {canSeePrice() ? (<>
+                                                            <div><label className="form-label-lg">付款條件</label><input value={formData.paymentTerm} disabled className="form-input-lg" /></div>
+                                                            {isForeign(formData) && (<div><label className="form-label-lg">旅費</label><input type="text" inputMode="decimal" name="flightFee" value={formData.flightFee} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleInputChange({target:{name:'flightFee',value:e.target.value.replace(/[^\d.-]/g,''),type:'text'}})} className="form-input-lg num-input" placeholder="0" /></div>)}
+                                                            <div className="bg-gray-50 p-4 rounded-xl space-y-4">
+                                                                <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} className="w-6 h-6 accent-green-600"/><span className="font-bold text-green-700 text-lg">貨款已付</span></label>
+                                                                {isForeign(formData) && (<label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-6 h-6 accent-red-600"/><span className="font-bold text-red-700 text-lg">旅費已付</span></label>)}
+                                                            </div>
+                                                        </>) : (<div className="text-center text-gray-400 py-8">無權限查看付款資訊</div>)}
+                                                        <button type="button" onClick={() => setFormStep(4)} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg mt-4">下一步：產品明細 →</button>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* 步驟 4: 產品明細 */}
+                                                {formStep === 4 && (
+                                                    <div className="space-y-4">
+                                                        <div className="step-title"><div className="step-name">產品明細</div></div>
+                                                        {validationErrors.products && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg">請至少填寫一項品名</div>}
+                                                        <div className="space-y-3">
+                                                            {formData.products.map((p, idx) => (
+                                                                <div key={p.id} className={`product-card-lg ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'error' : ''}`}>
+                                                                    <div className="mb-3"><label className="form-label-lg">品名 <span className="required">*</span></label><div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`product-picker-btn ${!p.name ? 'empty' : ''}`}><span>{p.name || '點擊選擇產品'}</span><span>▼</span></div></div>
+                                                                    <div className="mb-3"><label className="form-label-lg">規格</label><input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="form-input-lg" placeholder="輸入規格" /></div>
+                                                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                                                        <div><label className="form-label-lg">件數</label><input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{color:'#2563eb'}} placeholder="0" /></div>
+                                                                        <div><label className="form-label-lg">重量(kg)</label><input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{color:'#f97316'}} placeholder="0" /></div>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                                                        {canSeePrice() ? (<div><label className="form-label-lg">單價</label><input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" placeholder="0" /></div>) : (<div><label className="form-label-lg">單價</label><div className="form-input-lg flex items-center justify-end text-gray-300">***</div></div>)}
+                                                                        <div><label className="form-label-lg">計價方式</label><select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="form-input-lg"><option value="weight">計重</option><option value="quantity">計件</option></select></div>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                                                        <div><label className="form-label-lg">批號</label><input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="form-input-lg" placeholder="輸入批號" /></div>
+                                                                        <div><label className="form-label-lg">效期</label><input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="form-input-lg" /></div>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                                                                        {canSeePrice() ? (<span className="font-bold text-emerald-600 text-xl">${format2(safeNum(p.amount))}</span>) : (<span className="text-gray-300 text-xl">***</span>)}
+                                                                        <div className="flex gap-2">
+                                                                            <button type="button" onClick={()=>duplicateProductRow(idx)} className="p-2 bg-gray-100 rounded-lg text-gray-500"><I.Copy /></button>
+                                                                            {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-2 bg-red-50 rounded-lg text-red-500"><I.Trash2 /></button>}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <button type="button" onClick={addProductRow} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border-2 border-dashed border-blue-200">+ 新增產品</button>
+                                                        <div className="bg-gray-50 p-4 rounded-xl">
+                                                            <label className="form-label-lg mb-3">附件 ({formData.attachments?.length || 0})</label>
+                                                            {(formData.attachments || []).map((file, idx) => (<div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border mb-2"><a href={file.url} target="_blank" className="text-blue-600 underline truncate flex-1 mr-2">{file.name}</a>{canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><I.Trash2 /></button>}</div>))}
+                                                            {canUpload() && (<div className="relative"><input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><button type="button" className="w-full py-3 bg-white border border-dashed border-gray-300 rounded-lg text-gray-500 font-bold">{uploading ? '上傳中...' : '📎 選擇檔案'}</button></div>)}
+                                                        </div>
+                                                        <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg mt-4 shadow-lg">{isSubmitting ? '儲存中...' : '✓ 完成新增'}</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* 電腦版：傳統全顯示 */}
+                                            <div className="hidden md:block space-y-4">
+                                                <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                        <div><label className="label-required">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} className={`w-full input-bg-style rounded-lg p-2 font-mono uppercase ${validationErrors.containerNumber ? 'input-error' : ''}`} placeholder="櫃號" /></div>
+                                                        <div><label>船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="船公司" /></div>
+                                                        <div><label className="label-required">到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.arrivalDate ? 'input-error' : ''}`} /></div>
+                                                        <div><label>報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                        <div><label>報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="報關單號" /></div>
+                                                        <div><label>輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="許可證號" /></div>
+                                                        <div><label className="label-required">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.supplier ? 'input-error' : ''}`} placeholder="廠商" /></div>
+                                                        <div><label>產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
+                                                        <div><label>拆櫃地</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div>
+                                                        <div><label>拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" /></div>
+                                                    </div>
+                                                </div>
+                                                {canSeePrice() && (
+                                                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 flex flex-wrap items-end gap-3">
+                                                        <div className="flex-1 min-w-[140px]"><label>付款條件</label><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" /></div>
+                                                        {canEditFlightFee() && isForeign(formData) && (<div className="w-24"><label>旅費</label><input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded input-bg-style" placeholder="0" /></div>)}
+                                                        <div className="flex items-center gap-3 pb-2 ml-auto">
+                                                            <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>
+                                                            {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}
                                                         </div>
                                                     </div>
-                                                    <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
-                                                    <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="quantity">計件</option><option value="weight">計重</option></select>
-                                                    
-                                                    {/* V78.3: 數字輸入優化 - 使用 inputMode 並自動全選 0 值 */}
-                                                    <input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="input-bg-style num-input rounded p-1 text-blue-600" placeholder="件數" />
-                                                    <input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="input-bg-style num-input rounded p-1 text-orange-500" placeholder="重量" />
-                                                    
-                                                    {/* V69.0: 訪客編輯頁隱藏單價 */}
-                                                    {canSeePrice() ? (
-                                                        <input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="input-bg-style num-input rounded p-1" placeholder="單價" />
-                                                    ) : (
-                                                        <div className="input-bg-style rounded p-1 text-right flex items-center justify-end text-gray-300">***</div>
-                                                    )}
-                                                    
-                                                    <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
-                                                    <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
-                                                    <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">
-                                                        {/* V69.0: 訪客編輯頁隱藏小計 */}
-                                                        {canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${format2(safeNum(p.amount))}</span> : <span>***</span>}
-                                                        {(canEditDomesticFull() || canManage()) && (
-                                                            <div className="flex gap-1">
-                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><I.Copy /></button>
-                                                                {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><I.Trash2 /></button>}
+                                                )}
+                                                <div className="pt-2">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <h3 className={`font-bold text-lg ${validationErrors.products ? 'text-red-600' : 'text-gray-700'}`}>產品明細 <span className="text-red-500 text-sm">*</span>{validationErrors.products && <span className="text-red-500 text-xs ml-2">(請至少填寫一項品名)</span>}</h3>
+                                                        <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>
+                                                    </div>
+                                                    <div className="space-y-3">{formData.products.map((p, idx) => (
+                                                        <div key={p.id} className={`bg-white border rounded-xl p-3 shadow-sm ${validationErrors.products && idx === 0 ? 'border-red-300' : ''}`}>
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                <div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`input-bg-style rounded p-1 font-bold cursor-pointer flex items-center justify-between ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'input-error' : ''} ${products.length > 0 ? 'hover:bg-blue-50' : ''}`}><span className={p.name ? 'text-gray-800' : 'text-gray-400'}>{p.name || '點擊選擇品名'}</span>{products.length > 0 && <span className="text-blue-500 text-xs">▼</span>}</div>
+                                                                <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
+                                                                <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="weight">計重</option><option value="quantity">計件</option></select>
+                                                                <input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="件數" />
+                                                                <input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" />
+                                                                {canSeePrice() ? (<input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" />) : (<div className="input-bg-style rounded p-1 text-right flex items-center justify-end text-gray-300">***</div>)}
+                                                                <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
+                                                                <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
+                                                                <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">{canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${format2(safeNum(p.amount))}</span> : <span>***</span>}<div className="flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><I.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><I.Trash2 /></button>}</div></div>
                                                             </div>
-                                                        )}
+                                                        </div>
+                                                    ))}</div>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                                    <label className="block text-xs font-bold text-gray-500 mb-2">附件 ({formData.attachments?.length || 0})</label>
+                                                    <div className="space-y-2">{(formData.attachments || []).map((file, idx) => (<div key={idx} className="flex items-center justify-between bg-white p-2 rounded border"><a href={file.url} target="_blank" className="text-blue-600 text-xs underline truncate flex-1 mr-2">{file.name}</a>{canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><I.Trash2 /></button>}</div>))}</div>
+                                                    {canUpload() && (<div className="mt-2 relative"><input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><button type="button" className="w-full py-2 bg-white border border-dashed border-gray-400 rounded text-gray-500 text-sm font-bold flex items-center justify-center gap-2">{uploading ? '上傳中...' : <><I.Paperclip /> 選擇檔案 (可多選)</>}</button></div>)}
+                                                </div>
+                                                <div className="flex gap-3 pt-2"><button type="button" onClick={()=>setView('list')} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button><button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">{isSubmitting?'...':'儲存'}</button></div>
+                                            </div>
+                                        </>
+                                    )}
+                                    
+                                    {/* ===== 編輯模式：手機折疊 / 電腦全顯示 ===== */}
+                                    {editingId && (
+                                        <>
+                                            {/* 手機版：折疊區塊 */}
+                                            <div className="md:hidden space-y-3">
+                                                {/* 基本資訊區塊 */}
+                                                <div className={`accordion-section ${openSections.includes('basic') ? 'active' : ''}`}>
+                                                    <div className="accordion-header" onClick={() => setOpenSections(prev => prev.includes('basic') ? prev.filter(s=>s!=='basic') : [...prev, 'basic'])}>
+                                                        <div><div className="accordion-title">基本資訊</div><div className="accordion-subtitle">{formData.containerNumber || '未填寫'} · {formData.supplier || '未填寫'}</div></div>
+                                                        <span className="accordion-arrow">▶</span>
+                                                    </div>
+                                                    <div className="accordion-content">
+                                                        <div className="space-y-3">
+                                                            <div><label className="form-label-lg">進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                            <div><label className="form-label-lg">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg font-mono uppercase" placeholder="櫃號" /></div>
+                                                            <div><label className="form-label-lg">到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg" /></div>
+                                                            <div><label className="form-label-lg">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg" placeholder="廠商" /></div>
+                                                            <div><label className="form-label-lg">產地</label><input list="origins2" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg" placeholder="產地" /><datalist id="origins2">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}</div>
-                                    </div>
-                                    
-                                    {/* 多檔案上傳 - V51.0 權限驗證 */}
-                                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                                        <label className="block text-xs font-bold text-gray-500 mb-2">附件 ({formData.attachments?.length || 0})</label>
-                                        <div className="space-y-2">
-                                            {(formData.attachments || []).map((file, idx) => (
-                                                <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border">
-                                                    <a href={file.url} target="_blank" className="text-blue-600 text-xs underline truncate flex-1 mr-2">{file.name}</a>
-                                                    {canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><I.Trash2 /></button>}
+                                                
+                                                {/* 報關資訊區塊 */}
+                                                <div className={`accordion-section ${openSections.includes('customs') ? 'active' : ''}`}>
+                                                    <div className="accordion-header" onClick={() => setOpenSections(prev => prev.includes('customs') ? prev.filter(s=>s!=='customs') : [...prev, 'customs'])}>
+                                                        <div><div className="accordion-title">報關資訊</div><div className="accordion-subtitle">{formData.customsBroker || '未填寫'}</div></div>
+                                                        <span className="accordion-arrow">▶</span>
+                                                    </div>
+                                                    <div className="accordion-content">
+                                                        <div className="space-y-3">
+                                                            <div><label className="form-label-lg">船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg" placeholder="船公司" /></div>
+                                                            <div><label className="form-label-lg">報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                            <div><label className="form-label-lg">報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="form-input-lg" placeholder="報關單號" /></div>
+                                                            <div><label className="form-label-lg">輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="form-input-lg" placeholder="許可證號" /></div>
+                                                            <div><label className="form-label-lg">拆櫃地點</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="form-input-lg" placeholder="地點" /></div>
+                                                            <div><label className="form-label-lg">拆櫃日期</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="form-input-lg" /></div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                        {canUpload() && (
-                                            <div className="mt-2 relative">
-                                                <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                                <button type="button" className="w-full py-2 bg-white border border-dashed border-gray-400 rounded text-gray-500 text-sm font-bold flex items-center justify-center gap-2">
-                                                    {uploading ? '上傳中...' : <><I.Paperclip /> 選擇檔案 (可多選)</>}
-                                                </button>
+                                                
+                                                {/* 付款資訊區塊 */}
+                                                {canSeePrice() && (
+                                                    <div className={`accordion-section ${openSections.includes('payment') ? 'active' : ''}`}>
+                                                        <div className="accordion-header" onClick={() => setOpenSections(prev => prev.includes('payment') ? prev.filter(s=>s!=='payment') : [...prev, 'payment'])}>
+                                                            <div><div className="accordion-title">付款資訊</div><div className="accordion-subtitle">{formData.isPaid ? '✓ 貨款已付' : '未付款'}</div></div>
+                                                            <span className="accordion-arrow">▶</span>
+                                                        </div>
+                                                        <div className="accordion-content">
+                                                            <div className="space-y-3">
+                                                                <div><label className="form-label-lg">付款條件</label><input value={formData.paymentTerm} disabled className="form-input-lg" /></div>
+                                                                {canEditFlightFee() && isForeign(formData) && (<div><label className="form-label-lg">旅費</label><input type="text" inputMode="decimal" name="flightFee" value={formData.flightFee} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleInputChange({target:{name:'flightFee',value:e.target.value.replace(/[^\d.-]/g,''),type:'text'}})} className="form-input-lg num-input" placeholder="0" /></div>)}
+                                                                <div className="bg-gray-50 p-4 rounded-xl space-y-3">
+                                                                    <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-6 h-6 accent-green-600"/><span className="font-bold text-green-700 text-lg">貨款已付</span></label>
+                                                                    {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-6 h-6 accent-red-600"/><span className="font-bold text-red-700 text-lg">旅費已付</span></label>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* 產品明細區塊 */}
+                                                <div className={`accordion-section ${openSections.includes('products') ? 'active' : ''} ${validationErrors.products ? 'has-error' : ''}`}>
+                                                    <div className="accordion-header" onClick={() => setOpenSections(prev => prev.includes('products') ? prev.filter(s=>s!=='products') : [...prev, 'products'])}>
+                                                        <div><div className="accordion-title">產品明細 ({formData.products?.length || 0})</div><div className="accordion-subtitle">{formData.products?.[0]?.name || '未填寫'}</div></div>
+                                                        <span className="accordion-arrow">▶</span>
+                                                    </div>
+                                                    <div className="accordion-content">
+                                                        <div className="space-y-3">
+                                                            {formData.products.map((p, idx) => (
+                                                                <div key={p.id} className="product-card-lg">
+                                                                    <div className="mb-3"><div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`product-picker-btn ${!p.name ? 'empty' : ''}`}><span>{p.name || '點擊選擇產品'}</span><span>▼</span></div></div>
+                                                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                                                        <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="form-input-lg" placeholder="規格" style={{height:'44px',fontSize:'15px'}} />
+                                                                        <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="form-input-lg" style={{height:'44px',fontSize:'15px'}}><option value="weight">計重</option><option value="quantity">計件</option></select>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-3 gap-2 mb-2">
+                                                                        <input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'44px',fontSize:'15px',color:'#2563eb'}} placeholder="件數" />
+                                                                        <input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'44px',fontSize:'15px',color:'#f97316'}} placeholder="重量" />
+                                                                        {canSeePrice() ? <input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'44px',fontSize:'15px'}} placeholder="單價" /> : <div className="form-input-lg flex items-center justify-end text-gray-300" style={{height:'44px'}}>***</div>}
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                                                        <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="form-input-lg" style={{height:'44px',fontSize:'15px'}} placeholder="批號" />
+                                                                        <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="form-input-lg" style={{height:'44px',fontSize:'14px'}} />
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between pt-2 border-t">
+                                                                        {canSeePrice() ? <span className="font-bold text-emerald-600 text-lg">${format2(safeNum(p.amount))}</span> : <span>***</span>}
+                                                                        {(canEditDomesticFull() || canManage()) && (<div className="flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="p-2 text-gray-400"><I.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-2 text-red-400"><I.Trash2 /></button>}</div>)}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                            {(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border-2 border-dashed border-blue-200">+ 新增產品</button>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* 附件區塊 */}
+                                                <div className={`accordion-section ${openSections.includes('attachments') ? 'active' : ''}`}>
+                                                    <div className="accordion-header" onClick={() => setOpenSections(prev => prev.includes('attachments') ? prev.filter(s=>s!=='attachments') : [...prev, 'attachments'])}>
+                                                        <div><div className="accordion-title">附件 ({formData.attachments?.length || 0})</div></div>
+                                                        <span className="accordion-arrow">▶</span>
+                                                    </div>
+                                                    <div className="accordion-content">
+                                                        <div className="space-y-2">
+                                                            {(formData.attachments || []).map((file, idx) => (<div key={idx} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"><a href={file.url} target="_blank" className="text-blue-600 underline truncate flex-1 mr-2">{file.name}</a>{canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><I.Trash2 /></button>}</div>))}
+                                                            {canUpload() && (<div className="relative"><input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><button type="button" className="w-full py-3 bg-white border border-dashed border-gray-300 rounded-lg text-gray-500 font-bold">{uploading ? '上傳中...' : '📎 選擇檔案'}</button></div>)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* 編輯模式按鈕 */}
+                                                <div className="flex gap-3 pt-4">
+                                                    <button type="button" onClick={()=>setView('list')} className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-xl font-bold text-lg">取消</button>
+                                                    <button type="submit" disabled={isSubmitting} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg">{isSubmitting ? '儲存中...' : '儲存'}</button>
+                                                </div>
                                             </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex gap-3 pt-2"><button type="button" onClick={()=>setView('list')} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button><button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">{isSubmitting?'...':'儲存'}</button></div>
+                                            
+                                            {/* 電腦版：傳統全顯示 */}
+                                            <div className="hidden md:block space-y-4">
+                                                <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        <div><label>進口公司</label><select name="importCompany" value={formData.importCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{IMPORT_COMPANIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                        <div><label>櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2 font-mono uppercase" placeholder="櫃號" /></div>
+                                                        <div><label>船公司</label><input name="shippingCompany" value={formData.shippingCompany} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="船公司" /></div>
+                                                        <div><label>到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" /></div>
+                                                        <div><label>報關行</label><select name="customsBroker" value={formData.customsBroker} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2">{CUSTOMS_BROKERS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                                                        <div><label>報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="報關單號" /></div>
+                                                        <div><label>輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="許可證號" /></div>
+                                                        <div><label>廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="廠商" /></div>
+                                                        <div><label>產地</label><input list="origins3" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins3">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
+                                                        <div><label>拆櫃地</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div>
+                                                        <div><label>拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div>
+                                                    </div>
+                                                </div>
+                                                {canSeePrice() && (
+                                                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 flex flex-wrap items-end gap-3">
+                                                        <div className="flex-1 min-w-[140px]"><label>付款條件</label><input value={formData.paymentTerm} disabled className="w-full bg-white border rounded input-bg-style text-xs" /></div>
+                                                        {canEditFlightFee() && isForeign(formData) && (<div className="w-24"><label>旅費</label><input type="number" name="flightFee" value={formData.flightFee} onWheel={e=>e.target.blur()} onChange={handleInputChange} className="w-full bg-white border rounded input-bg-style" placeholder="0" /></div>)}
+                                                        <div className="flex items-center gap-3 pb-2 ml-auto">
+                                                            <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-green-600"/><span className="font-bold text-green-700 text-xs">貨款已付</span></label>
+                                                            {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-5 h-5 accent-red-600"/><span className="font-bold text-red-700 text-xs">旅費已付</span></label>}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="pt-2">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <h3 className={`font-bold text-lg ${validationErrors.products ? 'text-red-600' : 'text-gray-700'}`}>產品明細{validationErrors.products && <span className="text-red-500 text-xs ml-2">(請至少填寫一項品名)</span>}</h3>
+                                                        {(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="text-blue-600 font-bold text-sm hover:underline cursor-pointer">+ 新增產品</button>}
+                                                    </div>
+                                                    <div className="space-y-3">{formData.products.map((p, idx) => (
+                                                        <div key={p.id} className={`bg-white border rounded-xl p-3 shadow-sm ${validationErrors.products && idx === 0 ? 'border-red-300' : ''}`}>
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                <div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`input-bg-style rounded p-1 font-bold cursor-pointer flex items-center justify-between ${products.length > 0 ? 'hover:bg-blue-50' : ''}`}><span className={p.name ? 'text-gray-800' : 'text-gray-400'}>{p.name || '點擊選擇品名'}</span>{products.length > 0 && <span className="text-blue-500 text-xs">▼</span>}</div>
+                                                                <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="規格" />
+                                                                <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="input-bg-style rounded p-1 text-sm"><option value="weight">計重</option><option value="quantity">計件</option></select>
+                                                                <input type="number" value={p.quantity} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'quantity',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-blue-600" placeholder="件數" />
+                                                                <input type="number" value={p.weight} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'weight',e.target.value)} className="input-bg-style rounded p-1 text-right font-bold text-orange-500" placeholder="重量" />
+                                                                {canSeePrice() ? (<input type="number" value={p.unitPrice} onWheel={e=>e.target.blur()} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value)} className="input-bg-style rounded p-1 text-right" placeholder="單價" />) : (<div className="input-bg-style rounded p-1 text-right flex items-center justify-end text-gray-300">***</div>)}
+                                                                <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="input-bg-style rounded p-1 text-sm" placeholder="批號" />
+                                                                <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="input-bg-style rounded p-1 text-xs" />
+                                                                <div className="flex items-center justify-between bg-gray-50 rounded px-2 border border-gray-200">{canSeePrice() ? <span className="font-bold text-emerald-600 text-sm">${format2(safeNum(p.amount))}</span> : <span>***</span>}{(canEditDomesticFull() || canManage()) && (<div className="flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="text-gray-400 hover:text-blue-600 p-1"><I.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="text-gray-400 hover:text-red-600 p-1"><I.Trash2 /></button>}</div>)}</div>
+                                                            </div>
+                                                        </div>
+                                                    ))}</div>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                                    <label className="block text-xs font-bold text-gray-500 mb-2">附件 ({formData.attachments?.length || 0})</label>
+                                                    <div className="space-y-2">{(formData.attachments || []).map((file, idx) => (<div key={idx} className="flex items-center justify-between bg-white p-2 rounded border"><a href={file.url} target="_blank" className="text-blue-600 text-xs underline truncate flex-1 mr-2">{file.name}</a>{canUpload() && <button type="button" onClick={() => handleDeleteFile(idx)} className="text-red-500 p-1"><I.Trash2 /></button>}</div>))}</div>
+                                                    {canUpload() && (<div className="mt-2 relative"><input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><button type="button" className="w-full py-2 bg-white border border-dashed border-gray-400 rounded text-gray-500 text-sm font-bold flex items-center justify-center gap-2">{uploading ? '上傳中...' : <><I.Paperclip /> 選擇檔案 (可多選)</>}</button></div>)}
+                                                </div>
+                                                <div className="flex gap-3 pt-2"><button type="button" onClick={()=>setView('list')} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button><button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">{isSubmitting?'...':'儲存'}</button></div>
+                                            </div>
+                                        </>
+                                    )}
                                 </form>
                             </div>
                         )}
