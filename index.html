@@ -2023,7 +2023,7 @@
                                                                 <th className="text-left py-2 font-medium">品名</th>
                                                                 <th className="text-left py-2 font-medium">規格</th>
                                                                 <th className="text-right py-2 font-medium w-20">件數</th>
-                                                                <th className="text-right py-2 font-medium w-28">重量</th>
+                                                                {canSeePrice() && <th className="text-right py-2 font-medium w-28">重量</th>}
                                                                 {canSeePrice() && <th className="text-right py-2 font-medium w-20">單價</th>}
                                                                 {canSeePrice() && <th className="text-right py-2 font-medium w-28">金額</th>}
                                                                 <th className="text-left py-2 font-medium pl-4">批號/效期</th>
@@ -2035,7 +2035,7 @@
                                                                     <td className="py-2 font-bold text-gray-900">{p.name}</td>
                                                                     <td className="py-2 text-gray-600">{p.spec || '-'}</td>
                                                                     <td className="py-2 text-right font-mono text-base text-blue-600">{safeNum(p.quantity).toLocaleString()}</td>
-                                                                    <td className="py-2 text-right font-mono text-base text-orange-600">{format2(safeNum(p.weight))}kg</td>
+                                                                    {canSeePrice() && <td className="py-2 text-right font-mono text-base text-orange-600">{format2(safeNum(p.weight))}kg</td>}
                                                                     {canSeePrice() && <td className="py-2 text-right font-mono text-base">${format2(safeNum(p.unitPrice))}</td>}
                                                                     {canSeePrice() && <td className="py-2 text-right font-mono text-base text-emerald-600">${format2(safeNum(p.amount))}</td>}
                                                                     <td className="py-2 text-gray-500 pl-4">{(p.batchNumber || p.expiryDate) ? <>{p.batchNumber && <span className="mr-2">{p.batchNumber}</span>}{p.expiryDate && <span>{p.expiryDate}</span>}</> : '-'}</td>
@@ -2046,7 +2046,7 @@
                                                             <tr className="border-t-2 border-gray-200 font-bold">
                                                                 <td className="py-2" colSpan="2">合計</td>
                                                                 <td className="py-2 text-right font-mono text-base text-blue-700">{totalQty.toLocaleString()}</td>
-                                                                <td className="py-2 text-right font-mono text-base text-orange-700">{format2(totalWeight)}kg</td>
+                                                                {canSeePrice() && <td className="py-2 text-right font-mono text-base text-orange-700">{format2(totalWeight)}kg</td>}
                                                                 {canSeePrice() && <td className="py-2"></td>}
                                                                 {canSeePrice() && <td className="py-2 text-right font-mono text-base text-emerald-700">{currSymbol}{format2(totalAmount)}</td>}
                                                                 <td className="py-2"></td>
@@ -2132,7 +2132,7 @@
                                                                 {/* 第三列（折疊）：重量、單價、金額、批號、效期 */}
                                                                 <div className="pb-2 pl-2 border-l-2 border-blue-100 ml-1 mb-2 text-sm">
                                                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                                                                        <div className="flex justify-between"><span className="text-gray-400">重量</span><span className="font-mono text-orange-600">{format2(safeNum(p.weight))}kg</span></div>
+                                                                        {canSeePrice() && <div className="flex justify-between"><span className="text-gray-400">重量</span><span className="font-mono text-orange-600">{format2(safeNum(p.weight))}kg</span></div>}
                                                                         {canSeePrice() && <div className="flex justify-between"><span className="text-gray-400">單價</span><span className="font-mono">${format2(safeNum(p.unitPrice))}</span></div>}
                                                                         {canSeePrice() && <div className="flex justify-between"><span className="text-gray-400">金額</span><span className="font-mono font-bold text-emerald-600">${format2(safeNum(p.amount))}</span></div>}
                                                                         {p.batchNumber && <div className="flex justify-between"><span className="text-gray-400">批號</span><span className="text-gray-700">{p.batchNumber}</span></div>}
@@ -2148,10 +2148,10 @@
                                                         {/* 合計數字 */}
                                                         <div className="flex items-center text-sm font-mono font-bold mb-2">
                                                             <span className="text-blue-700">{totalQty.toLocaleString()}件</span>
-                                                            <span className="text-gray-300 mx-2">·</span>
-                                                            <span className="text-orange-600">{format2(totalWeight)}kg</span>
                                                             {canSeePrice() && (
                                                                 <>
+                                                                    <span className="text-gray-300 mx-2">·</span>
+                                                                    <span className="text-orange-600">{format2(totalWeight)}kg</span>
                                                                     <span className="flex-1"></span>
                                                                     <span className="text-emerald-700 text-base">{currSymbol}{format2(totalAmount)}</span>
                                                                 </>
