@@ -1088,22 +1088,57 @@
                 const lowerText = text.toLowerCase();
                 const lowerName = fileName.toLowerCase();
                 
-                // 根據檔名和內容判斷文件類型
-                if (lowerName.includes('invoice') || lowerText.includes('commercial invoice') || lowerText.includes('unit price') || lowerText.includes('amount')) {
+                // 1. 優先根據檔名判斷（最準確）
+                if (lowerName.includes('invoice') || lowerName.includes('inv')) {
                     return { type: 'invoice', label: 'Commercial Invoice', icon: '📄' };
                 }
-                if (lowerName.includes('packing') || lowerText.includes('packing list') || lowerText.includes('gross weight') || lowerText.includes('net weight')) {
+                if (lowerName.includes('packing') || lowerName.includes('pl')) {
                     return { type: 'packing', label: 'Packing List', icon: '📦' };
                 }
-                if (lowerName.includes('bl') || lowerName.includes('lading') || lowerText.includes('bill of lading') || lowerText.includes('b/l no')) {
+                if (lowerName.includes('bol') || lowerName.includes('b-l') || lowerName.includes('bl') || lowerName.includes('lading')) {
                     return { type: 'bl', label: 'Bill of Lading', icon: '🚢' };
                 }
-                if (lowerText.includes('到貨通知') || lowerText.includes('arrival notice') || lowerText.includes('船到日') || lowerText.includes('eta')) {
+                if (lowerName.includes('notice') || lowerName.includes('arrival') || lowerName.includes('通知')) {
                     return { type: 'arrival', label: '到貨通知', icon: '📬' };
                 }
-                if (lowerText.includes('效期') || lowerText.includes('expiry') || lowerText.includes('batch') || lowerText.includes('批號')) {
+                if (lowerName.includes('batch') || lowerName.includes('expiry') || lowerName.includes('效期') || lowerName.includes('批號')) {
                     return { type: 'expiry', label: '批號效期清單', icon: '📋' };
                 }
+                
+                // 2. 根據內容特徵判斷（使用獨特關鍵字）
+                // Invoice 特徵：有 PRICE/AMOUNT 欄位
+                if (lowerText.includes('commercial invoice') || 
+                    (lowerText.includes('unit price') && lowerText.includes('amount')) ||
+                    (lowerText.includes('price') && lowerText.includes('invoice'))) {
+                    return { type: 'invoice', label: 'Commercial Invoice', icon: '📄' };
+                }
+                
+                // Packing List 特徵：有 GROSS WEIGHT 或明確標示 PACKING LIST
+                if (lowerText.includes('packing list') || 
+                    (lowerText.includes('gross weight') && lowerText.includes('net weight')) ||
+                    lowerText.includes('total ctns')) {
+                    return { type: 'packing', label: 'Packing List', icon: '📦' };
+                }
+                
+                // Bill of Lading 特徵：有 SHIPPER/CONSIGNEE/B/L NO
+                if (lowerText.includes('bill of lading') || 
+                    lowerText.includes('b/l no') ||
+                    (lowerText.includes('shipper') && lowerText.includes('consignee') && lowerText.includes('vessel'))) {
+                    return { type: 'bl', label: 'Bill of Lading', icon: '🚢' };
+                }
+                
+                // 到貨通知特徵
+                if (lowerText.includes('到貨通知') || lowerText.includes('arrival notice') || 
+                    lowerText.includes('船到日') || lowerText.includes('拆櫃地')) {
+                    return { type: 'arrival', label: '到貨通知', icon: '📬' };
+                }
+                
+                // 批號效期清單特徵
+                if (lowerText.includes('效期') || lowerText.includes('有效期限') ||
+                    (lowerText.includes('batch') && lowerText.includes('expiry'))) {
+                    return { type: 'expiry', label: '批號效期清單', icon: '📋' };
+                }
+                
                 return { type: 'other', label: '其他文件', icon: '📎' };
             };
             
@@ -1137,6 +1172,8 @@
                         }
                         
                         const docType = detectDocumentType(fullText, file.name);
+                        console.log(`📄 文件識別: ${file.name} → ${docType.label} (${docType.type})`);
+                        console.log(`📝 文件內容前300字:`, fullText.substring(0, 300));
                         newDocs.push({
                             id: Date.now() + '_' + i,
                             name: file.name,
@@ -1309,8 +1346,7 @@ ECUADOR=厄瓜多, PANAMA=巴拿馬, THAILAND=泰國, INDONESIA=印尼, CHINA=�
                             }],
                             generationConfig: {
                                 temperature: 0.1,
-                                maxOutputTokens: 4096,
-                                responseMimeType: "application/json"
+                                maxOutputTokens: 4096
                             }
                         })
                     });
