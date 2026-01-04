@@ -98,6 +98,7 @@
         /* 大輸入框 */
         .form-input-lg {
             width: 100%;
+            max-width: 100%;
             height: 52px;
             padding: 0 16px;
             background: #f9fafb;
@@ -106,6 +107,9 @@
             font-size: 17px;
             color: #111827;
             box-sizing: border-box;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
             transition: all 0.2s;
         }
         .form-input-lg:focus {
@@ -118,6 +122,21 @@
         .form-input-lg:disabled { background: #f3f4f6; color: #6b7280; }
         .form-input-lg.num-input { text-align: right; font-family: ui-monospace, monospace; font-weight: 600; }
         .form-input-lg.error { border-color: #ef4444; background: #fef2f2; }
+        
+        /* 日期輸入框特殊處理 */
+        input[type="date"].form-input-lg {
+            min-width: 0;
+            padding-right: 12px;
+        }
+        
+        /* 確保表單欄位不溢出 */
+        .ios-card { overflow: hidden; }
+        .ios-card form { max-width: 100%; overflow: hidden; }
+        .ios-card form > div { max-width: 100%; }
+        .ios-card input, .ios-card select { max-width: 100%; min-width: 0; }
+        
+        /* 步驟表單容器 */
+        .step-form-container { padding: 0 4px; }
         
         /* 大標籤 */
         .form-label-lg {
@@ -540,7 +559,9 @@
             Dollar: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
             Calendar: ()=><svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
             Line: ()=><svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9Z"/><path d="M8 12h8"/></svg>,
-            Package: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>
+            Package: ()=><svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>,
+            ChevronLeft: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>,
+            ChevronRight: ()=><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
         };
         
         const I = Icons;
@@ -2227,30 +2248,81 @@
                                                     <div className="space-y-4">
                                                         <div className="step-title"><div className="step-name">產品明細</div></div>
                                                         {validationErrors.products && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg">請至少填寫一項品名</div>}
-                                                        <div className="space-y-3">
+                                                        <div className="space-y-4">
                                                             {formData.products.map((p, idx) => (
                                                                 <div key={p.id} className={`product-card-lg ${validationErrors.products && idx === 0 && !p.name?.trim() ? 'error' : ''}`}>
-                                                                    <div className="mb-3"><label className="form-label-lg">品名 <span className="required">*</span></label><div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`product-picker-btn ${!p.name ? 'empty' : ''}`}><span>{p.name || '點擊選擇產品'}</span><span>▼</span></div></div>
-                                                                    <div className="mb-3"><label className="form-label-lg">規格</label><input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="form-input-lg" placeholder="輸入規格" /></div>
-                                                                    <div className="grid grid-cols-2 gap-3 mb-3">
-                                                                        <div><label className="form-label-lg">件數</label><input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{color:'#2563eb'}} placeholder="0" /></div>
-                                                                        <div><label className="form-label-lg">重量(kg)</label><input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{color:'#f97316'}} placeholder="0" /></div>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-2 gap-3 mb-3">
-                                                                        {canSeePrice() ? (<div><label className="form-label-lg">單價</label><input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" placeholder="0" /></div>) : (<div><label className="form-label-lg">單價</label><div className="form-input-lg flex items-center justify-end text-gray-300">***</div></div>)}
-                                                                        <div><label className="form-label-lg">計價方式</label><select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="form-input-lg"><option value="weight">計重</option><option value="quantity">計件</option></select></div>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-2 gap-3 mb-3">
-                                                                        <div><label className="form-label-lg">批號</label><input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="form-input-lg" placeholder="輸入批號" /></div>
-                                                                        <div><label className="form-label-lg">效期</label><input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="form-input-lg" /></div>
-                                                                    </div>
-                                                                    <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                                                                        {canSeePrice() ? (<span className="font-bold text-emerald-600 text-xl">${format2(safeNum(p.amount))}</span>) : (<span className="text-gray-300 text-xl">***</span>)}
+                                                                    {/* 產品編號標題 */}
+                                                                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
+                                                                        <span className="font-bold text-gray-600">產品 #{idx + 1}</span>
                                                                         <div className="flex gap-2">
                                                                             <button type="button" onClick={()=>duplicateProductRow(idx)} className="p-2 bg-gray-100 rounded-lg text-gray-500"><I.Copy /></button>
                                                                             {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-2 bg-red-50 rounded-lg text-red-500"><I.Trash2 /></button>}
                                                                         </div>
                                                                     </div>
+                                                                    
+                                                                    {/* 品名 */}
+                                                                    <div className="mb-4">
+                                                                        <label className="form-label-lg">品名 <span className="required">*</span></label>
+                                                                        <div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`product-picker-btn ${!p.name ? 'empty' : ''}`}>
+                                                                            <span>{p.name || '點擊選擇產品'}</span>
+                                                                            <span>▼</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    {/* 規格 */}
+                                                                    <div className="mb-4">
+                                                                        <label className="form-label-lg">規格</label>
+                                                                        <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="form-input-lg" placeholder="輸入規格" />
+                                                                    </div>
+                                                                    
+                                                                    {/* 件數 */}
+                                                                    <div className="mb-4">
+                                                                        <label className="form-label-lg">件數</label>
+                                                                        <input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{color:'#2563eb'}} placeholder="0" />
+                                                                    </div>
+                                                                    
+                                                                    {/* 重量 */}
+                                                                    <div className="mb-4">
+                                                                        <label className="form-label-lg">重量 (kg)</label>
+                                                                        <input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{color:'#f97316'}} placeholder="0" />
+                                                                    </div>
+                                                                    
+                                                                    {/* 單價 */}
+                                                                    {canSeePrice() && (
+                                                                        <div className="mb-4">
+                                                                            <label className="form-label-lg">單價</label>
+                                                                            <input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" placeholder="0" />
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* 計價方式 */}
+                                                                    <div className="mb-4">
+                                                                        <label className="form-label-lg">計價方式</label>
+                                                                        <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="form-input-lg">
+                                                                            <option value="weight">計重</option>
+                                                                            <option value="quantity">計件</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    
+                                                                    {/* 批號 */}
+                                                                    <div className="mb-4">
+                                                                        <label className="form-label-lg">批號</label>
+                                                                        <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="form-input-lg" placeholder="輸入批號" />
+                                                                    </div>
+                                                                    
+                                                                    {/* 效期 */}
+                                                                    <div className="mb-4">
+                                                                        <label className="form-label-lg">效期</label>
+                                                                        <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="form-input-lg" />
+                                                                    </div>
+                                                                    
+                                                                    {/* 金額 */}
+                                                                    {canSeePrice() && (
+                                                                        <div className="bg-emerald-50 p-4 rounded-xl text-center">
+                                                                            <div className="text-sm text-emerald-600 mb-1">小計金額</div>
+                                                                            <div className="font-bold text-emerald-700 text-2xl">${format2(safeNum(p.amount))}</div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -2390,27 +2462,83 @@
                                                         <span className="accordion-arrow">▶</span>
                                                     </div>
                                                     <div className="accordion-content">
-                                                        <div className="space-y-3">
+                                                        <div className="space-y-4">
                                                             {formData.products.map((p, idx) => (
                                                                 <div key={p.id} className="product-card-lg">
-                                                                    <div className="mb-3"><div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`product-picker-btn ${!p.name ? 'empty' : ''}`}><span>{p.name || '點擊選擇產品'}</span><span>▼</span></div></div>
-                                                                    <div className="grid grid-cols-2 gap-2 mb-2">
-                                                                        <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="form-input-lg" placeholder="規格" style={{height:'44px',fontSize:'15px'}} />
-                                                                        <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="form-input-lg" style={{height:'44px',fontSize:'15px'}}><option value="weight">計重</option><option value="quantity">計件</option></select>
+                                                                    {/* 產品編號標題 */}
+                                                                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
+                                                                        <span className="font-bold text-gray-600">產品 #{idx + 1}</span>
+                                                                        {(canEditDomesticFull() || canManage()) && (
+                                                                            <div className="flex gap-1">
+                                                                                <button type="button" onClick={()=>duplicateProductRow(idx)} className="p-2 text-gray-400"><I.Copy /></button>
+                                                                                {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-2 text-red-400"><I.Trash2 /></button>}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="grid grid-cols-3 gap-2 mb-2">
-                                                                        <input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'44px',fontSize:'15px',color:'#2563eb'}} placeholder="件數" />
-                                                                        <input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'44px',fontSize:'15px',color:'#f97316'}} placeholder="重量" />
-                                                                        {canSeePrice() ? <input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'44px',fontSize:'15px'}} placeholder="單價" /> : <div className="form-input-lg flex items-center justify-end text-gray-300" style={{height:'44px'}}>***</div>}
+                                                                    
+                                                                    {/* 品名 */}
+                                                                    <div className="mb-3">
+                                                                        <label className="form-label-lg">品名</label>
+                                                                        <div onClick={() => { if(products.length > 0) { setActiveProductPicker(idx); setProductPickerSearch(''); } }} className={`product-picker-btn ${!p.name ? 'empty' : ''}`}>
+                                                                            <span>{p.name || '點擊選擇產品'}</span>
+                                                                            <span>▼</span>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="grid grid-cols-2 gap-2 mb-2">
-                                                                        <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="form-input-lg" style={{height:'44px',fontSize:'15px'}} placeholder="批號" />
-                                                                        <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="form-input-lg" style={{height:'44px',fontSize:'14px'}} />
+                                                                    
+                                                                    {/* 規格 */}
+                                                                    <div className="mb-3">
+                                                                        <label className="form-label-lg">規格</label>
+                                                                        <input value={p.spec} onChange={e=>handleProductChange(idx,'spec',e.target.value)} className="form-input-lg" placeholder="輸入規格" style={{height:'48px'}} />
                                                                     </div>
-                                                                    <div className="flex items-center justify-between pt-2 border-t">
-                                                                        {canSeePrice() ? <span className="font-bold text-emerald-600 text-lg">${format2(safeNum(p.amount))}</span> : <span>***</span>}
-                                                                        {(canEditDomesticFull() || canManage()) && (<div className="flex gap-1"><button type="button" onClick={()=>duplicateProductRow(idx)} className="p-2 text-gray-400"><I.Copy /></button>{formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-2 text-red-400"><I.Trash2 /></button>}</div>)}
+                                                                    
+                                                                    {/* 件數 */}
+                                                                    <div className="mb-3">
+                                                                        <label className="form-label-lg">件數</label>
+                                                                        <input type="text" inputMode="decimal" value={p.quantity} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'quantity',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'48px',color:'#2563eb'}} placeholder="0" />
                                                                     </div>
+                                                                    
+                                                                    {/* 重量 */}
+                                                                    <div className="mb-3">
+                                                                        <label className="form-label-lg">重量 (kg)</label>
+                                                                        <input type="text" inputMode="decimal" value={p.weight} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'weight',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'48px',color:'#f97316'}} placeholder="0" />
+                                                                    </div>
+                                                                    
+                                                                    {/* 單價 */}
+                                                                    {canSeePrice() && (
+                                                                        <div className="mb-3">
+                                                                            <label className="form-label-lg">單價</label>
+                                                                            <input type="text" inputMode="decimal" value={p.unitPrice} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleProductChange(idx,'unitPrice',e.target.value.replace(/[^\d.-]/g,''))} className="form-input-lg num-input" style={{height:'48px'}} placeholder="0" />
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* 計價方式 */}
+                                                                    <div className="mb-3">
+                                                                        <label className="form-label-lg">計價方式</label>
+                                                                        <select value={p.pricingMode} onChange={e=>handleProductChange(idx,'pricingMode',e.target.value)} className="form-input-lg" style={{height:'48px'}}>
+                                                                            <option value="weight">計重</option>
+                                                                            <option value="quantity">計件</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    
+                                                                    {/* 批號 */}
+                                                                    <div className="mb-3">
+                                                                        <label className="form-label-lg">批號</label>
+                                                                        <input value={p.batchNumber} onChange={e=>handleProductChange(idx,'batchNumber',e.target.value)} className="form-input-lg" style={{height:'48px'}} placeholder="輸入批號" />
+                                                                    </div>
+                                                                    
+                                                                    {/* 效期 */}
+                                                                    <div className="mb-3">
+                                                                        <label className="form-label-lg">效期</label>
+                                                                        <input type="date" value={p.expiryDate} onChange={e=>handleProductChange(idx,'expiryDate',e.target.value)} className="form-input-lg" style={{height:'48px'}} />
+                                                                    </div>
+                                                                    
+                                                                    {/* 金額 */}
+                                                                    {canSeePrice() && (
+                                                                        <div className="bg-emerald-50 p-3 rounded-xl text-center">
+                                                                            <div className="text-sm text-emerald-600 mb-1">小計金額</div>
+                                                                            <div className="font-bold text-emerald-700 text-xl">${format2(safeNum(p.amount))}</div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             ))}
                                                             {(canEditDomesticFull() || canManage()) && <button type="button" onClick={addProductRow} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border-2 border-dashed border-blue-200">+ 新增產品</button>}
