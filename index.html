@@ -1088,54 +1088,54 @@
                 const lowerText = text.toLowerCase();
                 const lowerName = fileName.toLowerCase();
                 
-                // 1. 優先根據檔名判斷（最準確）
-                if (lowerName.includes('invoice') || lowerName.includes('inv')) {
+                // 檢查是否為複合文件（包含多種文件類型）
+                const hasInvoice = lowerText.includes('invoice') && (lowerText.includes('unit price') || lowerText.includes('amount'));
+                const hasPacking = lowerText.includes('packing list') || (lowerText.includes('n. w.') && lowerText.includes('g. w.'));
+                const hasBatchCode = lowerText.includes('bag code') || lowerText.includes('expiration date') || lowerText.includes('production date');
+                
+                // 如果是複合文件
+                if ((hasInvoice && hasPacking) || (hasInvoice && hasBatchCode) || (hasPacking && hasBatchCode)) {
+                    return { type: 'combined', label: '複合文件 (Invoice+PL+批號)', icon: '📑' };
+                }
+                
+                // 1. 優先根據檔名判斷（但排除複合檔名）
+                if ((lowerName.includes('invoice') || lowerName.includes('inv')) && !lowerName.includes('packing')) {
                     return { type: 'invoice', label: 'Commercial Invoice', icon: '📄' };
                 }
-                if (lowerName.includes('packing') || lowerName.includes('pl')) {
+                if ((lowerName.includes('packing') || lowerName.includes('pl')) && !lowerName.includes('inv')) {
                     return { type: 'packing', label: 'Packing List', icon: '📦' };
                 }
-                if (lowerName.includes('bol') || lowerName.includes('b-l') || lowerName.includes('bl') || lowerName.includes('lading')) {
+                if (lowerName.includes('bol') || lowerName.includes('b-l') || lowerName.includes('lading') || 
+                    (lowerName === 'bl.pdf') || lowerName.match(/\bbl\b/)) {
                     return { type: 'bl', label: 'Bill of Lading', icon: '🚢' };
                 }
                 if (lowerName.includes('notice') || lowerName.includes('arrival') || lowerName.includes('通知')) {
                     return { type: 'arrival', label: '到貨通知', icon: '📬' };
                 }
-                if (lowerName.includes('batch') || lowerName.includes('expiry') || lowerName.includes('效期') || lowerName.includes('批號')) {
+                if (lowerName.includes('batch') || lowerName.includes('expiry') || lowerName.includes('效期') || lowerName.includes('code')) {
                     return { type: 'expiry', label: '批號效期清單', icon: '📋' };
                 }
                 
-                // 2. 根據內容特徵判斷（使用獨特關鍵字）
-                // Invoice 特徵：有 PRICE/AMOUNT 欄位
-                if (lowerText.includes('commercial invoice') || 
-                    (lowerText.includes('unit price') && lowerText.includes('amount')) ||
-                    (lowerText.includes('price') && lowerText.includes('invoice'))) {
-                    return { type: 'invoice', label: 'Commercial Invoice', icon: '📄' };
-                }
-                
-                // Packing List 特徵：有 GROSS WEIGHT 或明確標示 PACKING LIST
-                if (lowerText.includes('packing list') || 
-                    (lowerText.includes('gross weight') && lowerText.includes('net weight')) ||
-                    lowerText.includes('total ctns')) {
-                    return { type: 'packing', label: 'Packing List', icon: '📦' };
-                }
-                
-                // Bill of Lading 特徵：有 SHIPPER/CONSIGNEE/B/L NO
-                if (lowerText.includes('bill of lading') || 
-                    lowerText.includes('b/l no') ||
+                // 2. 根據內容特徵判斷
+                if (lowerText.includes('bill of lading') || lowerText.includes('b/l no') ||
                     (lowerText.includes('shipper') && lowerText.includes('consignee') && lowerText.includes('vessel'))) {
                     return { type: 'bl', label: 'Bill of Lading', icon: '🚢' };
                 }
                 
-                // 到貨通知特徵
+                if (hasInvoice) {
+                    return { type: 'invoice', label: 'Commercial Invoice', icon: '📄' };
+                }
+                
+                if (hasPacking) {
+                    return { type: 'packing', label: 'Packing List', icon: '📦' };
+                }
+                
                 if (lowerText.includes('到貨通知') || lowerText.includes('arrival notice') || 
                     lowerText.includes('船到日') || lowerText.includes('拆櫃地')) {
                     return { type: 'arrival', label: '到貨通知', icon: '📬' };
                 }
                 
-                // 批號效期清單特徵
-                if (lowerText.includes('效期') || lowerText.includes('有效期限') ||
-                    (lowerText.includes('batch') && lowerText.includes('expiry'))) {
+                if (hasBatchCode || lowerText.includes('效期') || lowerText.includes('有效期限')) {
                     return { type: 'expiry', label: '批號效期清單', icon: '📋' };
                 }
                 
@@ -1169,6 +1169,12 @@
                             const textContent = await page.getTextContent();
                             const pageText = textContent.items.map(item => item.str).join(' ');
                             fullText += pageText + '\n';
+                        }
+                        
+                        // 檢查是否成功提取文字（掃描檔可能無法提取）
+                        const cleanText = fullText.replace(/\s+/g, '').trim();
+                        if (cleanText.length < 50) {
+                            console.warn(`⚠️ ${file.name} 文字內容過少，可能是掃描圖片`);
                         }
                         
                         const docType = detectDocumentType(fullText, file.name);
@@ -1283,36 +1289,40 @@
             };
             
             // V79.0: Gemini API 解析提示詞
-            const GEMINI_PARSE_PROMPT_START = `你是進口貨櫃文件解析專家。請分析以下文件並提取資料，最後以純 JSON 格式回傳。
+            const GEMINI_PARSE_PROMPT_START = `# 任務：解析進口貨櫃報關文件並輸出 JSON
 
-## 欄位對應
-- SIZE (20/30, 30/40) → spec 規格
-- CTN/CARTON → quantity 件數
-- NET WEIGHT/N.W. → weight 淨重kg
-- PRICE/UNIT PRICE/U/P → unitPrice 單價（歐洲格式逗號當小數點：6,40=6.40）
-- S/N/BATCH → batchNumber 批號
-- CONTAINER NUMBER → containerNumber 櫃號
-- ETA/船到日 → arrivalDate 到港日
-- EXPIRY/效期 → expiryDate 效期
-- SHIPPER/SELLER → supplier 廠商
+請從以下文件中提取資訊，並以 JSON 格式回傳。
 
-## 產地對照
-ECUADOR=厄瓜多, PANAMA=巴拿馬, THAILAND=泰國, INDONESIA=印尼, CHINA=中國, CHILE=智利
+## 需提取的欄位：
+- containerNumber: 櫃號（如 EGSU3137550）
+- importCompany: 進口公司（WEN'S FROZEN=崇文冷凍, 8WAY=八方環球）
+- arrivalDate: 到港日 YYYY-MM-DD
+- supplier: 廠商（Invoice 發票人）
+- origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多）
+- shippingCompany: 船名航次
+- products: 產品陣列（見下方格式）
+- totalQuantity: 總件數
+- totalWeight: 總重量
 
-## 進口公司
-8WAY UNIVERSAL → 八方環球，其他 → 崇文冷凍
+## 產品欄位：
+- originalText: 英文品名原文
+- name: 中文品名
+- quantity: 件數（純數字）
+- weight: 淨重kg（純數字）
+- unitPrice: 單價USD（純數字，6,40=6.40）
+- batchNumber: 批號（超過10個填"多批號"）
+- expiryDate: 最早效期 YYYY-MM-DD
 
-## 批號拆分
-若批號效期清單有多個批號且有件數，需拆分成多筆產品。去頭銀鮭(CHUM/SILVER SALMON)例外，不拆分取最早效期。
-
----
-以下是要解析的文件：
+## 文件內容：
 `;
 
             const GEMINI_PARSE_PROMPT_END = `
----
-請根據以上文件內容，提取資料並回傳以下格式的純 JSON（不要加 \`\`\`json 標記）：
-{"containerNumber":"櫃號","importCompany":"八方環球或崇文冷凍","arrivalDate":"YYYY-MM-DD","supplier":"廠商名","origin":"產地中文","devanningLocation":"拆櫃地","products":[{"originalText":"原始英文","name":"品名","spec":"規格","quantity":件數,"weight":重量,"unitPrice":單價,"batchNumber":"批號","expiryDate":"YYYY-MM-DD","pricingMode":"weight"}],"totalQuantity":總件數,"totalWeight":總重量}`;
+
+## 輸出要求：
+只輸出 JSON，不要輸出任何其他文字、說明或 markdown 標記。
+
+JSON 範例：
+{"containerNumber":"EGSU3137550","importCompany":"崇文冷凍","arrivalDate":"2025-04-13","supplier":"CV. KEONG MAS PERMAI","origin":"印尼","shippingCompany":"EVER BLOOM 1132-073B","devanningLocation":"高雄","products":[{"originalText":"DRIED SNAIL MEAT","name":"乾蝸牛肉","spec":"","quantity":543,"weight":8145,"unitPrice":22.85,"batchNumber":"多批號","expiryDate":"2030-02-20","pricingMode":"weight"}],"totalQuantity":543,"totalWeight":8145}`;
             
             // V79.0: AI 解析 - 直接呼叫 Gemini API
             const processWithAI = async (documents) => {
@@ -1369,13 +1379,20 @@ ECUADOR=厄瓜多, PANAMA=巴拿馬, THAILAND=泰國, INDONESIA=印尼, CHINA=�
                     
                     console.log('AI 原始回應:', responseText); // 除錯用
                     
+                    // 檢查是否 AI 錯誤地回傳了原始文件內容
+                    if (responseText.includes('COMMERCIAL INVOICE') && responseText.includes('PACKING LIST') && !responseText.includes('"containerNumber"')) {
+                        console.warn('AI 回傳了原始文件內容而非 JSON，將重試...');
+                        throw new Error('AI 未正確解析，請重試');
+                    }
+                    
                     // 解析 JSON（增強容錯）
                     let parsedData;
                     try {
-                        // 移除 markdown 標記
+                        // 移除 markdown 標記和多餘空白
                         let jsonStr = responseText
                             .replace(/```json\s*/gi, '')
                             .replace(/```\s*/g, '')
+                            .replace(/[\r\n]+/g, ' ')
                             .trim();
                         
                         // 嘗試找到 JSON 物件的開始和結束
@@ -1384,6 +1401,11 @@ ECUADOR=厄瓜多, PANAMA=巴拿馬, THAILAND=泰國, INDONESIA=印尼, CHINA=�
                         if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
                             jsonStr = jsonStr.substring(startIdx, endIdx + 1);
                         }
+                        
+                        // 嘗試修復常見的 JSON 格式問題
+                        jsonStr = jsonStr
+                            .replace(/,\s*}/g, '}')  // 移除尾部逗號
+                            .replace(/,\s*]/g, ']'); // 移除陣列尾部逗號
                         
                         parsedData = JSON.parse(jsonStr);
                     } catch (parseError) {
