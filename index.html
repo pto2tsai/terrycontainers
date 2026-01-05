@@ -766,6 +766,7 @@
             customsBroker: CUSTOMS_BROKERS[0], 
             origin: '', 
             supplier: '', 
+            vendorSeqNo: '', // V79.0: 廠商序號（年度-序號，如 26-01）
             arrivalDate: new Date().toISOString().split('T')[0], 
             containerNumber: '', 
             shippingCompany: '', 
@@ -1614,8 +1615,9 @@ JSON 範例：
                 
                 // 檢查櫃號是否已存在
                 if (data.containerNumber) {
+                    console.log(`🔍 檢查櫃號重複: ${data.containerNumber}，現有記錄數: ${shipments.length}`);
                     const existing = shipments.find(s => 
-                        s.containerNo === data.containerNumber && !s.id?.startsWith('temp_')
+                        s.containerNumber === data.containerNumber && !s.id?.startsWith('temp_')
                     );
                     if (existing) {
                         console.warn(`⚠️ 櫃號 ${data.containerNumber} 已存在！到港日: ${existing.arrivalDate}`);
@@ -1625,6 +1627,8 @@ JSON 範例：
                             existingArrivalDate: existing.arrivalDate,
                             existingSupplier: existing.supplier
                         });
+                    } else {
+                        console.log(`✅ 櫃號 ${data.containerNumber} 無重複`);
                     }
                 }
                 
@@ -2303,9 +2307,53 @@ JSON 範例：
                 }
             };
 
+            // V79.0: 計算廠商序號（年度-序號，如 26-01）
+            const generateVendorSeqNo = (supplier, arrivalDate, excludeId = null) => {
+                if (!supplier || !arrivalDate) return '';
+                
+                // 取年份後兩位
+                const year = arrivalDate.substring(2, 4); // "2026-01-05" → "26"
+                
+                // 找出同廠商同年度的所有記錄
+                const sameVendorSameYear = shipments.filter(s => 
+                    s.supplier === supplier && 
+                    s.arrivalDate?.startsWith(`20${year}`) &&
+                    s.id !== excludeId
+                );
+                
+                // 找出最大序號
+                let maxSeq = 0;
+                sameVendorSameYear.forEach(s => {
+                    if (s.vendorSeqNo) {
+                        const match = s.vendorSeqNo.match(/^\d{2}-(\d+)$/);
+                        if (match) {
+                            const seq = parseInt(match[1], 10);
+                            if (seq > maxSeq) maxSeq = seq;
+                        }
+                    }
+                });
+                
+                // 下一個序號
+                const nextSeq = maxSeq + 1;
+                return `${year}-${nextSeq.toString().padStart(2, '0')}`;
+            };
+
             const handleInputChange = (e) => {
                 const {name,value,type,checked}=e.target;
-                setFormData(p => ({...p, [name]: type==='checkbox'?checked:value}));
+                setFormData(p => {
+                    const newData = {...p, [name]: type==='checkbox'?checked:value};
+                    
+                    // V79.0: 當廠商或到港日改變時，自動產生廠商序號
+                    if ((name === 'supplier' || name === 'arrivalDate') && !editingId) {
+                        const supplier = name === 'supplier' ? value : newData.supplier;
+                        const arrivalDate = name === 'arrivalDate' ? value : newData.arrivalDate;
+                        if (supplier && arrivalDate) {
+                            newData.vendorSeqNo = generateVendorSeqNo(supplier, arrivalDate);
+                        }
+                    }
+                    
+                    return newData;
+                });
                 // V70.0: 清除該欄位的驗證錯誤
                 if (validationErrors[name]) {
                     setValidationErrors(prev => ({...prev, [name]: false}));
@@ -3410,9 +3458,9 @@ JSON 範例：
                                                                 {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-1.5"><I.Trash2 /></button>}
                                                             </div>
                                                         </div>
-                                                        {/* 第二列：廠商、產地、報關行、船公司 */}
+                                                        {/* 第二列：廠商、序號、產地、報關行、船公司 */}
                                                         <div className="flex items-center gap-4 text-sm mb-1">
-                                                            <span className="flex items-center gap-1"><span className="text-gray-400">廠商:</span><span className="font-bold text-gray-800">{item.supplier}</span></span>
+                                                            <span className="flex items-center gap-1"><span className="text-gray-400">廠商:</span><span className="font-bold text-gray-800">{item.supplier}</span>{item.vendorSeqNo && <span className="ml-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-mono font-bold">{item.vendorSeqNo}</span>}</span>
                                                             {item.origin && <span className="flex items-center gap-1"><span className="text-gray-400">產地:</span><span className="font-bold text-gray-800">{item.origin}</span></span>}
                                                             {item.customsBroker && <span className="flex items-center gap-1"><span className="text-gray-400">報關行:</span><span className="font-bold text-gray-800">{item.customsBroker}</span></span>}
                                                             {item.shippingCompany && <span className="flex items-center gap-1"><span className="text-gray-400">船公司:</span><span className="font-bold text-gray-800">{item.shippingCompany}</span></span>}
@@ -3519,6 +3567,7 @@ JSON 範例：
                                                         {/* 兩欄對稱式資訊 */}
                                                         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm border-t border-gray-100 pt-2">
                                                             <div className="flex justify-between"><span className="text-gray-400 shrink-0">廠商</span><span className="text-gray-700 font-medium truncate ml-2">{item.supplier}</span></div>
+                                                            <div className="flex justify-between"><span className="text-gray-400 shrink-0">序號</span><span className="text-purple-600 font-mono font-bold ml-2">{item.vendorSeqNo || '-'}</span></div>
                                                             <div className="flex justify-between"><span className="text-gray-400 shrink-0">產地</span><span className="text-gray-700 font-medium truncate ml-2">{item.origin || '-'}</span></div>
                                                             <div className="flex justify-between"><span className="text-gray-400 shrink-0">船公司</span><span className="text-gray-700 font-medium truncate ml-2">{item.shippingCompany || '-'}</span></div>
                                                             <div className="flex justify-between"><span className="text-gray-400 shrink-0">報關行</span><span className="text-gray-700 font-medium truncate ml-2">{item.customsBroker || '-'}</span></div>
@@ -3834,6 +3883,7 @@ JSON 範例：
                                                         <div><label className="form-label-lg">櫃號 <span className="required">*</span></label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} className={`form-input-lg font-mono uppercase ${validationErrors.containerNumber ? 'error' : ''}`} placeholder="輸入櫃號" /></div>
                                                         <div><label className="form-label-lg">到港日 <span className="required">*</span></label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} className={`form-input-lg ${validationErrors.arrivalDate ? 'error' : ''}`} /></div>
                                                         <div><label className="form-label-lg">廠商 <span className="required">*</span></label><input name="supplier" value={formData.supplier} onChange={handleInputChange} className={`form-input-lg ${validationErrors.supplier ? 'error' : ''}`} placeholder="輸入廠商名稱" /></div>
+                                                        <div><label className="form-label-lg">廠商序號</label><div className="flex gap-2"><input name="vendorSeqNo" value={formData.vendorSeqNo} onChange={handleInputChange} className="form-input-lg font-mono flex-1" placeholder="如 26-01" /><button type="button" onClick={() => setFormData(p => ({...p, vendorSeqNo: generateVendorSeqNo(p.supplier, p.arrivalDate, editingId)}))} className="px-3 bg-blue-100 text-blue-600 rounded-lg text-sm font-bold whitespace-nowrap">自動</button></div></div>
                                                         <div><label className="form-label-lg">產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} className="form-input-lg" placeholder="輸入產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
                                                         <button type="button" onClick={() => setFormStep(2)} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg mt-4">下一步：報關資訊 →</button>
                                                         <button type="button" onClick={()=>setView('list')} className="w-full py-3 text-gray-500 font-bold">取消</button>
@@ -4040,6 +4090,7 @@ JSON 範例：
                                                         <div><label>報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="報關單號" /></div>
                                                         <div><label>輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="許可證號" /></div>
                                                         <div><label className="label-required">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} className={`w-full input-bg-style rounded-lg p-2 ${validationErrors.supplier ? 'input-error' : ''}`} placeholder="廠商" /></div>
+                                                        <div><label>廠商序號</label><div className="flex gap-1"><input name="vendorSeqNo" value={formData.vendorSeqNo} onChange={handleInputChange} className="flex-1 input-bg-style rounded-lg p-2 font-mono" placeholder="如 26-01" /><button type="button" onClick={() => setFormData(p => ({...p, vendorSeqNo: generateVendorSeqNo(p.supplier, p.arrivalDate, editingId)}))} className="px-2 bg-blue-100 text-blue-600 rounded-lg text-xs font-bold">自動</button></div></div>
                                                         <div><label>產地</label><input list="origins" name="origin" value={formData.origin} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
                                                         <div><label>拆櫃地</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div>
                                                         <div><label>拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} className="w-full input-bg-style rounded-lg p-2" /></div>
@@ -4103,6 +4154,7 @@ JSON 範例：
                                                             <div><label className="form-label-lg">櫃號</label><input name="containerNumber" value={formData.containerNumber} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg font-mono uppercase" placeholder="櫃號" /></div>
                                                             <div><label className="form-label-lg">到港日</label><input type="date" name="arrivalDate" value={formData.arrivalDate} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg" /></div>
                                                             <div><label className="form-label-lg">廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg" placeholder="廠商" /></div>
+                                                            <div><label className="form-label-lg">廠商序號</label><div className="flex gap-2"><input name="vendorSeqNo" value={formData.vendorSeqNo} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg font-mono flex-1" placeholder="如 26-01" />{canCreate() && <button type="button" onClick={() => setFormData(p => ({...p, vendorSeqNo: generateVendorSeqNo(p.supplier, p.arrivalDate, editingId)}))} className="px-3 bg-blue-100 text-blue-600 rounded-lg text-sm font-bold">自動</button>}</div></div>
                                                             <div><label className="form-label-lg">產地</label><input list="origins2" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="form-input-lg" placeholder="產地" /><datalist id="origins2">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
                                                         </div>
                                                     </div>
@@ -4270,6 +4322,7 @@ JSON 範例：
                                                         <div><label>報關單號</label><input name="customsDeclarationNo" value={formData.customsDeclarationNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="報關單號" /></div>
                                                         <div><label>輸入許可證</label><input name="importPermitNo" value={formData.importPermitNo} onChange={handleInputChange} disabled={!canEditQCFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="許可證號" /></div>
                                                         <div><label>廠商</label><input name="supplier" value={formData.supplier} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="廠商" /></div>
+                                                        <div><label>廠商序號</label><div className="flex gap-1"><input name="vendorSeqNo" value={formData.vendorSeqNo} onChange={handleInputChange} disabled={!canCreate()} className="flex-1 input-bg-style rounded-lg p-2 font-mono" placeholder="如 26-01" />{canCreate() && <button type="button" onClick={() => setFormData(p => ({...p, vendorSeqNo: generateVendorSeqNo(p.supplier, p.arrivalDate, editingId)}))} className="px-2 bg-blue-100 text-blue-600 rounded-lg text-xs font-bold">自動</button>}</div></div>
                                                         <div><label>產地</label><input list="origins3" name="origin" value={formData.origin} onChange={handleInputChange} disabled={!canCreate()} className="w-full input-bg-style rounded-lg p-2" placeholder="產地" /><datalist id="origins3">{DEFAULT_ORIGINS.map(o=><option key={o} value={o} />)}</datalist></div>
                                                         <div><label>拆櫃地</label><input name="devanningLocation" value={formData.devanningLocation} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" placeholder="地點" /></div>
                                                         <div><label>拆櫃日</label><input type="date" name="devanningDate" value={formData.devanningDate} onChange={handleInputChange} disabled={!canEditWarehouseFields()} className="w-full input-bg-style rounded-lg p-2" /></div>
