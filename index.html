@@ -1141,6 +1141,8 @@
                 
                 // 2. 根據內容特徵判斷
                 if (lowerText.includes('bill of lading') || lowerText.includes('b/l no') ||
+                    lowerText.includes('container no') || lowerText.includes('container/seal') ||
+                    lowerText.includes('cntr no') || lowerText.includes('seal no') ||
                     (lowerText.includes('shipper') && lowerText.includes('consignee') && lowerText.includes('vessel'))) {
                     return { type: 'bl', label: 'Bill of Lading', icon: '🚢' };
                 }
@@ -1364,31 +1366,33 @@
 請仔細檢視文件圖片或文字，提取所有資訊，並以 JSON 格式回傳。
 
 ## 需提取的欄位：
-- containerNumber: 櫃號（格式如 EGSU3137550、TEMU9322425、MRKU1234567，通常 4 個英文字母 + 7 個數字，可能標示為 CONTAINER NO.、CNTR NO.、櫃號 等）
+- containerNumber: 櫃號（格式：4英文+7數字，如 TEMU9322425、MRKU1234567）
 - importCompany: 進口公司（WEN'S FROZEN=崇文冷凍, 8WAY=八方環球, STAR UNIVERSE=崇文冷凍）
 - arrivalDate: 到港日 YYYY-MM-DD
 - supplier: 廠商（Invoice 發票人/SHIPPER）
 - origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多, THAILAND=泰國, CHINA=中國, VIETNAM=越南）
 - shippingCompany: 船名航次
+- billOfLading: 提單號碼（B/L NO.）
 - products: 產品陣列（見下方格式）
 - totalQuantity: 總件數
 - totalWeight: 總重量
 
+## 櫃號識別重點（非常重要）：
+1. Bill of Lading (B/L) 提單中通常有「CONTAINER NO. / SEAL NO.」欄位
+2. 格式範例：TEMU9322425 / SEAL: CN1234567
+3. 櫃號在斜線前面，封條號在斜線後面
+4. 櫃號格式：4個英文字母 + 7個數字（如 EGSU3137550）
+5. 也可能標示為：CNTR NO.、Container Number、櫃號
+
 ## 產品欄位：
 - originalText: 英文品名原文
-- name: 中文品名（WHITE SHRIMP=白蝦, SALMON=鮭魚, SQUID=魷魚, CRAB=蟹, LOBSTER=龍蝦）
+- name: 中文品名（WHITE SHRIMP=白蝦, SALMON=鮭魚, SQUID=魷魚, CRAB=蟹, LOBSTER=龍蝦, SNAIL=蝸牛）
 - spec: 規格（如 20/30, 30/40, 1KG*10）
 - quantity: 件數（純數字）
 - weight: 淨重kg（純數字）
 - unitPrice: 單價USD（純數字，歐洲格式 6,40 = 6.40）
 - batchNumber: 批號（超過10個填"多批號"）
 - expiryDate: 最早效期 YYYY-MM-DD
-
-## 重要：請特別注意尋找櫃號（CONTAINER NUMBER），它通常出現在：
-- Packing List 的標題或表頭
-- B/L 提單上
-- CONTAINER/SEAL NO. 欄位
-- 格式為 4 字母 + 7 數字（如 EGSU3137550）
 
 ## 文件內容：
 `;
@@ -1550,11 +1554,12 @@ JSON 範例：
                 const sources = {};
                 const conflicts = {};
                 
-                // 定義欄位對應
+                // 定義欄位對應（B/L 是櫃號的主要來源）
                 const fieldMapping = {
-                    containerNumber: { label: '櫃號', priority: ['packing', 'bl', 'arrival', 'invoice'] },
+                    containerNumber: { label: '櫃號', priority: ['bl', 'packing', 'arrival', 'invoice'] },
+                    billOfLading: { label: '提單號碼', priority: ['bl', 'arrival'] },
                     arrivalDate: { label: '到港日', priority: ['arrival', 'bl'] },
-                    supplier: { label: '廠商', priority: ['invoice', 'packing'] },
+                    supplier: { label: '廠商', priority: ['invoice', 'packing', 'bl'] },
                     origin: { label: '產地', priority: ['invoice', 'packing'] },
                     shippingCompany: { label: '船公司', priority: ['bl', 'arrival'] },
                     devanningLocation: { label: '拆櫃地', priority: ['arrival'] },
@@ -2699,6 +2704,7 @@ JSON 範例：
                                         <div className="grid grid-cols-2 gap-3">
                                             {[
                                                 { key: 'containerNumber', label: '櫃號' },
+                                                { key: 'billOfLading', label: '提單號碼' },
                                                 { key: 'arrivalDate', label: '到港日' },
                                                 { key: 'supplier', label: '廠商' },
                                                 { key: 'origin', label: '產地' },
