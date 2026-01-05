@@ -1160,6 +1160,16 @@
                         const file = pdfFiles[i];
                         setParseProgress(`解析文件 (${i + 1}/${pdfFiles.length}): ${file.name}`);
                         
+                        // 讀取檔案為 base64（先保存，因為 arrayBuffer 會被 PDF.js detach）
+                        const fileBase64 = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                                const base64 = reader.result.split(',')[1]; // 移除 data:application/pdf;base64, 前綴
+                                resolve(base64);
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                        
                         const arrayBuffer = await file.arrayBuffer();
                         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                         let fullText = '';
@@ -1175,14 +1185,12 @@
                         const cleanText = fullText.replace(/\s+/g, '').trim();
                         if (cleanText.length < 50) {
                             console.warn(`⚠️ ${file.name} 文字內容過少，將使用 AI 視覺解析`);
-                            // 轉換為 base64 供 AI 視覺解析
-                            const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-                            const docType = detectDocumentType(file.name, file.name); // 只用檔名判斷
+                            const docType = detectDocumentType(file.name, file.name);
                             newDocs.push({
                                 id: Date.now() + '_' + i,
                                 name: file.name,
                                 text: '',
-                                base64: base64, // 保存 base64 供視覺解析
+                                base64: fileBase64,
                                 mimeType: 'application/pdf',
                                 isScanned: true,
                                 ...docType,
