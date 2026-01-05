@@ -1552,6 +1552,9 @@ JSON 範例：
             
             // V79.0: 處理 AI 回傳結果，建立欄位來源對照
             const processAiResult = (data, documents) => {
+                console.log('📊 processAiResult 開始處理...');
+                console.log('📊 收到的資料:', JSON.stringify(data, null, 2).substring(0, 500));
+                
                 const sources = {};
                 const conflicts = {};
                 
@@ -1614,13 +1617,22 @@ JSON 範例：
                 setDuplicateContainer(null); // 重置重複檢查
                 
                 // 檢查櫃號是否已存在
+                console.log(`🔍 開始檢查櫃號重複...`);
+                console.log(`🔍 解析出的櫃號: "${data.containerNumber}"`);
+                console.log(`🔍 現有記錄數: ${shipments.length}`);
+                
                 if (data.containerNumber) {
-                    console.log(`🔍 檢查櫃號重複: ${data.containerNumber}，現有記錄數: ${shipments.length}`);
-                    const existing = shipments.find(s => 
-                        s.containerNumber === data.containerNumber && !s.id?.startsWith('temp_')
-                    );
+                    const existing = shipments.find(s => {
+                        const match = s.containerNumber === data.containerNumber && !s.id?.startsWith('temp_');
+                        if (s.containerNumber) {
+                            console.log(`   比對: ${s.containerNumber} === ${data.containerNumber} → ${match}`);
+                        }
+                        return match;
+                    });
+                    
                     if (existing) {
-                        console.warn(`⚠️ 櫃號 ${data.containerNumber} 已存在！到港日: ${existing.arrivalDate}`);
+                        console.warn(`⚠️ 櫃號 ${data.containerNumber} 已存在！`);
+                        console.warn(`   到港日: ${existing.arrivalDate}, 廠商: ${existing.supplier}`);
                         setDuplicateContainer({
                             containerNo: data.containerNumber,
                             existingId: existing.id,
@@ -1630,6 +1642,8 @@ JSON 範例：
                     } else {
                         console.log(`✅ 櫃號 ${data.containerNumber} 無重複`);
                     }
+                } else {
+                    console.log(`⚠️ 沒有解析出櫃號，跳過重複檢查`);
                 }
                 
                 setShowAiPreview(true);
