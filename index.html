@@ -1037,6 +1037,7 @@
             const [isAiProcessing, setIsAiProcessing] = useState(false); // AI 正在處理
             const [fieldSources, setFieldSources] = useState({}); // 各欄位的資料來源
             const [fieldConflicts, setFieldConflicts] = useState({}); // 欄位衝突
+            const [duplicateContainer, setDuplicateContainer] = useState(null); // 重複的櫃號資訊
             
             // V79.0: Gemini API Key 設定
             const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -1303,6 +1304,7 @@
                 setAiExtractedData(null);
                 setFieldSources({});
                 setFieldConflicts({});
+                setDuplicateContainer(null);
                 setShowImportSelector(true);
             };
             
@@ -1320,6 +1322,7 @@
                 setAiExtractedData(null);
                 setFieldSources({});
                 setFieldConflicts({});
+                setDuplicateContainer(null);
                 setShowAiPreview(false);
             };
             
@@ -1336,14 +1339,14 @@
             // V79.0: Gemini API 解析提示詞
             const GEMINI_PARSE_PROMPT_START = `# 任務：解析進口貨櫃報關文件並輸出 JSON
 
-請從以下文件中提取資訊，並以 JSON 格式回傳。
+請仔細檢視文件圖片或文字，提取所有資訊，並以 JSON 格式回傳。
 
 ## 需提取的欄位：
-- containerNumber: 櫃號（如 EGSU3137550）
-- importCompany: 進口公司（WEN'S FROZEN=崇文冷凍, 8WAY=八方環球）
+- containerNumber: 櫃號（格式如 EGSU3137550、TEMU9322425、MRKU1234567，通常 4 個英文字母 + 7 個數字，可能標示為 CONTAINER NO.、CNTR NO.、櫃號 等）
+- importCompany: 進口公司（WEN'S FROZEN=崇文冷凍, 8WAY=八方環球, STAR UNIVERSE=崇文冷凍）
 - arrivalDate: 到港日 YYYY-MM-DD
-- supplier: 廠商（Invoice 發票人）
-- origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多）
+- supplier: 廠商（Invoice 發票人/SHIPPER）
+- origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多, THAILAND=泰國, CHINA=中國, VIETNAM=越南）
 - shippingCompany: 船名航次
 - products: 產品陣列（見下方格式）
 - totalQuantity: 總件數
@@ -1351,12 +1354,19 @@
 
 ## 產品欄位：
 - originalText: 英文品名原文
-- name: 中文品名
+- name: 中文品名（WHITE SHRIMP=白蝦, SALMON=鮭魚, SQUID=魷魚, CRAB=蟹, LOBSTER=龍蝦）
+- spec: 規格（如 20/30, 30/40, 1KG*10）
 - quantity: 件數（純數字）
 - weight: 淨重kg（純數字）
-- unitPrice: 單價USD（純數字，6,40=6.40）
+- unitPrice: 單價USD（純數字，歐洲格式 6,40 = 6.40）
 - batchNumber: 批號（超過10個填"多批號"）
 - expiryDate: 最早效期 YYYY-MM-DD
+
+## 重要：請特別注意尋找櫃號（CONTAINER NUMBER），它通常出現在：
+- Packing List 的標題或表頭
+- B/L 提單上
+- CONTAINER/SEAL NO. 欄位
+- 格式為 4 字母 + 7 數字（如 EGSU3137550）
 
 ## 文件內容：
 `;
@@ -1560,10 +1570,43 @@ JSON 範例：
                     };
                 }
                 
+                // 檢查缺少的關鍵欄位
+                const missingFields = [];
+                if (!data.containerNumber) missingFields.push('櫃號');
+                if (!data.arrivalDate) missingFields.push('到港日');
+                if (!data.supplier) missingFields.push('廠商');
+                
+                if (missingFields.length > 0) {
+                    console.warn('⚠️ 以下欄位未解析出來，請手動補充:', missingFields.join(', '));
+                }
+                
                 setAiExtractedData(data);
                 setFieldSources(sources);
                 setFieldConflicts(conflicts);
+                setDuplicateContainer(null); // 重置重複檢查
+                
+                // 檢查櫃號是否已存在
+                if (data.containerNumber) {
+                    const existing = shipments.find(s => 
+                        s.containerNo === data.containerNumber && !s.id?.startsWith('temp_')
+                    );
+                    if (existing) {
+                        console.warn(`⚠️ 櫃號 ${data.containerNumber} 已存在！到港日: ${existing.arrivalDate}`);
+                        setDuplicateContainer({
+                            containerNo: data.containerNumber,
+                            existingId: existing.id,
+                            existingArrivalDate: existing.arrivalDate,
+                            existingSupplier: existing.supplier
+                        });
+                    }
+                }
+                
                 setShowAiPreview(true);
+                
+                // 如果缺少櫃號，提示用戶可能需要上傳 B/L 或 Packing List
+                if (!data.containerNumber) {
+                    console.log('💡 提示：櫃號通常在 B/L 或 Packing List 中，建議補充上傳這些文件');
+                }
             };
             
             // V79.0: 確認 AI 解析結果，填入表單
@@ -2593,6 +2636,39 @@ JSON 範例：
                                     </div>
                                 )}
                                 
+                                {/* 重複櫃號警告 */}
+                                {duplicateContainer && (
+                                    <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-xl">
+                                        <div className="flex items-center gap-2 text-red-700 font-bold text-sm mb-1">
+                                            <I.AlertCircle /> ⚠️ 櫃號已存在！
+                                        </div>
+                                        <div className="text-sm text-red-600">
+                                            櫃號 <span className="font-bold">{duplicateContainer.containerNo}</span> 已有記錄
+                                        </div>
+                                        <div className="text-xs text-red-500 mt-1">
+                                            到港日: {duplicateContainer.existingArrivalDate || '-'}，
+                                            廠商: {duplicateContainer.existingSupplier || '-'}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mt-2 p-2 bg-white rounded border border-red-200">
+                                            💡 如需編輯現有記錄，請從列表中找到該貨櫃進行修改
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* 缺少欄位提示 */}
+                                {(!aiExtractedData?.containerNumber || !aiExtractedData?.arrivalDate) && (
+                                    <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                                        <div className="flex items-center gap-2 text-orange-700 font-bold text-sm mb-1">
+                                            <I.AlertCircle /> 部分欄位未解析
+                                        </div>
+                                        <div className="text-xs text-orange-600">
+                                            {!aiExtractedData?.containerNumber && <span className="mr-2">• 櫃號（建議補充 B/L 或 Packing List）</span>}
+                                            {!aiExtractedData?.arrivalDate && <span>• 到港日</span>}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-1">您可以在下一步手動填寫這些欄位</div>
+                                    </div>
+                                )}
+                                
                                 {/* 解析結果預覽 */}
                                 <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-2">
                                     {/* 基本資訊 */}
@@ -2607,13 +2683,15 @@ JSON 範例：
                                                 { key: 'importCompany', label: '進口公司' },
                                                 { key: 'shippingCompany', label: '船公司' },
                                                 { key: 'devanningLocation', label: '拆櫃地' }
-                                            ].map(({ key, label }) => fieldSources[key] && (
-                                                <div key={key} className={`p-2 rounded-lg border ${getConfidenceColor(fieldSources[key].confidence)}`}>
+                                            ].map(({ key, label }) => (
+                                                <div key={key} className={`p-2 rounded-lg border ${fieldSources[key] ? getConfidenceColor(fieldSources[key].confidence) : 'bg-gray-100 border-dashed border-gray-300'}`}>
                                                     <div className="text-xs text-gray-500 flex justify-between">
                                                         <span>{label}</span>
-                                                        <span className="text-[10px]">{fieldSources[key].source}</span>
+                                                        {fieldSources[key] && <span className="text-[10px]">{fieldSources[key].source}</span>}
                                                     </div>
-                                                    <div className="font-bold text-sm mt-1">{fieldSources[key].value || '-'}</div>
+                                                    <div className={`font-bold text-sm mt-1 ${!fieldSources[key]?.value ? 'text-gray-400' : ''}`}>
+                                                        {fieldSources[key]?.value || '（待填寫）'}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -2676,11 +2754,21 @@ JSON 範例：
                                 {/* 操作按鈕 */}
                                 <div className="flex gap-3 mt-4 pt-4 border-t">
                                     <button type="button" onClick={cancelAiExtraction} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">
-                                        改用手動填寫
+                                        {duplicateContainer ? '取消' : '改用手動填寫'}
                                     </button>
-                                    <button type="button" onClick={confirmAiExtraction} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">
-                                        確認並填入表單
-                                    </button>
+                                    {duplicateContainer ? (
+                                        <button type="button" onClick={() => {
+                                            if (confirm('此櫃號已存在，確定要建立新記錄嗎？\n\n這可能會造成重複資料。')) {
+                                                confirmAiExtraction();
+                                            }
+                                        }} className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-bold shadow-lg">
+                                            仍要建立新記錄
+                                        </button>
+                                    ) : (
+                                        <button type="button" onClick={confirmAiExtraction} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">
+                                            確認並填入表單
+                                        </button>
+                                    )}
                                 </div>
                                 
                                 <div className="mt-3 text-center text-xs text-gray-400">
