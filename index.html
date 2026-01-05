@@ -1339,7 +1339,7 @@ JSON 範例：
 {"containerNumber":"EGSU3137550","importCompany":"崇文冷凍","arrivalDate":"2025-04-13","supplier":"CV. KEONG MAS PERMAI","origin":"印尼","shippingCompany":"EVER BLOOM 1132-073B","devanningLocation":"高雄","products":[{"originalText":"DRIED SNAIL MEAT","name":"乾蝸牛肉","spec":"","quantity":543,"weight":8145,"unitPrice":22.85,"batchNumber":"多批號","expiryDate":"2030-02-20","pricingMode":"weight"}],"totalQuantity":543,"totalWeight":8145}`;
             
             // V79.0: AI 解析 - 直接呼叫 Gemini API（含重試機制）
-            const processWithAI = async (documents, retryCount = 0) => {
+            const processWithAI = async (documents) => {
                 const MAX_RETRIES = 2; // 最多重試 2 次
                 
                 // 檢查 API Key
@@ -1351,135 +1351,113 @@ JSON 範例：
                 }
                 
                 setIsAiProcessing(true);
-                setParseProgress(retryCount > 0 ? `AI 重試中 (${retryCount}/${MAX_RETRIES})...` : 'AI 正在分析文件內容...');
                 
-                try {
-                    // 組合所有文件內容
-                    const combinedContent = documents.map(doc => 
-                        `=== ${doc.label} (${doc.name}) ===\n${doc.text}`
-                    ).join('\n\n');
-                    
-                    // 組合完整 Prompt：前置指示 + 文件內容 + 後置指示
-                    const fullPrompt = GEMINI_PARSE_PROMPT_START + combinedContent + GEMINI_PARSE_PROMPT_END;
-                    
-                    console.log('📤 呼叫 Gemini API...', retryCount > 0 ? `(重試 ${retryCount})` : '');
-                    
-                    // 直接呼叫 Gemini API
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{
-                                parts: [{ text: fullPrompt }]
-                            }],
-                            generationConfig: {
-                                temperature: 0.1,
-                                maxOutputTokens: 4096
-                            }
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        if (response.status === 400 && errorData.error?.message?.includes('API key')) {
-                            throw new Error('API Key 無效，請重新設定');
-                        }
-                        // 503 或其他暫時性錯誤，可重試
-                        if (response.status >= 500 && retryCount < MAX_RETRIES) {
-                            console.warn(`API 回應 ${response.status}，將重試...`);
-                            await new Promise(r => setTimeout(r, 1000)); // 等待 1 秒
-                            return processWithAI(documents, retryCount + 1);
-                        }
-                        throw new Error(errorData.error?.message || 'AI 服務暫時無法使用');
-                    }
-                    
-                    const result = await response.json();
-                    
-                    // 提取回應文字
-                    const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (!responseText) {
-                        // 空回應，嘗試重試
-                        if (retryCount < MAX_RETRIES) {
-                            console.warn('AI 回應為空，將重試...');
-                            await new Promise(r => setTimeout(r, 1000));
-                            return processWithAI(documents, retryCount + 1);
-                        }
-                        throw new Error('AI 回應為空');
-                    }
-                    
-                    console.log('📥 AI 原始回應:', responseText.substring(0, 200) + '...');
-                    
-                    // 檢查是否 AI 錯誤地回傳了原始文件內容
-                    if (responseText.includes('COMMERCIAL INVOICE') && responseText.includes('PACKING LIST') && !responseText.includes('"containerNumber"')) {
-                        if (retryCount < MAX_RETRIES) {
-                            console.warn('AI 回傳了原始文件內容而非 JSON，將重試...');
-                            await new Promise(r => setTimeout(r, 1000));
-                            return processWithAI(documents, retryCount + 1);
-                        }
-                        throw new Error('AI 未正確解析');
-                    }
-                    
-                    // 解析 JSON（增強容錯）
-                    let parsedData;
+                let lastError = null;
+                
+                for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                     try {
-                        // 移除 markdown 標記和多餘空白
+                        setParseProgress(attempt > 0 ? `AI 重試中 (${attempt}/${MAX_RETRIES})...` : 'AI 正在分析文件內容...');
+                        
+                        // 組合所有文件內容
+                        const combinedContent = documents.map(doc => 
+                            `=== ${doc.label} (${doc.name}) ===\n${doc.text}`
+                        ).join('\n\n');
+                        
+                        // 組合完整 Prompt
+                        const fullPrompt = GEMINI_PARSE_PROMPT_START + combinedContent + GEMINI_PARSE_PROMPT_END;
+                        
+                        console.log('📤 呼叫 Gemini API...', attempt > 0 ? `(重試 ${attempt})` : '');
+                        
+                        // 呼叫 Gemini API
+                        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: fullPrompt }] }],
+                                generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({}));
+                            if (response.status === 400 && errorData.error?.message?.includes('API key')) {
+                                throw { fatal: true, message: 'API Key 無效，請重新設定' };
+                            }
+                            throw new Error(errorData.error?.message || `API 錯誤 (${response.status})`);
+                        }
+                        
+                        const result = await response.json();
+                        const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        
+                        if (!responseText) {
+                            throw new Error('AI 回應為空');
+                        }
+                        
+                        console.log('📥 AI 原始回應:', responseText.substring(0, 300) + '...');
+                        
+                        // 解析 JSON
                         let jsonStr = responseText
                             .replace(/```json\s*/gi, '')
                             .replace(/```\s*/g, '')
                             .replace(/[\r\n]+/g, ' ')
                             .trim();
                         
-                        // 嘗試找到 JSON 物件的開始和結束
                         const startIdx = jsonStr.indexOf('{');
                         const endIdx = jsonStr.lastIndexOf('}');
-                        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-                            jsonStr = jsonStr.substring(startIdx, endIdx + 1);
+                        if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+                            throw new Error('回應中找不到 JSON');
                         }
                         
-                        // 嘗試修復常見的 JSON 格式問題
-                        jsonStr = jsonStr
-                            .replace(/,\s*}/g, '}')  // 移除尾部逗號
-                            .replace(/,\s*]/g, ']'); // 移除陣列尾部逗號
+                        jsonStr = jsonStr.substring(startIdx, endIdx + 1)
+                            .replace(/,\s*}/g, '}')
+                            .replace(/,\s*]/g, ']');
                         
-                        parsedData = JSON.parse(jsonStr);
+                        const parsedData = JSON.parse(jsonStr);
                         console.log('✅ JSON 解析成功');
-                    } catch (parseError) {
-                        console.error('JSON 解析錯誤:', parseError);
-                        console.error('原始回應:', responseText);
-                        // JSON 解析失敗，嘗試重試
-                        if (retryCount < MAX_RETRIES) {
-                            console.warn('JSON 格式錯誤，將重試...');
-                            await new Promise(r => setTimeout(r, 1000));
-                            return processWithAI(documents, retryCount + 1);
+                        
+                        // 成功！處理結果並退出
+                        processAiResult(parsedData, documents);
+                        setIsAiProcessing(false);
+                        setParseProgress('');
+                        return; // 成功，結束函數
+                        
+                    } catch (err) {
+                        console.warn(`❌ 第 ${attempt + 1} 次嘗試失敗:`, err.message || err);
+                        lastError = err;
+                        
+                        // 如果是致命錯誤（API Key 無效），不重試
+                        if (err.fatal) {
+                            break;
                         }
-                        throw new Error('AI 回應格式錯誤');
-                    }
-                    
-                    // 處理 AI 回傳的結構化資料
-                    processAiResult(parsedData, documents);
-                    
-                } catch (err) {
-                    console.error('AI 解析錯誤:', err);
-                    
-                    if (err.message.includes('API Key')) {
-                        setGeminiApiKey('');
-                        localStorage.removeItem('gemini_api_key');
-                        setTempApiKey('');
-                        setShowApiKeyModal(true);
-                    } else {
-                        const useManual = confirm(
-                            'AI 解析失敗: ' + err.message + 
-                            '\n\n是否改用手動填寫模式？\n（您仍可參考已上傳的文件內容）'
-                        );
-                        if (useManual) {
-                            setShowImportSelector(false);
-                            setFormStep(1);
-                            setView('form');
+                        
+                        // 如果還有重試機會，等待後繼續
+                        if (attempt < MAX_RETRIES) {
+                            await new Promise(r => setTimeout(r, 1500));
                         }
                     }
-                } finally {
-                    setIsAiProcessing(false);
-                    setParseProgress('');
+                }
+                
+                // 所有重試都失敗
+                setIsAiProcessing(false);
+                setParseProgress('');
+                
+                console.error('AI 解析最終失敗:', lastError);
+                
+                if (lastError?.fatal || lastError?.message?.includes('API Key')) {
+                    setGeminiApiKey('');
+                    localStorage.removeItem('gemini_api_key');
+                    setTempApiKey('');
+                    setShowApiKeyModal(true);
+                } else {
+                    const useManual = confirm(
+                        'AI 解析失敗: ' + (lastError?.message || '未知錯誤') + 
+                        '\n\n是否改用手動填寫模式？'
+                    );
+                    if (useManual) {
+                        setShowImportSelector(false);
+                        setFormStep(1);
+                        setView('form');
+                    }
                 }
             };
             
@@ -2727,7 +2705,7 @@ JSON 範例：
                                                 saveApiKey(tempApiKey.trim());
                                                 // 如果有待處理的文件，繼續處理
                                                 if (parsedDocuments.length > 0) {
-                                                    processWithAI(parsedDocuments);
+                                                    processWithAI(parsedDocuments).catch(e => console.error('AI 處理錯誤:', e));
                                                 }
                                             } else {
                                                 alert('請輸入 API Key');
