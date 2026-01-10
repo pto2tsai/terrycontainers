@@ -1129,10 +1129,34 @@
                 const lowerText = text.toLowerCase();
                 const lowerName = fileName.toLowerCase();
                 
+                // 檢查是否為效期清單（優先判斷，因為可能同時包含其他關鍵字）
+                const hasExpiryList = lowerText.includes('expiration date') || 
+                    lowerText.includes('expiry date') ||
+                    lowerText.includes('fecha de vencimiento') ||  // 西班牙文：效期
+                    lowerText.includes('reporte de lotes') ||      // 西班牙文：批次報告
+                    (lowerText.includes('production date') && lowerText.includes('lot s/n')) || // 泰國 YEENIN 格式
+                    (lowerText.includes('lot #') && lowerText.includes('date')) ||
+                    (lowerText.includes('lot s/n') && lowerText.includes('exp'));
+                
+                if (hasExpiryList || lowerName.includes('expir') || lowerName.includes('batch') || 
+                    lowerName.includes('效期') || lowerName.includes('lote') || lowerName.includes('code')) {
+                    return { type: 'expiry', label: '批號效期清單', icon: '📋' };
+                }
+                
+                // 檢查是否為智利 Packing List（西班牙文）
+                const isChilePL = lowerText.includes('nro de contenedo') ||  // 櫃號
+                    lowerText.includes('mn vuelo') ||                          // 船名航次
+                    lowerText.includes('cuenta de caja') ||                    // 件數
+                    lowerText.includes('suma de peso');                        // 重量
+                
+                if (isChilePL) {
+                    return { type: 'packing', label: 'Packing List (智利)', icon: '📦' };
+                }
+                
                 // 檢查是否為複合文件（包含多種文件類型）
                 const hasInvoice = lowerText.includes('invoice') && (lowerText.includes('unit price') || lowerText.includes('amount'));
                 const hasPacking = lowerText.includes('packing list') || (lowerText.includes('n. w.') && lowerText.includes('g. w.'));
-                const hasBatchCode = lowerText.includes('bag code') || lowerText.includes('expiration date') || lowerText.includes('production date');
+                const hasBatchCode = lowerText.includes('bag code');
                 
                 // 如果是複合文件
                 if ((hasInvoice && hasPacking) || (hasInvoice && hasBatchCode) || (hasPacking && hasBatchCode)) {
@@ -1143,7 +1167,7 @@
                 if ((lowerName.includes('invoice') || lowerName.includes('inv')) && !lowerName.includes('packing')) {
                     return { type: 'invoice', label: 'Commercial Invoice', icon: '📄' };
                 }
-                if ((lowerName.includes('packing') || lowerName.includes('pl')) && !lowerName.includes('inv')) {
+                if ((lowerName.includes('packing') || lowerName.includes('pkl') || lowerName.includes('pl')) && !lowerName.includes('inv')) {
                     return { type: 'packing', label: 'Packing List', icon: '📦' };
                 }
                 if (lowerName.includes('bol') || lowerName.includes('b-l') || lowerName.includes('lading') || 
@@ -1152,9 +1176,6 @@
                 }
                 if (lowerName.includes('notice') || lowerName.includes('arrival') || lowerName.includes('通知')) {
                     return { type: 'arrival', label: '到貨通知', icon: '📬' };
-                }
-                if (lowerName.includes('batch') || lowerName.includes('expiry') || lowerName.includes('效期') || lowerName.includes('code')) {
-                    return { type: 'expiry', label: '批號效期清單', icon: '📋' };
                 }
                 
                 // 2. 根據內容特徵判斷
@@ -1178,10 +1199,6 @@
                     return { type: 'arrival', label: '到貨通知', icon: '📬' };
                 }
                 
-                if (hasBatchCode || lowerText.includes('效期') || lowerText.includes('有效期限')) {
-                    return { type: 'expiry', label: '批號效期清單', icon: '📋' };
-                }
-                
                 return { type: 'other', label: '其他文件', icon: '📎' };
             };
             
@@ -1189,9 +1206,17 @@
                 const files = Array.from(e.target.files || []);
                 if (files.length === 0) return;
                 
-                const pdfFiles = files.filter(f => f.type === 'application/pdf');
-                if (pdfFiles.length === 0) {
-                    alert('請上傳 PDF 檔案');
+                // 支援 PDF 和 Excel 檔案
+                const supportedFiles = files.filter(f => 
+                    f.type === 'application/pdf' || 
+                    f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                    f.type === 'application/vnd.ms-excel' ||
+                    f.name.endsWith('.xlsx') ||
+                    f.name.endsWith('.xls')
+                );
+                
+                if (supportedFiles.length === 0) {
+                    alert('請上傳 PDF 或 Excel 檔案');
                     return;
                 }
                 
@@ -1199,59 +1224,105 @@
                 const newDocs = [];
                 
                 try {
-                    for (let i = 0; i < pdfFiles.length; i++) {
-                        const file = pdfFiles[i];
-                        setParseProgress(`解析文件 (${i + 1}/${pdfFiles.length}): ${file.name}`);
+                    for (let i = 0; i < supportedFiles.length; i++) {
+                        const file = supportedFiles[i];
+                        setParseProgress(`解析文件 (${i + 1}/${supportedFiles.length}): ${file.name}`);
                         
-                        // 讀取檔案為 base64（先保存，因為 arrayBuffer 會被 PDF.js detach）
-                        const fileBase64 = await new Promise((resolve) => {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                                const base64 = reader.result.split(',')[1]; // 移除 data:application/pdf;base64, 前綴
-                                resolve(base64);
-                            };
-                            reader.readAsDataURL(file);
-                        });
+                        const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') ||
+                            file.type.includes('spreadsheet') || file.type.includes('excel');
                         
-                        const arrayBuffer = await file.arrayBuffer();
-                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                        let fullText = '';
-                        
-                        for (let p = 1; p <= pdf.numPages; p++) {
-                            const page = await pdf.getPage(p);
-                            const textContent = await page.getTextContent();
-                            const pageText = textContent.items.map(item => item.str).join(' ');
-                            fullText += pageText + '\n';
-                        }
-                        
-                        // 檢查是否成功提取文字（掃描檔可能無法提取）
-                        const cleanText = fullText.replace(/\s+/g, '').trim();
-                        if (cleanText.length < 50) {
-                            console.warn(`⚠️ ${file.name} 文字內容過少，將使用 AI 視覺解析`);
-                            const docType = detectDocumentType(file.name, file.name);
+                        if (isExcel) {
+                            // Excel 檔案處理
+                            const arrayBuffer = await file.arrayBuffer();
+                            const workbook = XLSX.read(arrayBuffer);
+                            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                            
+                            // 轉換為文字格式供 AI 解析
+                            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                            let excelText = `=== Excel 檔案: ${file.name} ===\n`;
+                            
+                            // 將 Excel 資料轉為易讀格式
+                            jsonData.forEach((row, rowIdx) => {
+                                if (row.some(cell => cell !== '')) {
+                                    const rowText = row.map((cell, colIdx) => {
+                                        if (cell === '') return '';
+                                        // 處理日期
+                                        if (typeof cell === 'number' && cell > 40000 && cell < 60000) {
+                                            const date = XLSX.SSF.parse_date_code(cell);
+                                            if (date) {
+                                                return `${date.y}-${String(date.m).padStart(2,'0')}-${String(date.d).padStart(2,'0')}`;
+                                            }
+                                        }
+                                        return String(cell);
+                                    }).filter(c => c !== '').join(' | ');
+                                    if (rowText.trim()) {
+                                        excelText += rowText + '\n';
+                                    }
+                                }
+                            });
+                            
+                            const docType = detectDocumentType(excelText, file.name);
+                            console.log(`📊 Excel 識別: ${file.name} → ${docType.label}`);
+                            console.log(`📝 Excel 內容前500字:`, excelText.substring(0, 500));
+                            
                             newDocs.push({
                                 id: Date.now() + '_' + i,
                                 name: file.name,
-                                text: '',
-                                base64: fileBase64,
-                                mimeType: 'application/pdf',
-                                isScanned: true,
-                                ...docType,
-                                label: docType.label + ' (掃描)',
-                                icon: '🖼️'
+                                text: excelText.trim(),
+                                ...docType
                             });
-                            continue;
+                        } else {
+                            // PDF 檔案處理（原有邏輯）
+                            // 讀取檔案為 base64（先保存，因為 arrayBuffer 會被 PDF.js detach）
+                            const fileBase64 = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                    const base64 = reader.result.split(',')[1];
+                                    resolve(base64);
+                                };
+                                reader.readAsDataURL(file);
+                            });
+                            
+                            const arrayBuffer = await file.arrayBuffer();
+                            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                            let fullText = '';
+                            
+                            for (let p = 1; p <= pdf.numPages; p++) {
+                                const page = await pdf.getPage(p);
+                                const textContent = await page.getTextContent();
+                                const pageText = textContent.items.map(item => item.str).join(' ');
+                                fullText += pageText + '\n';
+                            }
+                            
+                            // 檢查是否成功提取文字（掃描檔可能無法提取）
+                            const cleanText = fullText.replace(/\s+/g, '').trim();
+                            if (cleanText.length < 50) {
+                                console.warn(`⚠️ ${file.name} 文字內容過少，將使用 AI 視覺解析`);
+                                const docType = detectDocumentType(file.name, file.name);
+                                newDocs.push({
+                                    id: Date.now() + '_' + i,
+                                    name: file.name,
+                                    text: '',
+                                    base64: fileBase64,
+                                    mimeType: 'application/pdf',
+                                    isScanned: true,
+                                    ...docType,
+                                    label: docType.label + ' (掃描)',
+                                    icon: '🖼️'
+                                });
+                                continue;
+                            }
+                            
+                            const docType = detectDocumentType(fullText, file.name);
+                            console.log(`📄 文件識別: ${file.name} → ${docType.label} (${docType.type})`);
+                            console.log(`📝 文件內容前300字:`, fullText.substring(0, 300));
+                            newDocs.push({
+                                id: Date.now() + '_' + i,
+                                name: file.name,
+                                text: fullText.trim(),
+                                ...docType
+                            });
                         }
-                        
-                        const docType = detectDocumentType(fullText, file.name);
-                        console.log(`📄 文件識別: ${file.name} → ${docType.label} (${docType.type})`);
-                        console.log(`📝 文件內容前300字:`, fullText.substring(0, 300));
-                        newDocs.push({
-                            id: Date.now() + '_' + i,
-                            name: file.name,
-                            text: fullText.trim(),
-                            ...docType
-                        });
                     }
                     
                     // 修正：移除同名的舊文件，避免重複
@@ -1296,41 +1367,73 @@
                 const files = Array.from(e.target.files || []);
                 if (files.length === 0) return;
                 
-                const pdfFiles = files.filter(f => f.type === 'application/pdf');
-                if (pdfFiles.length === 0) return;
+                // 支援 PDF 和 Excel 檔案
+                const supportedFiles = files.filter(f => 
+                    f.type === 'application/pdf' || 
+                    f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                    f.type === 'application/vnd.ms-excel' ||
+                    f.name.endsWith('.xlsx') ||
+                    f.name.endsWith('.xls')
+                );
+                if (supportedFiles.length === 0) return;
                 
                 setIsParsing(true);
                 const newDocs = [];
                 
                 try {
-                    for (let i = 0; i < pdfFiles.length; i++) {
-                        const file = pdfFiles[i];
+                    for (let i = 0; i < supportedFiles.length; i++) {
+                        const file = supportedFiles[i];
                         setParseProgress(`解析中: ${file.name}`);
                         
-                        const arrayBuffer = await file.arrayBuffer();
-                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                        let fullText = '';
+                        const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') ||
+                            file.type.includes('spreadsheet') || file.type.includes('excel');
                         
-                        for (let p = 1; p <= pdf.numPages; p++) {
-                            const page = await pdf.getPage(p);
-                            const textContent = await page.getTextContent();
-                            const pageText = textContent.items.map(item => item.str).join(' ');
-                            fullText += pageText + '\n';
+                        if (isExcel) {
+                            // Excel 檔案處理
+                            const arrayBuffer = await file.arrayBuffer();
+                            const workbook = XLSX.read(arrayBuffer);
+                            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                            
+                            let excelText = `=== Excel 檔案: ${file.name} ===\n`;
+                            jsonData.forEach((row) => {
+                                if (row.some(cell => cell !== '')) {
+                                    const rowText = row.map((cell) => {
+                                        if (cell === '') return '';
+                                        if (typeof cell === 'number' && cell > 40000 && cell < 60000) {
+                                            const date = XLSX.SSF.parse_date_code(cell);
+                                            if (date) return `${date.y}-${String(date.m).padStart(2,'0')}-${String(date.d).padStart(2,'0')}`;
+                                        }
+                                        return String(cell);
+                                    }).filter(c => c !== '').join(' | ');
+                                    if (rowText.trim()) excelText += rowText + '\n';
+                                }
+                            });
+                            
+                            const docType = detectDocumentType(excelText, file.name);
+                            newDocs.push({ id: Date.now() + '_' + i, name: file.name, text: excelText.trim(), ...docType });
+                        } else {
+                            // PDF 檔案處理
+                            const arrayBuffer = await file.arrayBuffer();
+                            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                            let fullText = '';
+                            
+                            for (let p = 1; p <= pdf.numPages; p++) {
+                                const page = await pdf.getPage(p);
+                                const textContent = await page.getTextContent();
+                                const pageText = textContent.items.map(item => item.str).join(' ');
+                                fullText += pageText + '\n';
+                            }
+                            
+                            const docType = detectDocumentType(fullText, file.name);
+                            newDocs.push({ id: Date.now() + '_' + i, name: file.name, text: fullText.trim(), ...docType });
                         }
-                        
-                        const docType = detectDocumentType(fullText, file.name);
-                        newDocs.push({
-                            id: Date.now() + '_' + i,
-                            name: file.name,
-                            text: fullText.trim(),
-                            ...docType
-                        });
                     }
                     
                     setParsedDocuments(prev => [...prev, ...newDocs]);
                 } catch (err) {
-                    console.error('PDF 解析錯誤:', err);
-                    alert('PDF 解析失敗: ' + err.message);
+                    console.error('文件解析錯誤:', err);
+                    alert('文件解析失敗: ' + err.message);
                 } finally {
                     setIsParsing(false);
                     setParseProgress('');
@@ -1384,33 +1487,76 @@
 請仔細檢視文件圖片或文字，提取所有資訊，並以 JSON 格式回傳。
 
 ## 需提取的欄位：
-- containerNumber: 櫃號（格式：4英文+7數字，如 TEMU9322425、MRKU1234567）
-- importCompany: 進口公司（WEN'S FROZEN=崇文冷凍, 8WAY=八方環球, STAR UNIVERSE=崇文冷凍）
+- containerNumber: 櫃號（格式：4英文+7數字，如 TEMU9322425、OTPU6492634）
+- importCompany: 進口公司（WEN'S FROZEN=崇文冷凍, 8WAY=八方環球, STAR UNIVERSE=崇文冷凍, IOCEAN=崇文冷凍）
 - arrivalDate: 到港日 YYYY-MM-DD
-- supplier: 廠商（Invoice 發票人/SHIPPER）
-- origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多, THAILAND=泰國, CHINA=中國, VIETNAM=越南）
-- shippingCompany: 船名航次
+- supplier: 廠商（Invoice 發票人/SHIPPER，如 IOCEAN LLC、OMARSA）
+- origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多, THAILAND=泰國, CHINA=中國, VIETNAM=越南, CHILE=智利）
+- shippingLine: 船公司名稱（提單抬頭的公司，如 EVERGREEN、MSC、COSCO、MAERSK、HAPAG-LLOYD、ONE、YANG MING）
+- vesselVoyage: 船名航次（如 EVER APEX 1367-012E、MSC VICTORIA FA550R）
 - billOfLading: 提單號碼（B/L NO.）
 - products: 產品陣列（見下方格式）
 - totalQuantity: 總件數
 - totalWeight: 總重量
 
-## 櫃號識別重點（非常重要）：
-1. Bill of Lading (B/L) 提單中通常有「CONTAINER NO. / SEAL NO.」欄位
-2. 格式範例：TEMU9322425 / SEAL: CN1234567
-3. 櫃號在斜線前面，封條號在斜線後面
-4. 櫃號格式：4個英文字母 + 7個數字（如 EGSU3137550）
-5. 也可能標示為：CNTR NO.、Container Number、櫃號
+## 船公司 vs 船名航次（重要區分）：
+- shippingLine 船公司：提單最上方的公司名稱/Logo，如 EVERGREEN LINE、MSC、COSCO SHIPPING
+- vesselVoyage 船名航次：文件中 VESSEL NO. / VOYAGE 欄位的內容，如 EVER APEX 1367-012E
+- 注意：VESSEL NO. 是船名，不是船公司！
+
+## 櫃號識別重點：
+1. Bill of Lading 提單中「CONTAINER NO. / SEAL NO.」欄位
+2. Packing List 中「CONTAINER NUMBER」或「Nro de Contenedo」(西班牙文)
+3. 效期清單 Excel 中「CONTAINER NUMBER」欄位
+4. 格式：4英文+7數字（如 OTPU6492634、TRIU8615920）
+
+## 批號識別重點（非常重要）：
+1. Invoice 上的 S/N 欄位就是批號（如 BW08-W2535）
+2. 效期清單的 LOT S/N 欄位也是批號（如 BC11-TR2505、BCTO-TR2504）
+3. Excel 效期清單可能有多個 LOT #（如 1407899, 1408097...），這是工廠內部批號
+4. 判斷規則：
+   - 如果效期清單的多個批號效期都相同，合併為一筆，批號填「多批號」
+   - 如果 Invoice 有 S/N 且效期都相同，以 Invoice 的 S/N 為準
+   - 只有當效期不同時才需要拆分產品
+
+## 效期識別重點：
+1. 英文：EXPIRATION DATE、EXPIRY DATE、EXP DATE、Exp.
+2. 西班牙文：Fecha de Vencimiento
+3. 效期清單格式：REPORTE DE LOTES（批次報告）、PRODUCTION DATE（泰國格式）
+4. 日期格式轉換：
+   - DD.MM.YYYY（如 21.11.2028）→ 2028-11-21
+   - DD/MM/YYYY（如 21/11/2028）→ 2028-11-21
+   - YYYY-MM-DD 保持不變
+5. 注意：DATE CODE 是生產日期，不是效期！
+
+## 泰國供應商（YEENIN FROZEN FOODS）特殊格式：
+- 文件標題可能是 PRODUCTION DATE 但包含效期資訊
+- LOT S/N 欄位是批號
+- Exp. 欄位是效期（DD.MM.YYYY 格式）
+- DATE CODE 是生產日期（不要誤認為效期）
+- VESSEL 是船名，AGENT 是船公司
 
 ## 產品欄位：
 - originalText: 英文品名原文
-- name: 中文品名（WHITE SHRIMP=白蝦, SALMON=鮭魚, SQUID=魷魚, CRAB=蟹, LOBSTER=龍蝦, SNAIL=蝸牛）
-- spec: 規格（如 20/30, 30/40, 1KG*10）
+- name: 中文品名
+  - WHITE SHRIMP/VANNAMEI = 白蝦
+  - HOSO (HEAD ON SHELL ON) = 帶頭帶殼
+  - HLSO (HEADLESS SHELL ON) = 去頭帶殼
+  - PTO (PEELED TAIL-ON) = 去殼帶尾
+  - P&D (PEELED & DEVEINED) = 去殼去腸泥
+  - SEMI-BLOCK = 半塊
+  - B GRADE = B級
+  - COOKED = 熟
+  - RAW = 生
+  - SALMON COHO = 銀鮭
+  - SQUID = 魷魚
+  - SNAIL = 蝸牛
+- spec: 規格（如 20/30, 41/50, 61/70, 9-UP LB, HG IQF）
 - quantity: 件數（純數字）
 - weight: 淨重kg（純數字）
 - unitPrice: 單價USD（純數字，歐洲格式 6,40 = 6.40）
-- batchNumber: 批號（超過10個填"多批號"）
-- expiryDate: 最早效期 YYYY-MM-DD
+- batchNumber: 批號（若多個批號效期相同，填「多批號」）
+- expiryDate: 效期 YYYY-MM-DD（從效期清單取得，取最早日期）
 
 ## 文件內容：
 `;
@@ -1421,7 +1567,7 @@
 只輸出 JSON，不要輸出任何其他文字、說明或 markdown 標記。
 
 JSON 範例：
-{"containerNumber":"EGSU3137550","importCompany":"崇文冷凍","arrivalDate":"2025-04-13","supplier":"CV. KEONG MAS PERMAI","origin":"印尼","shippingCompany":"EVER BLOOM 1132-073B","devanningLocation":"高雄","products":[{"originalText":"DRIED SNAIL MEAT","name":"乾蝸牛肉","spec":"","quantity":543,"weight":8145,"unitPrice":22.85,"batchNumber":"多批號","expiryDate":"2030-02-20","pricingMode":"weight"}],"totalQuantity":543,"totalWeight":8145}`;
+{"containerNumber":"OTPU6492634","importCompany":"崇文冷凍","arrivalDate":"2025-01-15","supplier":"IOCEAN LLC","origin":"厄瓜多","shippingLine":"EVERGREEN","vesselVoyage":"EVER APEX 1367-012E","billOfLading":"EGLV123456789","devanningLocation":"","products":[{"originalText":"LIVE FROZEN HOSO WHITE SHRIMPS 20/30","name":"白蝦 HOSO","spec":"20/30 650G×12B","quantity":1435,"weight":11193,"unitPrice":6.40,"batchNumber":"BW08-W2535","expiryDate":"2027-12-09","pricingMode":"weight"}],"totalQuantity":2050,"totalWeight":15990}`;
             
             // V79.0: AI 解析 - 直接呼叫 Gemini API（含重試機制）
             const processWithAI = async (documents) => {
@@ -1571,6 +1717,15 @@ JSON 範例：
             const processAiResult = (data, documents) => {
                 console.log('📊 processAiResult 開始處理...');
                 console.log('📊 收到的資料:', JSON.stringify(data, null, 2).substring(0, 500));
+                
+                // 處理新欄位映射：shippingLine + vesselVoyage → shippingCompany
+                if (data.shippingLine || data.vesselVoyage) {
+                    const parts = [];
+                    if (data.shippingLine) parts.push(data.shippingLine);
+                    if (data.vesselVoyage) parts.push(data.vesselVoyage);
+                    data.shippingCompany = parts.join(' / ');
+                    console.log(`🚢 船公司合併: ${data.shippingCompany}`);
+                }
                 
                 const sources = {};
                 const conflicts = {};
@@ -2681,18 +2836,19 @@ JSON 範例：
                                             </div>
                                         </div>
                                         {!isParsing && <I.ChevronRight />}
-                                        <input type="file" accept=".pdf" multiple onChange={handlePdfUpload} className="hidden" disabled={isParsing} />
+                                        <input type="file" accept=".pdf,.xlsx,.xls" multiple onChange={handlePdfUpload} className="hidden" disabled={isParsing} />
                                     </label>
                                 </div>
                                 
                                 <div className="mt-6 p-3 bg-gray-50 rounded-lg border">
-                                    <div className="text-xs font-bold text-gray-500 mb-2">支援的文件類型</div>
+                                    <div className="text-xs font-bold text-gray-500 mb-2">支援的文件類型（PDF / Excel）</div>
                                     <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                                         <div className="flex items-center gap-2"><span>📄</span> Commercial Invoice</div>
                                         <div className="flex items-center gap-2"><span>📦</span> Packing List</div>
                                         <div className="flex items-center gap-2"><span>🚢</span> Bill of Lading</div>
                                         <div className="flex items-center gap-2"><span>📬</span> 到貨通知</div>
                                         <div className="flex items-center gap-2"><span>📋</span> 批號效期清單</div>
+                                        <div className="flex items-center gap-2"><span>📊</span> Excel 效期表</div>
                                     </div>
                                 </div>
                             </div>
@@ -3864,7 +4020,7 @@ JSON 範例：
                                             <label className="text-xs text-blue-600 font-bold cursor-pointer hover:underline flex items-center gap-1">
                                                 <I.FilePlus />
                                                 <span>補充上傳</span>
-                                                <input type="file" accept=".pdf" multiple onChange={handleSupplementUpload} className="hidden" />
+                                                <input type="file" accept=".pdf,.xlsx,.xls" multiple onChange={handleSupplementUpload} className="hidden" />
                                             </label>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
@@ -3958,7 +4114,7 @@ JSON 範例：
                                                         {parsedDocuments.length > 0 && !getDocumentByType('bl') && !getDocumentByType('arrival') && (
                                                             <label className="flex items-center justify-center gap-2 p-3 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 text-sm text-gray-500">
                                                                 <I.FilePlus /> 補充上傳 B/L 或到貨通知
-                                                                <input type="file" accept=".pdf" multiple onChange={handleSupplementUpload} className="hidden" />
+                                                                <input type="file" accept=".pdf,.xlsx,.xls" multiple onChange={handleSupplementUpload} className="hidden" />
                                                             </label>
                                                         )}
                                                         
@@ -4020,7 +4176,7 @@ JSON 範例：
                                                         {parsedDocuments.length > 0 && !getDocumentByType('expiry') && (
                                                             <label className="flex items-center justify-center gap-2 p-3 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 text-sm text-gray-500">
                                                                 <I.FilePlus /> 補充上傳批號效期清單
-                                                                <input type="file" accept=".pdf" multiple onChange={handleSupplementUpload} className="hidden" />
+                                                                <input type="file" accept=".pdf,.xlsx,.xls" multiple onChange={handleSupplementUpload} className="hidden" />
                                                             </label>
                                                         )}
                                                         
