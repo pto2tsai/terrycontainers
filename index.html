@@ -36,7 +36,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- V79.3: xlsx-js-style for Excel with styles (borders, fonts) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -1152,25 +1151,13 @@
                 const showPrice = canSeePrice();
                 const selectedList = filteredList.filter(s => selectedIds.has(s.id));
                 
-                // 樣式定義
-                const borderStyle = { style: 'thin', color: { rgb: '000000' } };
-                const border = { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle };
-                const thickBorder = { 
-                    top: { style: 'medium', color: { rgb: '000000' } }, 
-                    bottom: { style: 'medium', color: { rgb: '000000' } }, 
-                    left: borderStyle, 
-                    right: borderStyle 
-                };
+                console.log('匯出貨櫃數量:', selectedList.length);
                 
-                const titleStyle = { font: { name: '微軟正黑體', sz: 20, bold: true }, alignment: { horizontal: 'center', vertical: 'center' } };
-                const infoStyle = { font: { name: '微軟正黑體', sz: 14 }, alignment: { vertical: 'center' } };
-                const infoBoldStyle = { font: { name: '微軟正黑體', sz: 14, bold: true }, alignment: { vertical: 'center' } };
-                const headerStyle = { font: { name: '微軟正黑體', sz: 14, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: thickBorder };
-                const dataStyle = { font: { name: '微軟正黑體', sz: 14 }, alignment: { vertical: 'center' }, border };
-                const dataStyleRight = { font: { name: '微軟正黑體', sz: 14 }, alignment: { horizontal: 'right', vertical: 'center' }, border };
-                const dataStyleCenter = { font: { name: '微軟正黑體', sz: 14 }, alignment: { horizontal: 'center', vertical: 'center' }, border };
-                const totalStyle = { font: { name: '微軟正黑體', sz: 14, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: thickBorder };
-                const totalStyleRight = { font: { name: '微軟正黑體', sz: 14, bold: true }, alignment: { horizontal: 'right', vertical: 'center' }, border: thickBorder };
+                // 樣式定義
+                const thin = { style: 'thin', color: { rgb: '000000' } };
+                const medium = { style: 'medium', color: { rgb: '000000' } };
+                const borderAll = { top: thin, bottom: thin, left: thin, right: thin };
+                const borderThick = { top: medium, bottom: medium, left: thin, right: thin };
                 
                 // 建立工作簿
                 const wb = XLSX.utils.book_new();
@@ -1180,116 +1167,154 @@
                     const products = container.products || [];
                     const colCount = showPrice ? 9 : 7;
                     
-                    // 工作表名稱：序號_櫃號後8碼
-                    const sheetName = `${idx + 1}_${(info.containerNumber || 'NA').slice(-8)}`;
+                    console.log(`處理第 ${idx + 1} 個: ${info.containerNumber}, 產品數: ${products.length}`);
                     
-                    // 建立空工作表
-                    const ws = {};
+                    // 工作表名稱
+                    const sheetName = `${idx + 1}_${(info.containerNumber || 'NA').slice(-8)}`.substring(0, 31);
+                    
+                    // 用 aoa 建立基本工作表
+                    const aoa = [];
                     
                     // Row 0: 標題
-                    ws['A1'] = { v: '貨櫃明細表', s: titleStyle };
-                    
-                    // Row 2: 貨櫃資訊第一列
-                    ws['A3'] = { v: `序號：${info.vendorSeqNo || ''}`, s: infoStyle };
-                    ws['B3'] = { v: `櫃號：${info.containerNumber || ''}`, s: infoBoldStyle };
-                    ws['D3'] = { v: `到港日：${info.arrivalDate || ''}`, s: infoStyle };
-                    ws['F3'] = { v: `進口：${info.importCompany || ''}`, s: infoStyle };
-                    ws['H3'] = { v: `報關：${info.customsBroker || ''}`, s: infoStyle };
-                    
-                    // Row 3: 貨櫃資訊第二列
-                    ws['A4'] = { v: `廠商：${info.supplier || ''}`, s: infoStyle };
-                    ws['C4'] = { v: `產地：${info.origin || ''}`, s: infoStyle };
-                    
+                    aoa.push(['貨櫃明細表']);
+                    // Row 1: 空行
+                    aoa.push([]);
+                    // Row 2: 資訊1
+                    aoa.push([`序號：${info.vendorSeqNo || ''}`, `櫃號：${info.containerNumber || ''}`, '', `到港日：${info.arrivalDate || ''}`, '', `進口：${info.importCompany || ''}`, '', showPrice ? `報關：${info.customsBroker || ''}` : '', '']);
+                    // Row 3: 資訊2
+                    aoa.push([`廠商：${info.supplier || ''}`, '', `產地：${info.origin || ''}`]);
+                    // Row 4: 空行
+                    aoa.push([]);
                     // Row 5: 表頭
                     const headers = ['品名', '規格', '批號', '效期', '箱容', '數量', '重量(kg)'];
                     if (showPrice) headers.push('單價', '金額');
-                    const headerRow = 5;
-                    headers.forEach((h, i) => {
-                        const cell = XLSX.utils.encode_cell({ r: headerRow, c: i });
-                        ws[cell] = { v: h, s: headerStyle };
-                    });
+                    aoa.push(headers);
                     
                     // 產品資料
-                    let currentRow = headerRow + 1;
-                    products.forEach(p => {
-                        const rowData = [
-                            { v: p.name || '', s: dataStyle },
-                            { v: p.spec || '', s: dataStyle },
-                            { v: p.batchNumber || '', s: dataStyleCenter },
-                            { v: p.expiryDate || '', s: dataStyleCenter },
-                            { v: safeNum(p.boxCapacity) || '', s: dataStyleRight },
-                            { v: safeNum(p.quantity), s: dataStyleRight, z: '#,##0' },
-                            { v: safeNum(p.weight), s: dataStyleRight, z: '#,##0' }
-                        ];
-                        if (showPrice) {
-                            rowData.push({ v: safeNum(p.unitPrice), s: dataStyleRight, z: '#,##0.00' });
-                            rowData.push({ v: safeNum(p.amount), s: dataStyleRight, z: '#,##0' });
-                        }
-                        rowData.forEach((cell, i) => {
-                            const cellRef = XLSX.utils.encode_cell({ r: currentRow, c: i });
-                            ws[cellRef] = cell;
-                        });
-                        currentRow++;
-                    });
-                    
-                    // 合計列
                     let sumQty = 0, sumWeight = 0, sumAmount = 0;
                     products.forEach(p => {
+                        const row = [
+                            p.name || '',
+                            p.spec || '',
+                            p.batchNumber || '',
+                            p.expiryDate || '',
+                            safeNum(p.boxCapacity) || '',
+                            safeNum(p.quantity),
+                            safeNum(p.weight)
+                        ];
+                        if (showPrice) {
+                            row.push(safeNum(p.unitPrice));
+                            row.push(safeNum(p.amount));
+                        }
+                        aoa.push(row);
                         sumQty += safeNum(p.quantity);
                         sumWeight += safeNum(p.weight);
                         if (showPrice) sumAmount += safeNum(p.amount);
                     });
                     
-                    ws[XLSX.utils.encode_cell({ r: currentRow, c: 0 })] = { v: '合　計', s: totalStyle };
-                    for (let i = 1; i < 5; i++) {
-                        ws[XLSX.utils.encode_cell({ r: currentRow, c: i })] = { v: '', s: { border: thickBorder } };
-                    }
-                    ws[XLSX.utils.encode_cell({ r: currentRow, c: 5 })] = { v: sumQty, s: totalStyleRight, z: '#,##0' };
-                    ws[XLSX.utils.encode_cell({ r: currentRow, c: 6 })] = { v: sumWeight, s: totalStyleRight, z: '#,##0' };
-                    if (showPrice) {
-                        ws[XLSX.utils.encode_cell({ r: currentRow, c: 7 })] = { v: '', s: { border: thickBorder } };
-                        ws[XLSX.utils.encode_cell({ r: currentRow, c: 8 })] = { v: sumAmount, s: totalStyleRight, z: '#,##0' };
+                    // 合計列
+                    const totalRow = ['合　計', '', '', '', '', sumQty, sumWeight];
+                    if (showPrice) totalRow.push('', sumAmount);
+                    aoa.push(totalRow);
+                    
+                    // 建立工作表
+                    const ws = XLSX.utils.aoa_to_sheet(aoa);
+                    
+                    // 套用樣式
+                    const headerRowIdx = 5;
+                    const dataStartIdx = 6;
+                    const dataEndIdx = 5 + products.length;
+                    const totalRowIdx = dataEndIdx + 1;
+                    
+                    // 表頭樣式（粗框）
+                    for (let c = 0; c < colCount; c++) {
+                        const cell = ws[XLSX.utils.encode_cell({ r: headerRowIdx, c })];
+                        if (cell) {
+                            cell.s = {
+                                font: { name: '微軟正黑體', sz: 14, bold: true },
+                                alignment: { horizontal: 'center', vertical: 'center' },
+                                border: borderThick
+                            };
+                        }
                     }
                     
-                    // 設定範圍
-                    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: currentRow, c: colCount - 1 } });
+                    // 資料列樣式（細框）
+                    for (let r = dataStartIdx; r <= dataEndIdx; r++) {
+                        for (let c = 0; c < colCount; c++) {
+                            const cellRef = XLSX.utils.encode_cell({ r, c });
+                            if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+                            const cell = ws[cellRef];
+                            
+                            let align = 'left';
+                            if (c >= 4) align = 'right';
+                            if (c === 2 || c === 3) align = 'center';
+                            
+                            cell.s = {
+                                font: { name: '微軟正黑體', sz: 14 },
+                                alignment: { horizontal: align, vertical: 'center' },
+                                border: borderAll
+                            };
+                            
+                            // 數字格式
+                            if (c === 5 || c === 6) cell.z = '#,##0';
+                            if (c === 7 && showPrice) cell.z = '#,##0.00';
+                            if (c === 8 && showPrice) cell.z = '#,##0';
+                        }
+                    }
                     
-                    // 合併標題儲存格
+                    // 合計列樣式（粗框）
+                    for (let c = 0; c < colCount; c++) {
+                        const cellRef = XLSX.utils.encode_cell({ r: totalRowIdx, c });
+                        if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
+                        const cell = ws[cellRef];
+                        
+                        cell.s = {
+                            font: { name: '微軟正黑體', sz: 14, bold: true },
+                            alignment: { horizontal: c === 0 ? 'center' : 'right', vertical: 'center' },
+                            border: borderThick
+                        };
+                        
+                        if (c === 5 || c === 6) cell.z = '#,##0';
+                        if (c === 8 && showPrice) cell.z = '#,##0';
+                    }
+                    
+                    // 標題樣式
+                    if (ws['A1']) {
+                        ws['A1'].s = {
+                            font: { name: '微軟正黑體', sz: 20, bold: true },
+                            alignment: { horizontal: 'center', vertical: 'center' }
+                        };
+                    }
+                    
+                    // 合併標題
                     ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } }];
                     
-                    // 設定欄寬
+                    // 欄寬
                     ws['!cols'] = [
-                        { wch: 22 },  // 品名
-                        { wch: 24 },  // 規格
-                        { wch: 18 },  // 批號
-                        { wch: 14 },  // 效期
-                        { wch: 10 },  // 箱容
-                        { wch: 12 },  // 數量
-                        { wch: 14 },  // 重量
+                        { wch: 22 }, { wch: 24 }, { wch: 18 }, { wch: 14 },
+                        { wch: 10 }, { wch: 12 }, { wch: 14 },
                         ...(showPrice ? [{ wch: 12 }, { wch: 16 }] : [])
                     ];
                     
-                    // 設定列高
+                    // 列高
                     ws['!rows'] = [
-                        { hpt: 32 },  // 標題
-                        { hpt: 20 },  // 空行
-                        { hpt: 24 },  // 資訊1
-                        { hpt: 24 },  // 資訊2
-                        { hpt: 20 },  // 空行
-                        { hpt: 28 }   // 表頭
+                        { hpt: 32 }, { hpt: 18 }, { hpt: 24 }, { hpt: 24 },
+                        { hpt: 18 }, { hpt: 28 }
                     ];
-                    for (let i = 6; i <= currentRow; i++) {
+                    for (let i = 6; i <= totalRowIdx; i++) {
                         ws['!rows'][i] = { hpt: 26 };
                     }
                     
                     XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    console.log(`工作表 ${sheetName} 已加入`);
                 });
                 
-                // 匯出檔案
+                console.log('工作簿工作表數:', wb.SheetNames.length);
+                
+                // 匯出
                 const fileName = '貨櫃明細_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.xlsx';
                 XLSX.writeFile(wb, fileName);
                 
-                // 結束多選模式
                 cancelSelectMode();
                 alert(`已匯出 ${selectedList.length} 個貨櫃！\n列印時請選擇「整本活頁簿」`);
             };
