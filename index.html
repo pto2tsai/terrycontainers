@@ -1076,6 +1076,10 @@
                 catch { return 'merge'; }
             });
             
+            // V79.3: 多選匯出狀態
+            const [selectMode, setSelectMode] = useState(false);
+            const [selectedIds, setSelectedIds] = useState(new Set());
+            
             // 儲存 API Key 到 localStorage
             const saveApiKey = (key) => {
                 try {
@@ -1109,35 +1113,173 @@
             
             const handleExport = () => { 
                 if (userRole === 'GUEST') return alert(TEXT.PERMISSION_DENIED); 
+                
+                // V79.3: 進入多選模式
+                setSelectMode(true);
+                setSelectedIds(new Set());
+            };
+            
+            // V79.3: 切換選取
+            const toggleSelect = (id) => {
+                setSelectedIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                });
+            };
+            
+            // V79.3: 全選/取消全選
+            const toggleSelectAll = () => {
+                if (selectedIds.size === filteredList.length) {
+                    setSelectedIds(new Set());
+                } else {
+                    setSelectedIds(new Set(filteredList.map(s => s.id)));
+                }
+            };
+            
+            // V79.3: 取消多選模式
+            const cancelSelectMode = () => {
+                setSelectMode(false);
+                setSelectedIds(new Set());
+            };
+            
+            // V79.3: 執行批次匯出 Excel（一櫃一工作表，大字體格式）
+            const executeExport = () => {
+                if (selectedIds.size === 0) return alert('請先選擇要匯出的貨櫃');
+                
                 const showPrice = canSeePrice();
-                // V79.0: 簡化欄位順序
-                let header = "進口公司,報關行,櫃號,到港日,產地,廠商,廠商序號,品名,批號,效期,規格,箱容,數量,總數,重量";
-                if (showPrice) header += ",單價,金額";
-                header += "\n";
-                const rows = filteredList.flatMap(s => (s.products || []).map(p => {
-                    let row = [
-                        s.importCompany,
-                        s.customsBroker,
-                        s.containerNumber,
-                        s.arrivalDate,
-                        s.origin,
-                        s.supplier,
-                        s.vendorSeqNo || '',
-                        p.name,
-                        p.batchNumber,
-                        p.expiryDate,
-                        p.spec,
-                        p.boxCapacity || 1,
-                        p.quantity,
-                        s.totalQuantity || 0,
-                        p.weight || 0
+                const selectedList = filteredList.filter(s => selectedIds.has(s.id));
+                
+                // 建立工作簿
+                const wb = XLSX.utils.book_new();
+                
+                selectedList.forEach((container, idx) => {
+                    const info = container;
+                    const products = container.products || [];
+                    
+                    // 工作表名稱：序號_櫃號後8碼
+                    const sheetName = `${idx + 1}_${(info.containerNumber || 'NA').slice(-8)}`;
+                    
+                    // 建立工作表資料
+                    const wsData = [];
+                    
+                    // 標題
+                    wsData.push(['貨櫃明細表']);
+                    wsData.push([]); // 空行
+                    
+                    // 貨櫃資訊（第一列）
+                    wsData.push([
+                        `序號：${info.vendorSeqNo || ''}`,
+                        `櫃號：${info.containerNumber || ''}`,
+                        '',
+                        `到港日：${info.arrivalDate || ''}`,
+                        '',
+                        `進口：${info.importCompany || ''}`,
+                        '',
+                        `報關：${info.customsBroker || ''}`
+                    ]);
+                    
+                    // 貨櫃資訊（第二列）
+                    wsData.push([
+                        `廠商：${info.supplier || ''}`,
+                        '',
+                        `產地：${info.origin || ''}`
+                    ]);
+                    
+                    wsData.push([]); // 空行
+                    
+                    // 表頭
+                    const headers = ['品名', '規格', '批號', '效期', '箱容', '數量', '重量(kg)'];
+                    if (showPrice) headers.push('單價', '金額');
+                    wsData.push(headers);
+                    
+                    const headerRowIdx = wsData.length - 1;
+                    const dataStartIdx = wsData.length;
+                    
+                    // 產品資料
+                    products.forEach(p => {
+                        const row = [
+                            p.name || '',
+                            p.spec || '',
+                            p.batchNumber || '',
+                            p.expiryDate || '',
+                            safeNum(p.boxCapacity) || '',
+                            safeNum(p.quantity),
+                            safeNum(p.weight)
+                        ];
+                        if (showPrice) row.push(safeNum(p.unitPrice), safeNum(p.amount));
+                        wsData.push(row);
+                    });
+                    
+                    const dataEndIdx = wsData.length - 1;
+                    
+                    // 合計列
+                    let sumQty = 0, sumWeight = 0, sumAmount = 0;
+                    products.forEach(p => {
+                        sumQty += safeNum(p.quantity);
+                        sumWeight += safeNum(p.weight);
+                        if (showPrice) sumAmount += safeNum(p.amount);
+                    });
+                    
+                    const totalRow = ['合　計', '', '', '', '', sumQty, sumWeight];
+                    if (showPrice) totalRow.push('', sumAmount);
+                    wsData.push(totalRow);
+                    
+                    // 建立工作表
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    
+                    // 合併標題儲存格
+                    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: showPrice ? 8 : 6 } }];
+                    
+                    // 設定欄寬（配合大字體）
+                    ws['!cols'] = [
+                        { wch: 22 },  // 品名
+                        { wch: 24 },  // 規格
+                        { wch: 18 },  // 批號
+                        { wch: 14 },  // 效期
+                        { wch: 10 },  // 箱容
+                        { wch: 12 },  // 數量
+                        { wch: 14 },  // 重量
+                        ...(showPrice ? [{ wch: 12 }, { wch: 16 }] : [])  // 單價、金額
                     ];
-                    if (showPrice) row.push(p.unitPrice || 0, p.amount || 0);
-                    return row.map(f => '"' + String(f||'').replace(/"/g,'""') + '"').join(",");
-                })).join("\n");
-                const link = document.createElement("a"); 
-                link.href=URL.createObjectURL(new Blob(["\uFEFF"+header+rows], {type:"text/csv;charset=utf-8;"})); 
-                link.download='貨櫃_'+new Date().toISOString().slice(0,10)+'.csv'; link.click(); 
+                    
+                    // 設定列高
+                    ws['!rows'] = [];
+                    ws['!rows'][0] = { hpt: 32 }; // 標題
+                    for (let i = 1; i < wsData.length; i++) {
+                        ws['!rows'][i] = { hpt: 26 }; // 資料列
+                    }
+                    
+                    // 數字格式
+                    for (let r = dataStartIdx; r <= dataEndIdx + 1; r++) {
+                        // 數量
+                        const qtyCell = XLSX.utils.encode_cell({ r, c: 5 });
+                        if (ws[qtyCell] && typeof ws[qtyCell].v === 'number') ws[qtyCell].z = '#,##0';
+                        // 重量
+                        const wtCell = XLSX.utils.encode_cell({ r, c: 6 });
+                        if (ws[wtCell] && typeof ws[wtCell].v === 'number') ws[wtCell].z = '#,##0';
+                        
+                        if (showPrice) {
+                            // 單價
+                            const priceCell = XLSX.utils.encode_cell({ r, c: 7 });
+                            if (ws[priceCell] && typeof ws[priceCell].v === 'number') ws[priceCell].z = '#,##0.00';
+                            // 金額
+                            const amtCell = XLSX.utils.encode_cell({ r, c: 8 });
+                            if (ws[amtCell] && typeof ws[amtCell].v === 'number') ws[amtCell].z = '#,##0';
+                        }
+                    }
+                    
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                });
+                
+                // 匯出檔案
+                const fileName = '貨櫃明細_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.xlsx';
+                XLSX.writeFile(wb, fileName);
+                
+                // 結束多選模式
+                cancelSelectMode();
+                alert(`已匯出 ${selectedList.length} 個貨櫃！\n列印時請選擇「整本活頁簿」`);
             };
 
             // V79.0: PDF 解析功能 - 支援多檔案
@@ -3695,7 +3837,7 @@ JSON 範例：
                                             const attCount = item.attachments ? item.attachments.length : (item.docUrl ? 1 : 0);
 
                                             return (
-                                            <div key={item.id} className="ios-card overflow-hidden">
+                                            <div key={item.id} className={`ios-card overflow-hidden ${selectMode && selectedIds.has(item.id) ? 'ring-2 ring-blue-500' : ''}`} onClick={() => selectMode && toggleSelect(item.id)}>
                                                 
                                                 {/* ===== 電腦版卡片 ===== */}
                                                 <div className="hidden md:block p-4">
@@ -3703,6 +3845,12 @@ JSON 範例：
                                                     <div className="mb-3 pb-3 border-b border-gray-100">
                                                         {/* 第一列：進口公司、櫃號、到港日期 + 操作按鈕 */}
                                                         <div className="flex items-center gap-3 mb-2">
+                                                            {/* V79.3: 多選勾選框 */}
+                                                            {selectMode && (
+                                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer ${selectedIds.has(item.id) ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-300'}`}>
+                                                                    {selectedIds.has(item.id) && <I.Check />}
+                                                                </div>
+                                                            )}
                                                             <span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span>
                                                             <span className="text-xl font-black text-gray-900 tracking-tight">{item.containerNumber}</span>
                                                             {/* 到港日 - 永遠顯示 */}
@@ -3805,7 +3953,15 @@ JSON 範例：
                                                     <div className="p-3 pb-2">
                                                         {/* 第一行：公司 + 操作 */}
                                                         <div className="flex justify-between items-center mb-2">
-                                                            <span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                {/* V79.3: 多選勾選框 */}
+                                                                {selectMode && (
+                                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedIds.has(item.id) ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-300'}`}>
+                                                                        {selectedIds.has(item.id) && <I.Check />}
+                                                                    </div>
+                                                                )}
+                                                                <span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span>
+                                                            </div>
                                                             <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
                                                                 {((item.attachments && item.attachments.length > 0) || item.docUrl) && (
                                                                     <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative"><I.Paperclip />{(item.attachments?.length || (item.docUrl ? 1 : 0)) > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{item.attachments?.length || 1}</span>}</button>
@@ -4642,7 +4798,27 @@ JSON 範例：
                             </div>
                         )}
                     </main>
-                    <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex z-40 pb-safe h-14"><button onClick={()=>setView('list')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='list'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.List /></div><span className="text-xs font-bold">列表</span></button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='products'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Package /></div><span className="text-xs font-bold">產品</span></button><button onClick={()=>setView('stats')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='stats'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Chart /></div><span className="text-xs font-bold">統計</span></button></>}</div>
+                    {/* V79.3: 多選模式底部操作列 */}
+                    {selectMode && (
+                        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50 p-3 pb-safe">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <button onClick={toggleSelectAll} className="px-3 py-2 bg-gray-100 rounded-lg text-sm font-bold text-gray-600">
+                                        {selectedIds.size === filteredList.length ? '取消全選' : '全選'}
+                                    </button>
+                                    <span className="text-sm text-gray-500">已選 <span className="font-bold text-blue-600">{selectedIds.size}</span> 個貨櫃</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={cancelSelectMode} className="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-600">取消</button>
+                                    <button onClick={executeExport} disabled={selectedIds.size === 0} className={`px-4 py-2 rounded-lg font-bold text-white ${selectedIds.size > 0 ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                                        匯出 Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {/* 原底部導航（多選模式時隱藏） */}
+                    {!selectMode && <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex z-40 pb-safe h-14"><button onClick={()=>setView('list')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='list'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.List /></div><span className="text-xs font-bold">列表</span></button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='products'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Package /></div><span className="text-xs font-bold">產品</span></button><button onClick={()=>setView('stats')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='stats'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Chart /></div><span className="text-xs font-bold">統計</span></button></>}</div>}
                 </div>
                 </ErrorBoundary>
             );
