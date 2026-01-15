@@ -1165,6 +1165,7 @@
                 selectedList.forEach((container, idx) => {
                     const info = container;
                     const products = container.products || [];
+                    // 欄位：品名、規格、批號、效期、箱容、數量、重量、單價、金額
                     const colCount = showPrice ? 9 : 7;
                     
                     console.log(`處理第 ${idx + 1} 個: ${info.containerNumber}, 產品數: ${products.length}`);
@@ -1179,13 +1180,17 @@
                     aoa.push(['貨櫃明細表']);
                     // Row 1: 空行
                     aoa.push([]);
-                    // Row 2: 資訊1
-                    aoa.push([`序號：${info.vendorSeqNo || ''}`, `櫃號：${info.containerNumber || ''}`, '', `到港日：${info.arrivalDate || ''}`, '', `進口：${info.importCompany || ''}`, '', showPrice ? `報關：${info.customsBroker || ''}` : '', '']);
-                    // Row 3: 資訊2
-                    aoa.push([`廠商：${info.supplier || ''}`, '', `產地：${info.origin || ''}`]);
+                    // Row 2: 資訊第一列（進口、序號、廠商、產地）
+                    const infoRow1 = [`進口：${info.importCompany || ''}`, `序號：${info.vendorSeqNo || ''}`, '', `廠商：${info.supplier || ''}`, '', `產地：${info.origin || ''}`];
+                    while (infoRow1.length < colCount) infoRow1.push('');
+                    aoa.push(infoRow1);
+                    // Row 3: 資訊第二列（櫃號、到港日、報關）
+                    const infoRow2 = [`櫃號：${info.containerNumber || ''}`, `到港日：${info.arrivalDate || ''}`, '', `報關：${info.customsBroker || ''}`];
+                    while (infoRow2.length < colCount) infoRow2.push('');
+                    aoa.push(infoRow2);
                     // Row 4: 空行
                     aoa.push([]);
-                    // Row 5: 表頭
+                    // Row 5: 表頭（品名、規格、批號、效期、箱容、數量、重量、單價、金額）
                     const headers = ['品名', '規格', '批號', '效期', '箱容', '數量', '重量(kg)'];
                     if (showPrice) headers.push('單價', '金額');
                     aoa.push(headers);
@@ -1245,9 +1250,11 @@
                             if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
                             const cell = ws[cellRef];
                             
+                            // 對齊：品名規格靠左、批號效期置中、數字靠右
                             let align = 'left';
-                            if (c >= 4) align = 'right';
-                            if (c === 2 || c === 3) align = 'center';
+                            if (c === 0 || c === 1) align = 'left';  // 品名、規格
+                            if (c === 2 || c === 3) align = 'center';  // 批號、效期
+                            if (c >= 4) align = 'right';  // 箱容、數量、重量、單價、金額
                             
                             cell.s = {
                                 font: { name: '微軟正黑體', sz: 14 },
@@ -1289,11 +1296,16 @@
                     // 合併標題
                     ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } }];
                     
-                    // 欄寬
+                    // 欄寬（調整）
                     ws['!cols'] = [
-                        { wch: 22 }, { wch: 24 }, { wch: 18 }, { wch: 14 },
-                        { wch: 10 }, { wch: 12 }, { wch: 14 },
-                        ...(showPrice ? [{ wch: 12 }, { wch: 16 }] : [])
+                        { wch: 14 },  // 品名
+                        { wch: 22 },  // 規格
+                        { wch: 14 },  // 批號
+                        { wch: 12 },  // 效期
+                        { wch: 8 },   // 箱容
+                        { wch: 10 },  // 數量
+                        { wch: 12 },  // 重量
+                        ...(showPrice ? [{ wch: 10 }, { wch: 12 }] : [])
                     ];
                     
                     // 列高
@@ -3842,7 +3854,7 @@ JSON 範例：
                                 {displayMode === 'table' ? (
                                     <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                                         <table className="reconcile-table">
-                                            <thead><tr><th>日期</th><th>櫃號</th><th>廠商</th><th>品名摘要</th><th className="text-right">總數</th><th className="text-right">總重</th>{canSeePrice()&&<th className="text-right">貨款金額</th>}{canEditFlightFee()&&<th className="text-right">旅費</th>}</tr></thead>
+                                            <thead><tr><th>日期</th><th>廠商序號</th><th>櫃號</th><th>廠商</th><th>品名摘要</th><th className="text-right">總數</th><th className="text-right">總重</th>{canSeePrice()&&<th className="text-right">貨款金額</th>}{canEditFlightFee()&&<th className="text-right">旅費</th>}</tr></thead>
                                             <tbody>
                                                 {filteredList.map(item => {
                                                     const totalAmt = (item.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
@@ -3850,7 +3862,7 @@ JSON 範例：
                                                     const showFlightFee = isForeign(item) || canManage();
                                                     return (
                                                     <tr key={item.id} className="hover:bg-gray-50">
-                                                        <td className="whitespace-nowrap">{item.arrivalDate}</td><td className="font-bold">{item.containerNumber}</td><td className="truncate max-w-[80px]">{item.supplier}</td><td className="truncate max-w-[100px]">{(item.products||[]).map(p=>p.name).join(',')}</td><td className="text-right font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()}</td><td className="text-right text-orange-500">{format2(safeNum(item.totalWeight))}</td>
+                                                        <td className="whitespace-nowrap">{item.arrivalDate}</td><td className="font-mono font-bold text-purple-600">{item.vendorSeqNo || '-'}</td><td className="font-bold">{item.containerNumber}</td><td className="truncate max-w-[80px]">{item.supplier}</td><td className="truncate max-w-[100px]">{(item.products||[]).map(p=>p.name).join(',')}</td><td className="text-right font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()}</td><td className="text-right text-orange-500">{format2(safeNum(item.totalWeight))}</td>
                                                         {canSeePrice()&&<td className="text-right whitespace-nowrap"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
                                                         {canEditFlightFee()&&<td className="text-right whitespace-nowrap">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
                                                     </tr>
