@@ -3823,17 +3823,17 @@ JSON 範例：
                                     <div className="flex gap-2 items-center">
                                         <div className="relative flex-1"><span className="absolute left-3 top-3 text-gray-400"><I.Search /></span><input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="搜尋..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border-none shadow-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                         {canSeePrice() && (
-                                            <button onClick={()=>setCurrentTab(currentTab==='UNPAID'?'NOT_DEVANED':'UNPAID')} className={`relative p-2.5 rounded-xl shadow-sm transition-colors ${currentTab==='UNPAID'?'bg-red-500 text-white':'bg-white text-gray-600'}`}>
+                                            <button onClick={()=>setCurrentTab(currentTab==='UNPAID'?'NOT_DEVANED':'UNPAID')} title="篩選未付款貨櫃" className={`relative p-2.5 rounded-xl shadow-sm transition-colors ${currentTab==='UNPAID'?'bg-red-500 text-white':'bg-white text-gray-600'}`}>
                                                 <div className="flex items-center gap-1 font-bold"><I.Dollar />{unpaidCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}</div>
                                             </button>
                                         )}
-                                        <button onClick={()=>setDisplayMode(displayMode==='card'?'table':'card')} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600"><I.List /></button>
+                                        <button onClick={()=>setDisplayMode(displayMode==='card'?'table':'card')} title={displayMode==='card'?'切換表格檢視':'切換卡片檢視'} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600"><I.List /></button>
                                         
                                         {/* 電腦版四大天王 */}
                                         <div className="hidden md:flex gap-2">
-                                            <div onClick={()=>setShowNotifications(true)} className="relative p-2.5 bg-white rounded-xl shadow-sm text-gray-600 cursor-pointer hover:bg-gray-50"><I.Bell />{urgentCount>0&&<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}</div>
-                                            <button onClick={handleExport} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600 hover:bg-gray-50"><I.Download /></button>
-                                            {canCreate() && <button onClick={handleStartNewContainer} className="p-2.5 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50"><I.Plus /></button>}
+                                            <div onClick={()=>setShowNotifications(true)} title="到港通知" className="relative p-2.5 bg-white rounded-xl shadow-sm text-gray-600 cursor-pointer hover:bg-gray-50"><I.Bell />{urgentCount>0&&<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}</div>
+                                            <button onClick={handleExport} title="批次匯出 Excel" className="p-2.5 bg-white rounded-xl shadow-sm text-gray-600 hover:bg-gray-50"><I.Download /></button>
+                                            {canCreate() && <button onClick={handleStartNewContainer} title="新增貨櫃" className="p-2.5 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50"><I.Plus /></button>}
                                         </div>
                                     </div>
                                     <div className="flex overflow-x-auto gap-2 pb-1">
@@ -3917,12 +3917,12 @@ JSON 範例：
                                                             <div className="flex-1"></div>
                                                             <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                                                                 {((item.attachments && item.attachments.length > 0) || item.docUrl) && (
-                                                                    <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative"><I.Paperclip />{(item.attachments?.length || (item.docUrl ? 1 : 0)) > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{item.attachments?.length || 1}</span>}</button>
+                                                                    <button onClick={(e)=>handleAttachmentClick(e, item)} title="檢視附件" className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative"><I.Paperclip />{(item.attachments?.length || (item.docUrl ? 1 : 0)) > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{item.attachments?.length || 1}</span>}</button>
                                                                 )}
-                                                                {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><I.Edit /></button>}
-                                                                <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-1.5"><I.MessageCircle /></button>
-                                                                {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><I.Copy /></button>}
-                                                                {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-1.5"><I.Trash2 /></button>}
+                                                                {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} title="編輯貨櫃" className="text-gray-400 hover:text-blue-600 p-1.5"><I.Edit /></button>}
+                                                                <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} title="分享到 LINE" className="text-green-500 hover:text-green-600 p-1.5"><I.MessageCircle /></button>
+                                                                {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} title="複製貨櫃" className="text-gray-400 hover:text-blue-600 p-1.5"><I.Copy /></button>}
+                                                                {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} title="刪除貨櫃" className="text-gray-400 hover:text-red-600 p-1.5"><I.Trash2 /></button>}
                                                             </div>
                                                         </div>
                                                         {/* 第二列：廠商、序號、產地、報關行、船公司 */}
@@ -4013,12 +4013,12 @@ JSON 範例：
                                                             </div>
                                                             <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
                                                                 {((item.attachments && item.attachments.length > 0) || item.docUrl) && (
-                                                                    <button onClick={(e)=>handleAttachmentClick(e, item)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative"><I.Paperclip />{(item.attachments?.length || (item.docUrl ? 1 : 0)) > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{item.attachments?.length || 1}</span>}</button>
+                                                                    <button onClick={(e)=>handleAttachmentClick(e, item)} title="檢視附件" className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-full relative"><I.Paperclip />{(item.attachments?.length || (item.docUrl ? 1 : 0)) > 1 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full">{item.attachments?.length || 1}</span>}</button>
                                                                 )}
-                                                                {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><I.Edit /></button>}
-                                                                <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} className="text-green-500 hover:text-green-600 p-1.5"><I.MessageCircle /></button>
-                                                                {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} className="text-gray-400 hover:text-blue-600 p-1.5"><I.Copy /></button>}
-                                                                {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} className="text-gray-400 hover:text-red-600 p-1.5"><I.Trash2 /></button>}
+                                                                {canEdit() && <button onClick={(e)=>{e.stopPropagation(); handleEdit(item)}} title="編輯貨櫃" className="text-gray-400 hover:text-blue-600 p-1.5"><I.Edit /></button>}
+                                                                <button onClick={(e)=>{e.stopPropagation(); handleShareToLine(item)}} title="分享到 LINE" className="text-green-500 hover:text-green-600 p-1.5"><I.MessageCircle /></button>
+                                                                {canCreate() && <button onClick={(e)=>{e.stopPropagation(); handleDuplicateShipment(item)}} title="複製貨櫃" className="text-gray-400 hover:text-blue-600 p-1.5"><I.Copy /></button>}
+                                                                {canDelete() && <button onClick={(e)=>{e.stopPropagation(); handleDelete(item.id)}} title="刪除貨櫃" className="text-gray-400 hover:text-red-600 p-1.5"><I.Trash2 /></button>}
                                                             </div>
                                                         </div>
                                                         
