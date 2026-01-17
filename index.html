@@ -153,14 +153,17 @@
         .ios-card { background: var(--color-bg-card); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); margin-bottom: var(--space-4); border: 1px solid var(--color-border); overflow: hidden; }
         .ios-card:active { transform: scale(0.995); transition: transform 0.1s; }
         
-        .reconcile-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); background: white; table-layout: fixed; }
-        .reconcile-table th, .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid var(--color-border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); text-align: left; }
+        .reconcile-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); background: white; }
+        .reconcile-table th, .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid var(--color-border); white-space: nowrap; text-align: left; }
+        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); }
         .reconcile-table td { color: var(--color-text-secondary); vertical-align: middle; }
         .reconcile-table tr:hover { background-color: var(--color-bg-input); cursor: pointer; }
+        .reconcile-table th.col-right, .reconcile-table td.col-right { text-align: right !important; }
+        .reconcile-table th.col-center, .reconcile-table td.col-center { text-align: center !important; }
+        .reconcile-table .col-product { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
         
-        .amt-paid { color: var(--color-text-primary); font-weight: 800; font-family: var(--font-family-mono); font-size: var(--text-base); }
-        .amt-unpaid { background-color: white; color: var(--color-danger); border: 1px solid var(--color-danger-light); border-radius: var(--radius-sm); padding: 0 6px; font-weight: 700; font-family: var(--font-family-mono); font-size: var(--text-base); white-space: nowrap; display: inline-block; }
+        .amt-paid { color: var(--color-text-primary); font-weight: 700; font-family: var(--font-family-mono); font-size: var(--text-xs); }
+        .amt-unpaid { background-color: white; color: var(--color-danger); border: 1px solid var(--color-danger-light); border-radius: var(--radius-sm); padding: 0 4px; font-weight: 700; font-family: var(--font-family-mono); font-size: var(--text-xs); white-space: nowrap; display: inline-block; }
 
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: var(--font-semibold); letter-spacing: 0.3px; white-space: nowrap; }
         .company-tag { font-size: var(--text-base); font-weight: 800; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); display: inline-block; }
@@ -3930,31 +3933,18 @@ JSON 範例：
                                 {displayMode === 'table' ? (
                                     <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                                         <table className="reconcile-table">
-                                            <colgroup>
-                                                <col style={{width:'90px'}} />
-                                                <col style={{width:'70px'}} />
-                                                <col style={{width:'65px'}} />
-                                                <col style={{width:'110px'}} />
-                                                <col style={{width:'50px'}} />
-                                                <col />
-                                                <col style={{width:'60px'}} />
-                                                <col style={{width:'75px'}} />
-                                                {canSeePrice() ? <col style={{width:'95px'}} /> : null}
-                                                {canEditFlightFee() ? <col style={{width:'75px'}} /> : null}
-                                                {canEdit() ? <col style={{width:'45px'}} /> : null}
-                                            </colgroup>
                                             <thead><tr>
                                                 <th onClick={()=>handleSort('arrivalDate')} className="cursor-pointer hover:bg-gray-100 select-none">日期 {sortField==='arrivalDate' && <span>{sortOrder==='asc'?'↑':'↓'}</span>}</th>
                                                 <th onClick={()=>handleSort('importCompany')} className="cursor-pointer hover:bg-gray-100 select-none">進口公司</th>
                                                 <th onClick={()=>handleSort('vendorSeqNo')} className="cursor-pointer hover:bg-gray-100 select-none">廠商序號</th>
                                                 <th onClick={()=>handleSort('containerNumber')} className="cursor-pointer hover:bg-gray-100 select-none">櫃號</th>
                                                 <th onClick={()=>handleSort('supplier')} className="cursor-pointer hover:bg-gray-100 select-none">廠商</th>
-                                                <th>品名摘要</th>
-                                                <th onClick={()=>handleSort('totalQuantity')} className="cursor-pointer hover:bg-gray-100 select-none text-right">總數</th>
-                                                <th onClick={()=>handleSort('totalWeight')} className="cursor-pointer hover:bg-gray-100 select-none text-right">總重</th>
-                                                {canSeePrice()&&<th onClick={()=>handleSort('totalAmount')} className="cursor-pointer hover:bg-gray-100 select-none text-right">貨款金額</th>}
-                                                {canEditFlightFee()&&<th className="text-right">旅費</th>}
-                                                {canEdit()&&<th className="text-center">操作</th>}
+                                                <th className="col-product">品名摘要</th>
+                                                <th onClick={()=>handleSort('totalQuantity')} className="cursor-pointer hover:bg-gray-100 select-none col-right">總數</th>
+                                                <th onClick={()=>handleSort('totalWeight')} className="cursor-pointer hover:bg-gray-100 select-none col-right">總重</th>
+                                                {canSeePrice()&&<th onClick={()=>handleSort('totalAmount')} className="cursor-pointer hover:bg-gray-100 select-none col-right">貨款金額</th>}
+                                                {canEditFlightFee()&&<th className="col-right">旅費</th>}
+                                                {canEdit()&&<th className="col-center">操作</th>}
                                             </tr></thead>
                                             <tbody>
                                                 {sortedFilteredList.map(item => {
@@ -3971,12 +3961,12 @@ JSON 範例：
                                                         <td className="font-mono font-bold text-purple-600">{item.vendorSeqNo || '-'}</td>
                                                         <td className="font-bold">{item.containerNumber}</td>
                                                         <td>{item.supplier}</td>
-                                                        <td title={uniqueNames}>{uniqueNames}</td>
-                                                        <td className="text-right font-bold text-blue-600">{totalQty.toLocaleString()}</td>
-                                                        <td className="text-right text-orange-500">{format2(totalWt)}</td>
-                                                        {canSeePrice()&&<td className="text-right"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
-                                                        {canEditFlightFee()&&<td className="text-right">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
-                                                        {canEdit()&&<td className="text-center"><button onClick={()=>handleEdit(item)} title="編輯" className="text-gray-400 hover:text-blue-600 p-1"><I.Edit /></button></td>}
+                                                        <td className="col-product" title={uniqueNames}>{uniqueNames}</td>
+                                                        <td className="col-right font-bold text-blue-600">{totalQty.toLocaleString()}</td>
+                                                        <td className="col-right text-orange-500">{format2(totalWt)}</td>
+                                                        {canSeePrice()&&<td className="col-right"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
+                                                        {canEditFlightFee()&&<td className="col-right">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
+                                                        {canEdit()&&<td className="col-center"><button onClick={()=>handleEdit(item)} title="編輯" className="text-gray-400 hover:text-blue-600 p-1"><I.Edit /></button></td>}
                                                     </tr>
                                                 )})}
                                             </tbody>
