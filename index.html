@@ -53,14 +53,25 @@
             --font-family-base: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
             --font-family-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             
-            /* 字體大小階層 */
-            --text-xs: 12px;
-            --text-sm: 14px;
-            --text-base: 16px;
-            --text-lg: 18px;
-            --text-xl: 20px;
-            --text-2xl: 24px;
-            --text-3xl: 30px;
+            /* 字體大小階層 - 系統化設計 V79.4 */
+            --text-2xs: 10px;   /* 極小：徽章、次要標籤 */
+            --text-xs: 12px;    /* 小：表頭、標籤、輔助文字 */
+            --text-sm: 14px;    /* 標準：表格內容、按鈕、一般文字 */
+            --text-base: 16px;  /* 基準：輸入框、主要內容 */
+            --text-lg: 18px;    /* 大：卡片標題、重要數字 */
+            --text-xl: 20px;    /* 特大：頁面標題 */
+            --text-2xl: 24px;   /* 超大：統計數字 */
+            --text-3xl: 30px;   /* 巨大：大型統計數字 */
+            
+            /* 語意化字體大小 - 方便使用 */
+            --font-size-label: var(--text-xs);      /* 標籤文字 */
+            --font-size-body: var(--text-sm);       /* 內文 */
+            --font-size-input: var(--text-base);    /* 輸入框 */
+            --font-size-title: var(--text-lg);      /* 標題 */
+            --font-size-heading: var(--text-xl);    /* 大標題 */
+            --font-size-display: var(--text-2xl);   /* 展示數字 */
+            --font-size-table-head: var(--text-xs); /* 表格標題 */
+            --font-size-table-body: var(--text-sm); /* 表格內容 */
             
             /* 字重 */
             --font-normal: 400;
@@ -155,15 +166,15 @@
         
         .reconcile-table { width: 100%; border-collapse: collapse; background: white; }
         .reconcile-table th, .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid var(--color-border); white-space: nowrap; text-align: left; }
-        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); font-size: var(--text-xs); }
-        .reconcile-table td { color: var(--color-text-secondary); vertical-align: middle; font-size: 14px; }
+        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); font-size: var(--font-size-table-head); }
+        .reconcile-table td { color: var(--color-text-secondary); vertical-align: middle; font-size: var(--font-size-table-body); }
         .reconcile-table tr:hover { background-color: var(--color-bg-input); cursor: pointer; }
         .reconcile-table th.col-right, .reconcile-table td.col-right { text-align: right !important; }
         .reconcile-table th.col-center, .reconcile-table td.col-center { text-align: center !important; }
         .reconcile-table .col-product { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
         
-        .amt-paid { color: var(--color-text-primary); font-weight: 700; font-family: var(--font-family-mono); font-size: 14px; }
-        .amt-unpaid { background-color: white; color: var(--color-danger); border: 1px solid var(--color-danger-light); border-radius: var(--radius-sm); padding: 0 4px; font-weight: 700; font-family: var(--font-family-mono); font-size: 14px; white-space: nowrap; display: inline-block; }
+        .amt-paid { color: var(--color-text-primary); font-weight: 700; font-family: var(--font-family-mono); font-size: var(--text-base); }
+        .amt-unpaid { background-color: white; color: var(--color-danger); border: 1px solid var(--color-danger-light); border-radius: var(--radius-sm); padding: 2px 6px; font-weight: 700; font-family: var(--font-family-mono); font-size: var(--text-base); white-space: nowrap; display: inline-block; }
 
         .tag-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: var(--font-semibold); letter-spacing: 0.3px; white-space: nowrap; }
         .company-tag { font-size: var(--text-base); font-weight: 800; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); display: inline-block; }
@@ -191,7 +202,7 @@
         /* 統計表格樣式 */
         .stats-table { width: 100%; text-align: right; border-collapse: collapse; }
         .stats-table th { text-align: right; padding: var(--space-2); background: var(--color-bg-input); color: var(--color-text-tertiary); font-size: var(--text-xs); }
-        .stats-table td { padding: var(--space-2); border-bottom: 1px solid var(--color-bg); font-family: var(--font-family-mono); font-size: var(--text-sm); }
+        .stats-table td { padding: var(--space-2); border-bottom: 1px solid var(--color-bg); font-family: var(--font-family-mono); font-size: var(--text-base); }
         .stats-table tr:last-child td { border-bottom: none; }
         
         /* 表單驗證樣式 */
@@ -466,8 +477,8 @@
             text-align: center;
             margin-bottom: 24px;
         }
-        .step-title .step-num { font-size: 14px; color: #6b7280; font-weight: 600; }
-        .step-title .step-name { font-size: 22px; font-weight: bold; color: #111827; margin-top: 4px; }
+        .step-title .step-num { font-size: var(--text-sm); color: #6b7280; font-weight: 600; }
+        .step-title .step-name { font-size: var(--text-xl); font-weight: bold; color: #111827; margin-top: 4px; }
         
         /* 折疊區塊 */
         .accordion-section {
@@ -492,11 +503,11 @@
         .accordion-header:active { background: #f9fafb; }
         .accordion-section.active .accordion-header { background: #eff6ff; }
         
-        .accordion-title { font-size: 17px; font-weight: bold; color: #374151; }
+        .accordion-title { font-size: var(--text-lg); font-weight: bold; color: #374151; }
         .accordion-section.active .accordion-title { color: #1e40af; }
-        .accordion-subtitle { font-size: 13px; color: #9ca3af; margin-top: 2px; }
+        .accordion-subtitle { font-size: var(--text-xs); color: #9ca3af; margin-top: 2px; }
         
-        .accordion-arrow { font-size: 18px; color: #9ca3af; transition: transform 0.2s; }
+        .accordion-arrow { font-size: var(--text-lg); color: #9ca3af; transition: transform 0.2s; }
         .accordion-section.active .accordion-arrow { transform: rotate(90deg); color: #3b82f6; }
         
         .accordion-content {
@@ -523,7 +534,7 @@
             background: #f0f9ff;
             border: 1.5px solid #93c5fd;
             border-radius: 12px;
-            font-size: 17px;
+            font-size: var(--text-lg);
             color: #1e40af;
             display: flex;
             align-items: center;
@@ -585,9 +596,9 @@
             border-bottom: 1px solid #f3f4f6;
         }
         .product-item-lg:active { background: #eff6ff; }
-        .product-item-lg .name { font-size: 17px; font-weight: 600; color: #111827; }
-        .product-item-lg .spec { font-size: 15px; color: #3b82f6; margin-top: 4px; }
-        .product-item-lg .code { font-size: 13px; color: #9ca3af; font-family: monospace; }
+        .product-item-lg .name { font-size: var(--text-lg); font-weight: 600; color: #111827; }
+        .product-item-lg .spec { font-size: var(--text-sm); color: #3b82f6; margin-top: 4px; }
+        .product-item-lg .code { font-size: var(--text-xs); color: #9ca3af; font-family: monospace; }
     </style>
 </head>
 <body>
