@@ -153,9 +153,10 @@
         .ios-card { background: var(--color-bg-card); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); margin-bottom: var(--space-4); border: 1px solid var(--color-border); overflow: hidden; }
         .ios-card:active { transform: scale(0.995); transition: transform 0.1s; }
         
-        .reconcile-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); background: white; }
-        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); padding: 10px 6px; text-align: left; border-bottom: 1px solid var(--color-border); white-space: nowrap; }
-        .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid var(--color-bg); color: var(--color-text-secondary); vertical-align: middle; }
+        .reconcile-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); background: white; table-layout: fixed; }
+        .reconcile-table th, .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid var(--color-border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); text-align: left; }
+        .reconcile-table td { color: var(--color-text-secondary); vertical-align: middle; }
         .reconcile-table tr:hover { background-color: var(--color-bg-input); cursor: pointer; }
         
         .amt-paid { color: var(--color-text-primary); font-weight: 800; font-family: var(--font-family-mono); font-size: var(--text-base); }
@@ -1093,56 +1094,6 @@
                     setSortOrder('asc');
                 }
             };
-            
-            // V79.4: 排序後的列表
-            const sortedFilteredList = useMemo(() => {
-                if (!filteredList || !Array.isArray(filteredList)) return [];
-                const list = [...filteredList];
-                list.sort((a, b) => {
-                    let valA, valB;
-                    switch (sortField) {
-                        case 'arrivalDate':
-                            valA = a.arrivalDate || '';
-                            valB = b.arrivalDate || '';
-                            break;
-                        case 'importCompany':
-                            valA = a.importCompany || '';
-                            valB = b.importCompany || '';
-                            break;
-                        case 'vendorSeqNo':
-                            valA = a.vendorSeqNo || '';
-                            valB = b.vendorSeqNo || '';
-                            break;
-                        case 'containerNumber':
-                            valA = a.containerNumber || '';
-                            valB = b.containerNumber || '';
-                            break;
-                        case 'supplier':
-                            valA = a.supplier || '';
-                            valB = b.supplier || '';
-                            break;
-                        case 'totalQuantity':
-                            valA = (a.products || []).reduce((s, p) => s + (Number(p.quantity)||0), 0);
-                            valB = (b.products || []).reduce((s, p) => s + (Number(p.quantity)||0), 0);
-                            break;
-                        case 'totalWeight':
-                            valA = (a.products || []).reduce((s, p) => s + (Number(p.weight)||0), 0);
-                            valB = (b.products || []).reduce((s, p) => s + (Number(p.weight)||0), 0);
-                            break;
-                        case 'totalAmount':
-                            valA = (a.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
-                            valB = (b.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
-                            break;
-                        default:
-                            valA = a[sortField] || '';
-                            valB = b[sortField] || '';
-                    }
-                    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-                    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-                    return 0;
-                });
-                return list;
-            }, [filteredList, sortField, sortOrder]);
             
             // 儲存 API Key 到 localStorage
             const saveApiKey = (key) => {
@@ -3072,6 +3023,56 @@ JSON 範例：
                 return list.sort((a,b) => (currentTab==='DEVANED' ? (b.devanningDate>a.devanningDate?1:-1) : (a.arrivalDate>b.arrivalDate?1:-1)));
             }, [searchableShipments, searchTerm, currentTab]);
             
+            // V79.4: 排序後的列表（用於財務清單表格）
+            const sortedFilteredList = useMemo(() => {
+                if (!filteredList || !Array.isArray(filteredList)) return [];
+                const list = [...filteredList];
+                list.sort((a, b) => {
+                    let valA, valB;
+                    switch (sortField) {
+                        case 'arrivalDate':
+                            valA = a.arrivalDate || '';
+                            valB = b.arrivalDate || '';
+                            break;
+                        case 'importCompany':
+                            valA = a.importCompany || '';
+                            valB = b.importCompany || '';
+                            break;
+                        case 'vendorSeqNo':
+                            valA = a.vendorSeqNo || '';
+                            valB = b.vendorSeqNo || '';
+                            break;
+                        case 'containerNumber':
+                            valA = a.containerNumber || '';
+                            valB = b.containerNumber || '';
+                            break;
+                        case 'supplier':
+                            valA = a.supplier || '';
+                            valB = b.supplier || '';
+                            break;
+                        case 'totalQuantity':
+                            valA = (a.products || []).reduce((s, p) => s + (Number(p.quantity)||0), 0);
+                            valB = (b.products || []).reduce((s, p) => s + (Number(p.quantity)||0), 0);
+                            break;
+                        case 'totalWeight':
+                            valA = (a.products || []).reduce((s, p) => s + (Number(p.weight)||0), 0);
+                            valB = (b.products || []).reduce((s, p) => s + (Number(p.weight)||0), 0);
+                            break;
+                        case 'totalAmount':
+                            valA = (a.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
+                            valB = (b.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
+                            break;
+                        default:
+                            valA = a[sortField] || '';
+                            valB = b[sortField] || '';
+                    }
+                    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+                    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+                    return 0;
+                });
+                return list;
+            }, [filteredList, sortField, sortOrder]);
+            
             // V71.0: 優化急件計算 - 合併 urgentCount 和 urgentList，避免重複遍歷
             const { urgentCount, urgentList } = useMemo(() => {
                 const todayParsed = parseDate(todayStr);
@@ -3929,16 +3930,29 @@ JSON 範例：
                                 {displayMode === 'table' ? (
                                     <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                                         <table className="reconcile-table">
+                                            <colgroup>
+                                                <col style={{width:'90px'}} />
+                                                <col style={{width:'70px'}} />
+                                                <col style={{width:'65px'}} />
+                                                <col style={{width:'110px'}} />
+                                                <col style={{width:'50px'}} />
+                                                <col />
+                                                <col style={{width:'60px'}} />
+                                                <col style={{width:'75px'}} />
+                                                {canSeePrice() ? <col style={{width:'95px'}} /> : null}
+                                                {canEditFlightFee() ? <col style={{width:'75px'}} /> : null}
+                                                {canEdit() ? <col style={{width:'45px'}} /> : null}
+                                            </colgroup>
                                             <thead><tr>
-                                                <th onClick={()=>handleSort('arrivalDate')} className="cursor-pointer hover:bg-gray-100 select-none">日期 {sortField==='arrivalDate' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>
-                                                <th onClick={()=>handleSort('importCompany')} className="cursor-pointer hover:bg-gray-100 select-none">進口公司 {sortField==='importCompany' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>
-                                                <th onClick={()=>handleSort('vendorSeqNo')} className="cursor-pointer hover:bg-gray-100 select-none">廠商序號 {sortField==='vendorSeqNo' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>
-                                                <th onClick={()=>handleSort('containerNumber')} className="cursor-pointer hover:bg-gray-100 select-none">櫃號 {sortField==='containerNumber' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>
-                                                <th onClick={()=>handleSort('supplier')} className="cursor-pointer hover:bg-gray-100 select-none">廠商 {sortField==='supplier' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>
+                                                <th onClick={()=>handleSort('arrivalDate')} className="cursor-pointer hover:bg-gray-100 select-none">日期 {sortField==='arrivalDate' && <span>{sortOrder==='asc'?'↑':'↓'}</span>}</th>
+                                                <th onClick={()=>handleSort('importCompany')} className="cursor-pointer hover:bg-gray-100 select-none">進口公司</th>
+                                                <th onClick={()=>handleSort('vendorSeqNo')} className="cursor-pointer hover:bg-gray-100 select-none">廠商序號</th>
+                                                <th onClick={()=>handleSort('containerNumber')} className="cursor-pointer hover:bg-gray-100 select-none">櫃號</th>
+                                                <th onClick={()=>handleSort('supplier')} className="cursor-pointer hover:bg-gray-100 select-none">廠商</th>
                                                 <th>品名摘要</th>
-                                                <th onClick={()=>handleSort('totalQuantity')} className="cursor-pointer hover:bg-gray-100 select-none text-right">總數 {sortField==='totalQuantity' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>
-                                                <th onClick={()=>handleSort('totalWeight')} className="cursor-pointer hover:bg-gray-100 select-none text-right">總重 {sortField==='totalWeight' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>
-                                                {canSeePrice()&&<th onClick={()=>handleSort('totalAmount')} className="cursor-pointer hover:bg-gray-100 select-none text-right">貨款金額 {sortField==='totalAmount' && <span className="ml-1">{sortOrder==='asc'?'↑':'↓'}</span>}</th>}
+                                                <th onClick={()=>handleSort('totalQuantity')} className="cursor-pointer hover:bg-gray-100 select-none text-right">總數</th>
+                                                <th onClick={()=>handleSort('totalWeight')} className="cursor-pointer hover:bg-gray-100 select-none text-right">總重</th>
+                                                {canSeePrice()&&<th onClick={()=>handleSort('totalAmount')} className="cursor-pointer hover:bg-gray-100 select-none text-right">貨款金額</th>}
                                                 {canEditFlightFee()&&<th className="text-right">旅費</th>}
                                                 {canEdit()&&<th className="text-center">操作</th>}
                                             </tr></thead>
@@ -3949,18 +3963,19 @@ JSON 範例：
                                                     const totalWt = (item.products || []).reduce((s, p) => s + (Number(p.weight)||0), 0);
                                                     const curr = item.currency === 'USD' ? 'US$' : 'NT$';
                                                     const showFlightFee = isForeign(item) || canManage();
+                                                    const uniqueNames = [...new Set((item.products||[]).map(p=>p.name).filter(Boolean))].join(',');
                                                     return (
                                                     <tr key={item.id} className="hover:bg-gray-50">
-                                                        <td className="whitespace-nowrap">{item.arrivalDate}</td>
-                                                        <td className={`whitespace-nowrap ${item.importCompany === '崇文冷凍' ? 'text-blue-600' : 'text-orange-600'}`}>{item.importCompany || '-'}</td>
+                                                        <td>{item.arrivalDate}</td>
+                                                        <td className={item.importCompany === '崇文冷凍' ? 'text-blue-600' : 'text-orange-600'}>{item.importCompany || '-'}</td>
                                                         <td className="font-mono font-bold text-purple-600">{item.vendorSeqNo || '-'}</td>
                                                         <td className="font-bold">{item.containerNumber}</td>
-                                                        <td className="truncate max-w-[80px]">{item.supplier}</td>
-                                                        <td className="truncate max-w-[100px]">{(item.products||[]).map(p=>p.name).join(',')}</td>
+                                                        <td>{item.supplier}</td>
+                                                        <td title={uniqueNames}>{uniqueNames}</td>
                                                         <td className="text-right font-bold text-blue-600">{totalQty.toLocaleString()}</td>
                                                         <td className="text-right text-orange-500">{format2(totalWt)}</td>
-                                                        {canSeePrice()&&<td className="text-right whitespace-nowrap"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
-                                                        {canEditFlightFee()&&<td className="text-right whitespace-nowrap">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
+                                                        {canSeePrice()&&<td className="text-right"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
+                                                        {canEditFlightFee()&&<td className="text-right">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
                                                         {canEdit()&&<td className="text-center"><button onClick={()=>handleEdit(item)} title="編輯" className="text-gray-400 hover:text-blue-600 p-1"><I.Edit /></button></td>}
                                                     </tr>
                                                 )})}
