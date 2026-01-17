@@ -153,10 +153,10 @@
         .ios-card { background: var(--color-bg-card); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); margin-bottom: var(--space-4); border: 1px solid var(--color-border); overflow: hidden; }
         .ios-card:active { transform: scale(0.995); transition: transform 0.1s; }
         
-        .reconcile-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); background: white; }
+        .reconcile-table { width: 100%; border-collapse: collapse; background: white; }
         .reconcile-table th, .reconcile-table td { padding: 10px 6px; border-bottom: 1px solid var(--color-border); white-space: nowrap; text-align: left; }
-        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); }
-        .reconcile-table td { color: var(--color-text-secondary); vertical-align: middle; }
+        .reconcile-table th { background: var(--color-bg-input); color: var(--color-text-tertiary); font-weight: var(--font-semibold); font-size: var(--text-xs); }
+        .reconcile-table td { color: var(--color-text-secondary); vertical-align: middle; font-size: 14px; }
         .reconcile-table tr:hover { background-color: var(--color-bg-input); cursor: pointer; }
         .reconcile-table th.col-right, .reconcile-table td.col-right { text-align: right !important; }
         .reconcile-table th.col-center, .reconcile-table td.col-center { text-align: center !important; }
@@ -3941,7 +3941,7 @@ JSON 範例：
                                                 <th className="col-product">品名摘要</th>
                                                 <th onClick={()=>handleSort('totalQuantity')} className="cursor-pointer hover:bg-gray-100 select-none col-right">總數</th>
                                                 <th onClick={()=>handleSort('totalWeight')} className="cursor-pointer hover:bg-gray-100 select-none col-right">總重</th>
-                                                {canSeePrice()&&<th onClick={()=>handleSort('totalAmount')} className="cursor-pointer hover:bg-gray-100 select-none col-right">貨款金額</th>}
+                                                {canSeePrice()&&<th onClick={()=>handleSort('totalAmount')} className="cursor-pointer hover:bg-gray-100 select-none col-right">貨款(USD)</th>}
                                                 {canEditFlightFee()&&<th className="col-right">旅費</th>}
                                                 {canEdit()&&<th className="col-center">操作</th>}
                                             </tr></thead>
@@ -3950,7 +3950,6 @@ JSON 範例：
                                                     const totalAmt = (item.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
                                                     const totalQty = (item.products || []).reduce((s, p) => s + (Number(p.quantity)||0), 0);
                                                     const totalWt = (item.products || []).reduce((s, p) => s + (Number(p.weight)||0), 0);
-                                                    const curr = item.currency === 'USD' ? 'US$' : 'NT$';
                                                     const showFlightFee = isForeign(item) || canManage();
                                                     const uniqueNames = [...new Set((item.products||[]).map(p=>p.name).filter(Boolean))].join(',');
                                                     return (
@@ -3962,7 +3961,7 @@ JSON 範例：
                                                         <td className="col-product" title={uniqueNames}>{uniqueNames}</td>
                                                         <td className="col-right font-bold text-blue-600">{totalQty.toLocaleString()}</td>
                                                         <td className="col-right text-orange-500">{format2(totalWt)}</td>
-                                                        {canSeePrice()&&<td className="col-right"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
+                                                        {canSeePrice()&&<td className="col-right"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{format2(totalAmt)}</span></td>}
                                                         {canEditFlightFee()&&<td className="col-right">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
                                                         {canEdit()&&<td className="col-center"><button onClick={()=>handleEdit(item)} title="編輯" className="text-gray-400 hover:text-blue-600 p-1"><I.Edit /></button></td>}
                                                     </tr>
