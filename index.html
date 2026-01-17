@@ -814,7 +814,8 @@
         // --- 2. Helpers ---
         const safeNum = (val) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
         const round2 = (num) => Math.round(safeNum(num) * 100) / 100;
-        const format2 = (num) => safeNum(num).toFixed(2);
+        const format2 = (num) => safeNum(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const formatInt = (num) => safeNum(num).toLocaleString();
 
         // V72.0: 修正日期處理，使用 UTC 避免時區問題
         const parseDate = (dateStr) => {
@@ -992,17 +993,17 @@
                         </div>
                         <input placeholder="搜尋產品、廠商..." value={search} onChange={e=>setSearch(e.target.value)} className="w-full bg-white text-gray-900 rounded-xl py-2 px-4 outline-none shadow-sm text-sm border border-gray-100" />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總筆數</div><div className="text-2xl font-black text-gray-800">{stats.count}</div></div>
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總筆數</div><div className="text-2xl font-black text-gray-800">{stats.count.toLocaleString()}</div></div>
                         <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總件數</div><div className="text-2xl font-black text-blue-600">{stats.items.toLocaleString()}</div></div>
-                        <div className="bg-white p-4 rounded-2xl border shadow-sm col-span-2"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{format2(stats.w)}</div></div>
-                        {canSeePrice() && (
-                            <>
-                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">${format2(stats.moneyUSD)}</div></div>
-                                <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">${format2(stats.moneyTWD)}</div></div>
-                            </>
-                        )}
+                        <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">總重量 (kg)</div><div className="text-2xl font-black text-orange-500">{Math.round(stats.w).toLocaleString()}</div></div>
                     </div>
+                    {canSeePrice() && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">美金總額 (USD)</div><div className="text-xl font-black text-emerald-600">${Math.round(stats.moneyUSD).toLocaleString()}</div></div>
+                            <div className="bg-white p-4 rounded-2xl border shadow-sm"><div className="text-gray-400 text-xs font-bold mb-1">台幣總額 (TWD)</div><div className="text-xl font-black text-emerald-600">${Math.round(stats.moneyTWD).toLocaleString()}</div></div>
+                        </div>
+                    )}
                     {canSeePrice() && <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">📅 月度採購統計表</h3><MonthlySummaryTable data={stats.chartData} /></div>}
                      <div className="bg-white p-5 rounded-2xl border shadow-sm"><h3 className="text-sm font-bold text-gray-800 mb-4">🏆 前五大廠商</h3><div className="space-y-3">{stats.top.map(([n,c],i)=><div key={n} className="flex items-center gap-3"><div className="w-6 text-xs font-bold text-gray-400">#{i+1}</div><div className="flex-1"><div className="flex justify-between text-xs mb-1"><span className="font-bold text-gray-700">{n}</span><span className="text-gray-500">{c} 筆</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{width:`${(c/stats.maxVal)*100}%`}}></div></div></div></div>)}</div></div>
                 </div>
