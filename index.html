@@ -1096,6 +1096,7 @@
             
             // V79.4: 排序後的列表
             const sortedFilteredList = useMemo(() => {
+                if (!filteredList || !Array.isArray(filteredList)) return [];
                 const list = [...filteredList];
                 list.sort((a, b) => {
                     let valA, valB;
