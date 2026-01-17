@@ -3865,7 +3865,7 @@ JSON 範例：
                                 {displayMode === 'table' ? (
                                     <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
                                         <table className="reconcile-table">
-                                            <thead><tr><th>日期</th><th>廠商序號</th><th>櫃號</th><th>廠商</th><th>品名摘要</th><th className="text-right">總數</th><th className="text-right">總重</th>{canSeePrice()&&<th className="text-right">貨款金額</th>}{canEditFlightFee()&&<th className="text-right">旅費</th>}</tr></thead>
+                                            <thead><tr><th>日期</th><th>進口公司</th><th>廠商序號</th><th>櫃號</th><th>廠商</th><th>品名摘要</th><th className="text-right">總數</th><th className="text-right">總重</th>{canSeePrice()&&<th className="text-right">貨款金額</th>}{canEditFlightFee()&&<th className="text-right">旅費</th>}</tr></thead>
                                             <tbody>
                                                 {filteredList.map(item => {
                                                     const totalAmt = (item.products || []).reduce((s, p) => s + (Number(p.amount)||0), 0);
@@ -3873,7 +3873,7 @@ JSON 範例：
                                                     const showFlightFee = isForeign(item) || canManage();
                                                     return (
                                                     <tr key={item.id} className="hover:bg-gray-50">
-                                                        <td className="whitespace-nowrap">{item.arrivalDate}</td><td className="font-mono font-bold text-purple-600">{item.vendorSeqNo || '-'}</td><td className="font-bold">{item.containerNumber}</td><td className="truncate max-w-[80px]">{item.supplier}</td><td className="truncate max-w-[100px]">{(item.products||[]).map(p=>p.name).join(',')}</td><td className="text-right font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()}</td><td className="text-right text-orange-500">{format2(safeNum(item.totalWeight))}</td>
+                                                        <td className="whitespace-nowrap">{item.arrivalDate}</td><td className={`whitespace-nowrap ${item.importCompany === '崇文冷凍' ? 'text-blue-600' : 'text-orange-600'}`}>{item.importCompany || '-'}</td><td className="font-mono font-bold text-purple-600">{item.vendorSeqNo || '-'}</td><td className="font-bold">{item.containerNumber}</td><td className="truncate max-w-[80px]">{item.supplier}</td><td className="truncate max-w-[100px]">{(item.products||[]).map(p=>p.name).join(',')}</td><td className="text-right font-bold text-blue-600">{safeNum(item.totalQuantity).toLocaleString()}</td><td className="text-right text-orange-500">{format2(safeNum(item.totalWeight))}</td>
                                                         {canSeePrice()&&<td className="text-right whitespace-nowrap"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{curr} {format2(totalAmt)}</span></td>}
                                                         {canEditFlightFee()&&<td className="text-right whitespace-nowrap">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
                                                     </tr>
