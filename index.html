@@ -1520,7 +1520,7 @@
                                 ...docType
                             });
                         } else {
-                            // PDF 檔案處理（原有邏輯）
+                            // PDF 檔案處理（V79.0 增強：支援混合型 PDF）
                             // 讀取檔案為 base64（先保存，因為 arrayBuffer 會被 PDF.js detach）
                             const fileBase64 = await new Promise((resolve) => {
                                 const reader = new FileReader();
@@ -1534,17 +1534,27 @@
                             const arrayBuffer = await file.arrayBuffer();
                             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                             let fullText = '';
+                            let pagesWithText = 0;
+                            let pagesWithoutText = 0;
                             
                             for (let p = 1; p <= pdf.numPages; p++) {
                                 const page = await pdf.getPage(p);
                                 const textContent = await page.getTextContent();
                                 const pageText = textContent.items.map(item => item.str).join(' ');
+                                const pageClean = pageText.replace(/\s+/g, '').trim();
                                 fullText += pageText + '\n';
+                                if (pageClean.length > 30) {
+                                    pagesWithText++;
+                                } else {
+                                    pagesWithoutText++;
+                                }
                             }
                             
                             // 檢查是否成功提取文字（掃描檔可能無法提取）
                             const cleanText = fullText.replace(/\s+/g, '').trim();
+                            
                             if (cleanText.length < 50) {
+                                // 純掃描型：完全無文字
                                 console.warn(`⚠️ ${file.name} 文字內容過少，將使用 AI 視覺解析`);
                                 const docType = detectDocumentType(file.name, file.name);
                                 newDocs.push({
@@ -1561,15 +1571,35 @@
                                 continue;
                             }
                             
-                            const docType = detectDocumentType(fullText, file.name);
-                            console.log(`📄 文件識別: ${file.name} → ${docType.label} (${docType.type})`);
-                            console.log(`📝 文件內容前300字:`, fullText.substring(0, 300));
-                            newDocs.push({
-                                id: Date.now() + '_' + i,
-                                name: file.name,
-                                text: fullText.trim(),
-                                ...docType
-                            });
+                            if (pagesWithoutText > 0 && pagesWithText > 0) {
+                                // 混合型 PDF：部分頁有文字、部分頁是掃描圖片
+                                // 同時送文字和 base64 圖片，確保 AI 能看到所有頁面
+                                console.warn(`📄🖼️ ${file.name} 為混合型 PDF（${pagesWithText} 頁有文字，${pagesWithoutText} 頁為掃描），將同時送文字+圖片`);
+                                const docType = detectDocumentType(fullText, file.name);
+                                newDocs.push({
+                                    id: Date.now() + '_' + i,
+                                    name: file.name,
+                                    text: fullText.trim(),
+                                    base64: fileBase64,
+                                    mimeType: 'application/pdf',
+                                    isScanned: true,
+                                    isMixed: true,
+                                    ...docType,
+                                    label: docType.label + ' (混合)',
+                                    icon: '📄🖼️'
+                                });
+                            } else {
+                                // 純文字型 PDF
+                                const docType = detectDocumentType(fullText, file.name);
+                                console.log(`📄 文件識別: ${file.name} → ${docType.label} (${docType.type})`);
+                                console.log(`📝 文件內容前300字:`, fullText.substring(0, 300));
+                                newDocs.push({
+                                    id: Date.now() + '_' + i,
+                                    name: file.name,
+                                    text: fullText.trim(),
+                                    ...docType
+                                });
+                            }
                         }
                     }
                     
@@ -1769,7 +1799,7 @@
 - importCompany: 進口公司（WEN'S FROZEN=崇文冷凍, 8WAY=八方環球, STAR UNIVERSE=崇文冷凍, IOCEAN=崇文冷凍）
 - arrivalDate: 到港日 YYYY-MM-DD
 - supplier: 廠商（Invoice 發票人/SHIPPER，如 IOCEAN LLC、OMARSA）
-- origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多, THAILAND=泰國, CHINA=中國, VIETNAM=越南, CHILE=智利）
+- origin: 產地中文（INDONESIA=印尼, ECUADOR=厄瓜多, THAILAND=泰國, CHINA=中國, VIETNAM=越南, CHILE=智利, MALAYSIA=馬來西亞, INDIA=印度, NORWAY=挪威, DENMARK=丹麥, PANAMA=巴拿馬, GUATEMALA=瓜地馬拉, HONDURAS=宏都拉斯）
 - shippingLine: 船公司名稱（提單抬頭的公司，如 EVERGREEN、MSC、COSCO、MAERSK、HAPAG-LLOYD、ONE、YANG MING）
 - vesselVoyage: 船名航次（如 EVER APEX 1367-012E、MSC VICTORIA FA550R）
 - billOfLading: 提單號碼（B/L NO.）
@@ -1866,26 +1896,30 @@ JSON 範例：
                     try {
                         setParseProgress(attempt > 0 ? `AI 重試中 (${attempt}/${MAX_RETRIES})...` : 'AI 正在分析文件內容...');
                         
-                        // 分離文字型和掃描型文件
-                        const textDocs = documents.filter(d => !d.isScanned && d.text);
-                        const scannedDocs = documents.filter(d => d.isScanned && d.base64);
+                        // 分離文字型和掃描型文件（混合型同時送文字+圖片）
+                        const textDocs = documents.filter(d => d.text);
+                        const imageDocs = documents.filter(d => d.isScanned && d.base64);
                         
-                        // 組合文字內容
+                        // 組合文字內容（包含混合型的文字部分）
                         const combinedTextContent = textDocs.map(doc => 
                             `=== ${doc.label} (${doc.name}) ===\n${doc.text}`
                         ).join('\n\n');
                         
                         // 組合完整 Prompt（根據批號處理模式動態生成）
-                        const fullPrompt = getGeminiPromptStart(batchMergeMode) + 
+                        const hasMixedDocs = documents.some(d => d.isMixed);
+                        const mixedHint = hasMixedDocs 
+                            ? '\n注意：附件 PDF 包含混合內容（部分頁面為文字、部分為掃描圖片）。下方文字僅為可提取的部分，請同時仔細查看附件圖片中的所有頁面（特別是 Commercial Invoice 和 Packing List 表格），提取完整的產品明細、數量、重量、單價等資訊。\n' 
+                            : '';
+                        const fullPrompt = getGeminiPromptStart(batchMergeMode) + mixedHint +
                             (combinedTextContent || '（文字內容見附件圖片）') + 
                             GEMINI_PARSE_PROMPT_END;
                         
-                        // 建立 parts 陣列（文字 + 掃描檔圖片）
+                        // 建立 parts 陣列（文字 + 掃描檔/混合檔圖片）
                         const parts = [{ text: fullPrompt }];
                         
-                        // 加入掃描檔的 base64 資料
-                        for (const doc of scannedDocs) {
-                            console.log(`📷 加入掃描檔: ${doc.name}`);
+                        // 加入掃描檔和混合檔的 base64 資料
+                        for (const doc of imageDocs) {
+                            console.log(`📷 加入圖片: ${doc.name} (${doc.isMixed ? '混合型' : '掃描型'})`);
                             parts.push({
                                 inlineData: {
                                     mimeType: doc.mimeType || 'application/pdf',
@@ -1895,7 +1929,7 @@ JSON 範例：
                         }
                         
                         console.log('📤 呼叫 Gemini API...', attempt > 0 ? `(重試 ${attempt})` : '', 
-                            scannedDocs.length > 0 ? `(含 ${scannedDocs.length} 份掃描檔)` : '');
+                            imageDocs.length > 0 ? `(含 ${imageDocs.length} 份圖片檔)` : '');
                         
                         // 呼叫 Gemini API
                         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
