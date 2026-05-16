@@ -3038,6 +3038,57 @@ JSON 範例：
 
             // V80.0: 員工管理函數
             const ROLE_LABELS = { MANAGER: '經理', PURCHASING: '採購', WAREHOUSE: '倉管', ACCOUNTING: '會計', QC: '品管', GUEST: '訪客' };
+
+            // V80.0: 貨櫃追蹤 - 船公司追蹤 URL 對照表
+            const CARRIER_TRACKING = {
+                EVERGREEN: { name: '長榮', keywords: ['長榮','EVERGREEN','EMC'], prefixes: ['EISU','EMCU','EOLU','EGHU','EGSU','EITU','TEMU'], url: (no) => `https://www.track-trace.com/container?number=${no}` },
+                COSCO: { name: 'COSCO', keywords: ['COSCO','中遠'], prefixes: ['COSU','CSLU','CCLU','CBHU','TCNU','TGHU','FSCU','OOCU'], url: (no) => `https://elines.coscoshipping.com/ebusiness/cargoTracking?trackingType=CONTAINER&number=${no}` },
+                MSC: { name: 'MSC', keywords: ['MSC'], prefixes: ['MSCU','MEDU','MSDU','GESU','TRHU','AMFU'], url: (no) => `https://www.msc.com/en/track-a-shipment?agencyPath=twn&trackingNumber=${no}&type=CONTAINER` },
+                ONE: { name: 'ONE', keywords: ['ONE LINE','OCEAN NETWORK'], prefixes: ['ONEY','ONEU','TCLU','NYKU','MOAU','BMOU'], matchFn: (company) => company === 'ONE' || company.startsWith('ONE ') || company.includes('ONE LINE') || company.includes('OCEAN NETWORK'), url: (no) => `https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking?trakNoParam=${no}&trakNoTpCdParam=C` },
+                WANHAI: { name: '萬海', keywords: ['萬海','WAN HAI','WANHAI'], prefixes: ['WHLU','WHLC'], url: (no) => `https://www.track-trace.com/container?number=${no}` },
+                HAPAG: { name: 'Hapag-Lloyd', keywords: ['HAPAG','HAPAG-LLOYD','赫伯羅德'], prefixes: ['HLCU','HLXU'], url: (no) => `https://www.hapag-lloyd.com/en/online-business/track/track-by-container-solution.html?container=${no}` },
+                YANGMING: { name: '陽明', keywords: ['陽明','YANG MING','YML'], prefixes: ['YMLU','YMMU'], url: (no) => `https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx?cntr=${no}` },
+                OOCL: { name: 'OOCL', keywords: ['OOCL','東方海外'], prefixes: ['OOLU'], url: (no) => `https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx?cntr=${no}` },
+                HMM: { name: 'HMM', keywords: ['HMM','現代商船'], prefixes: ['HMMU','HDMU'], url: (no) => `https://www.hmm21.com/cms/business/ebiz/trackTrace/trackTrace/index.jsp?type=1&number=${no}` },
+                ZIM: { name: 'ZIM', keywords: ['ZIM'], prefixes: ['ZIMU'], url: (no) => `https://www.zim.com/tools/track-a-shipment?consnumber=${no}` },
+            };
+            
+            // 優先用 shippingCompany 欄位比對，找不到再用櫃號前綴
+            const getCarrier = (item) => {
+                const raw = (item.shippingCompany || '').trim();
+                if (raw) {
+                    // 取斜線前的船公司名稱（去掉船名航次部分）
+                    const company = raw.split('/')[0].trim().toUpperCase();
+                    const fullText = raw.toUpperCase();
+                    for (const carrier of Object.values(CARRIER_TRACKING)) {
+                        // 若有自定義比對函數，優先使用
+                        if (carrier.matchFn && carrier.matchFn(company, fullText)) return carrier;
+                        if (!carrier.matchFn && carrier.keywords.some(kw => {
+                            const kwUp = kw.toUpperCase();
+                            return company === kwUp || company.includes(kwUp) || fullText.includes(kwUp);
+                        })) return carrier;
+                    }
+                }
+                // fallback: 用櫃號前綴判斷
+                const prefix = (item.containerNumber || '').substring(0, 4).toUpperCase();
+                if (prefix.length === 4) {
+                    for (const carrier of Object.values(CARRIER_TRACKING)) {
+                        if (carrier.prefixes.includes(prefix)) return carrier;
+                    }
+                }
+                return null;
+            };
+            
+            const openContainerTracking = (item, e) => {
+                if (e) e.stopPropagation();
+                if (!item.containerNumber) return;
+                const carrier = getCarrier(item);
+                if (carrier) {
+                    window.open(carrier.url(item.containerNumber), '_blank');
+                } else {
+                    window.open(`https://www.track-trace.com/container?number=${item.containerNumber}`, '_blank');
+                }
+            };
             const ROLE_COLORS = { MANAGER: 'bg-red-100 text-red-700', PURCHASING: 'bg-blue-100 text-blue-700', WAREHOUSE: 'bg-amber-100 text-amber-700', ACCOUNTING: 'bg-green-100 text-green-700', QC: 'bg-purple-100 text-purple-700', GUEST: 'bg-gray-100 text-gray-500' };
             
             const handleSaveUser = async () => {
@@ -4115,6 +4166,13 @@ JSON 範例：
                                                             )}
                                                             <span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span>
                                                             <span className="text-xl font-black text-gray-900 tracking-tight">{item.containerNumber}</span>
+                                                            {/* V80.0: 貨櫃追蹤按鈕 */}
+                                                            {item.containerNumber && getCarrier(item) && (
+                                                                <button onClick={(e) => openContainerTracking(item, e)} title={`查詢 ${getCarrier(item).name} 貨櫃動態`} className="text-xs px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-lg font-bold hover:bg-cyan-100 flex items-center gap-1">
+                                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20M2 12h20"/></svg>
+                                                                    {getCarrier(item).name}
+                                                                </button>
+                                                            )}
                                                             {/* 到港日 - 永遠顯示 */}
                                                             <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-sm font-bold bg-gray-50 text-gray-600">
                                                                 <span>{mainDate.getMonth()+1}/{mainDate.getDate()}</span>
@@ -4235,9 +4293,18 @@ JSON 範例：
                                                             </div>
                                                         </div>
                                                         
-                                                        {/* 第二行：櫃號 + 日期 */}
+                                                        {/* 第二行：櫃號 + 追蹤 + 日期 */}
                                                         <div className="flex justify-between items-center mb-3">
-                                                            <div className="text-xl font-black text-gray-900 tracking-tight">{item.containerNumber}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="text-xl font-black text-gray-900 tracking-tight">{item.containerNumber}</div>
+                                                                {/* V80.0: 貨櫃追蹤按鈕 */}
+                                                                {item.containerNumber && getCarrier(item) && (
+                                                                    <button onClick={(e) => openContainerTracking(item, e)} className="text-xs px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-lg font-bold flex items-center gap-1">
+                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20M2 12h20"/></svg>
+                                                                        追蹤
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                             <div className="flex items-center gap-2">
                                                                 {/* 到港日 - 永遠顯示 */}
                                                                 <div className="px-2 py-1 rounded-lg text-sm font-bold bg-gray-50 text-gray-600 border border-gray-200">
