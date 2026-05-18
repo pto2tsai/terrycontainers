@@ -3082,6 +3082,10 @@ JSON 範例：
             const openContainerTracking = (item, e) => {
                 if (e) e.stopPropagation();
                 if (!item.containerNumber) return;
+                // 複製櫃號到剪貼簿
+                navigator.clipboard.writeText(item.containerNumber).then(() => {
+                    showToast(`已複製櫃號 ${item.containerNumber}，如未自動帶入請直接貼上`);
+                }).catch(() => {});
                 const carrier = getCarrier(item);
                 if (carrier) {
                     window.open(carrier.url(item.containerNumber), '_blank');
