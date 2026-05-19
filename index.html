@@ -627,7 +627,50 @@
         const DOMESTIC_FLAG = '國內採購';
         const IMPORT_COMPANIES = ['崇文冷凍', '八方環球'];
         const CUSTOMS_BROKERS = ['原碩', '尚鴻', DOMESTIC_FLAG];
-        const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威'];
+        const DEFAULT_ORIGINS = ['厄瓜多', '巴拿馬', '瓜地馬拉', '宏都拉斯', '泰國', '印尼', '印度', '中國', '智利', '挪威', '丹麥', '越南', '馬來西亞'];
+        
+        // V80.0: 產地英→中對照表
+        const ORIGIN_MAP = {
+            'ECUADOR': '厄瓜多', 'PANAMA': '巴拿馬', 'GUATEMALA': '瓜地馬拉', 'HONDURAS': '宏都拉斯',
+            'THAILAND': '泰國', 'INDONESIA': '印尼', 'INDIA': '印度', 'CHINA': '中國',
+            'CHILE': '智利', 'NORWAY': '挪威', 'DENMARK': '丹麥', 'VIETNAM': '越南',
+            'MALAYSIA': '馬來西亞', 'PERU': '秘魯', 'ARGENTINA': '阿根廷', 'JAPAN': '日本',
+            'KOREA': '韓國', 'SOUTH KOREA': '韓國', 'PHILIPPINES': '菲律賓', 'MYANMAR': '緬甸',
+            'CANADA': '加拿大', 'USA': '美國', 'UNITED STATES': '美國', 'AUSTRALIA': '澳洲',
+            'NEW ZEALAND': '紐西蘭', 'BRAZIL': '巴西', 'MEXICO': '墨西哥', 'SPAIN': '西班牙',
+            'FRANCE': '法國', 'NETHERLANDS': '荷蘭', 'ITALY': '義大利', 'GERMANY': '德國',
+            'SCOTLAND': '蘇格蘭', 'IRELAND': '愛爾蘭', 'ICELAND': '冰島', 'FAROE ISLANDS': '法羅群島',
+        };
+        
+        // V80.0: 廠商英→中對照表
+        const SUPPLIER_MAP = {
+            'IOCEAN': '愛海洋', 'IOCEAN LLC': '愛海洋',
+            'YEENIN': '裕寧', 'YEENIN FROZEN FOODS': '裕寧', 'YEENIN FROZEN FOODS CO': '裕寧',
+            'SHIN FU': '興富', 'SHIN FU FROZEN': '興富',
+            'KINGSUN': '青聖', 'KINGSUN ENTERPRISE': '青聖',
+            'ANDRESEN': '安德', 'ANDRESEN TRADING': '安德', 'ANDRESEN TRADING GMBH': '安德',
+            'ASIA': '亞洲', 'ASIA ENTERPRISE': '亞洲',
+        };
+        
+        // V80.0: 轉換產地英文→中文
+        const translateOrigin = (origin) => {
+            if (!origin) return origin;
+            const upper = origin.trim().toUpperCase();
+            return ORIGIN_MAP[upper] || origin;
+        };
+        
+        // V80.0: 轉換廠商英文→中文（模糊比對）
+        const translateSupplier = (supplier) => {
+            if (!supplier) return supplier;
+            const upper = supplier.trim().toUpperCase();
+            // 精確比對
+            if (SUPPLIER_MAP[upper]) return SUPPLIER_MAP[upper];
+            // 模糊比對：看廠商名稱是否包含關鍵字
+            for (const [key, value] of Object.entries(SUPPLIER_MAP)) {
+                if (upper.includes(key) || key.includes(upper)) return value;
+            }
+            return supplier;
+        };
         const PAYMENT_TERMS_DOMESTIC = ['現金', '月結 30 天', '月結 45 天', '月結 60 天', '其他'];
         
         // V73.0: 移除硬編碼的 ADMIN_EMAILS，改為完全從 Firestore settings/config 讀取
@@ -2048,10 +2091,14 @@ JSON 範例：
                 // 處理每個欄位
                 Object.keys(fieldMapping).forEach(field => {
                     if (data[field]) {
-                        const value = data[field];
+                        let value = data[field];
                         const sourceDoc = documents.find(d => fieldMapping[field].priority.includes(d.type));
+                        let rawVal = value.value || value;
+                        // V80.0: 自動翻譯產地和廠商為中文
+                        if (field === 'origin') rawVal = translateOrigin(rawVal);
+                        if (field === 'supplier') rawVal = translateSupplier(rawVal);
                         sources[field] = {
-                            value: value.value || value,
+                            value: rawVal,
                             source: sourceDoc?.label || '自動識別',
                             confidence: value.confidence || 'high',
                             alternatives: value.alternatives || []
@@ -2149,7 +2196,11 @@ JSON 範例：
                 
                 simpleFields.forEach(field => {
                     if (fieldSources[field]) {
-                        newFormData[field] = fieldSources[field].value;
+                        let val = fieldSources[field].value;
+                        // V80.0: 自動翻譯產地和廠商為中文
+                        if (field === 'origin') val = translateOrigin(val);
+                        if (field === 'supplier') val = translateSupplier(val);
+                        newFormData[field] = val;
                     }
                 });
                 
