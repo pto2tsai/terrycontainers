@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V79.0</title>
+    <title>貨櫃管理系統 V86.1</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -845,6 +845,10 @@
             currency: 'USD',
             paymentTerm: '到港前付款',
             prepayment: 0,
+            prepaymentPaid: false,
+            prepaymentDate: '',
+            prepaymentLinks: [],
+            piNumber: '',
             flightFee: 0,         
             flightFeePaid: false 
         };
@@ -869,8 +873,155 @@
         // --- 2. Helpers ---
         const safeNum = (val) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
         const round2 = (num) => Math.round(safeNum(num) * 100) / 100;
+
+        // V82.0: 批次彙總工具（同品名規格、多效期）
+        const getBatches = (p) => (p && Array.isArray(p.batches))
+            ? p.batches.filter(b => b && (b.batchNumber || b.expiryDate || b.quantity))
+            : [];
+        const batchSummary = (p) => {
+            const bs = getBatches(p);
+            if (bs.length === 0) {
+                const parts = [];
+                if (p && p.batchNumber) parts.push(p.batchNumber);
+                if (p && p.expiryDate) parts.push(p.expiryDate);
+                return parts.join(' · ') || '-';
+            }
+            const dates = bs.map(b => b.expiryDate).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+            const range = dates.length
+                ? (dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} ~ ${dates[dates.length - 1]}`)
+                : '';
+            return `${range}${range ? ' · ' : ''}${bs.length}批`;
+        };
+        // 批次明細清單（可用於明細展開）
+        const BatchList = ({ p }) => {
+            const bs = getBatches(p);
+            if (bs.length === 0) return null;
+            return (
+                <div className="mt-1 rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] font-medium text-gray-400 bg-gray-50 border-b border-gray-100">
+                        <span>批號</span><span>效期</span><span className="w-16 text-right">數量</span>
+                    </div>
+                    {bs.map((b, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 px-2 py-1 text-xs border-b border-gray-50 last:border-0 bg-white">
+                            <span className="font-mono text-purple-600 truncate flex-1">{b.batchNumber || '—'}</span>
+                            <span className="text-red-500 shrink-0">{b.expiryDate || '—'}</span>
+                            <span className="font-mono text-blue-600 shrink-0 w-16 text-right">
+                                {(b.quantity != null && b.quantity !== '') ? safeNum(b.quantity).toLocaleString() + '件' : '—'}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
         const format2 = (num) => safeNum(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const formatInt = (num) => safeNum(num).toLocaleString();
+
+        // V83.0: 規格正規化（吸收 650G*12B / 650G×12B / 大小寫 / 空白 差異）
+        const normalizeSpec = (s) => String(s || '').toUpperCase()
+            .replace(/[×xX]/g, '*').replace(/[-–—]/g, '/')
+            .replace(/KGS?\b/g, 'KG').replace(/GRAMS?\b|GR\b/g, 'G')
+            .replace(/\s+/g, '');
+
+        // V83.0: 確定性彙總安全網 — 同品名+規格+單價+計價方式 併成一列，多效期收進 batches
+        //   守則：單價不同不併、規格寫法先正規化、單批折回普通列、去重、金額重算
+        const aggregateProductsToBatches = (products) => {
+            if (!Array.isArray(products) || products.length === 0) return products;
+            const groups = new Map();
+            const order = [];
+            products.forEach(p => {
+                const key = `${String(p.name || '').trim()}||${normalizeSpec(p.spec)}||${safeNum(p.unitPrice)}||${p.pricingMode || 'weight'}`;
+                if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+                groups.get(key).push(p);
+            });
+            const result = [];
+            order.forEach(key => {
+                const grp = groups.get(key);
+                // 收集批次：優先用既有 batches，否則用該列自身合成一批
+                let batches = [];
+                grp.forEach(p => {
+                    const existing = getBatches(p);
+                    const src = existing.length ? existing : ((p.batchNumber || p.expiryDate) ? [p] : []);
+                    src.forEach(b => batches.push({
+                        batchNumber: b.batchNumber || '',
+                        expiryDate: b.expiryDate || '',
+                        quantity: (b.quantity != null && b.quantity !== '') ? safeNum(b.quantity) : null,
+                        weight: (b.weight != null && b.weight !== '') ? safeNum(b.weight) : null
+                    }));
+                });
+                // 去重（同批號+同效期）
+                const seen = new Set();
+                batches = batches.filter(b => {
+                    const k = (b.batchNumber || '') + '|' + (b.expiryDate || '');
+                    if (k === '|') return true;
+                    if (seen.has(k)) return false;
+                    seen.add(k); return true;
+                });
+
+                const base = { ...grp[0] };
+                // 數量/重量：群組>1 用加總（每列各自的量）；群組=1 維持原值，避免把量算成 0
+                base.quantity = grp.length > 1 ? grp.reduce((a, p) => a + safeNum(p.quantity), 0) : safeNum(grp[0].quantity);
+                base.weight = grp.length > 1 ? round2(grp.reduce((a, p) => a + safeNum(p.weight), 0)) : safeNum(grp[0].weight);
+
+                if (batches.length <= 1) {
+                    // 0~1 批 → 折回普通單列，不掛 batches
+                    delete base.batches;
+                    if (batches.length === 1) {
+                        base.batchNumber = batches[0].batchNumber || base.batchNumber || '';
+                        base.expiryDate = batches[0].expiryDate || base.expiryDate || '';
+                    }
+                } else {
+                    base.batches = batches;
+                    base.batchNumber = '多批號';
+                    const dates = batches.map(b => b.expiryDate).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+                    base.expiryDate = dates.length ? dates[0] : (base.expiryDate || '');
+                }
+                // 金額：只有真的合併（多列或多批）才重算；單行直接保留原值，保住「行金額」核對
+                if (grp.length > 1 || (Array.isArray(base.batches) && base.batches.length > 1)) {
+                    const q = (base.pricingMode === 'quantity') ? safeNum(base.quantity) : safeNum(base.weight);
+                    base.amount = round2(q * safeNum(base.unitPrice));
+                }
+                result.push(base);
+            });
+            return result;
+        };
+
+        // V84.0: 訂金 / 應付餘額
+        const containerTotal = (item) => (item && item.products || []).reduce((a, p) => a + safeNum(p.amount), 0);
+        const containerBalance = (item) => Math.max(0, round2(containerTotal(item) - safeNum(item && item.prepayment)));
+        const curSym = (item) => (item && item.currency === 'TWD') ? 'NT$' : '$';
+        // 表單用：訂金輸入區塊
+        const DepositBlock = ({ formData, onChange, editable = true }) => {
+            const total = (formData.products || []).reduce((a, p) => a + safeNum(p.amount), 0);
+            const balance = Math.max(0, round2(total - safeNum(formData.prepayment)));
+            const sym = formData.currency === 'TWD' ? 'NT$' : '$';
+            return (
+                <div className="bg-blue-50 p-4 rounded-xl space-y-3 border border-blue-100">
+                    <div className="font-bold text-blue-800 text-sm">訂金 / 預付</div>
+                    <div>
+                        <label className="form-label-lg">訂金金額 ({formData.currency || 'USD'})</label>
+                        <input type="text" inputMode="decimal" name="prepayment" value={formData.prepayment}
+                            disabled={!editable}
+                            onFocus={e => { if (parseFloat(e.target.value) === 0) e.target.select(); }}
+                            onChange={e => onChange({ target: { name: 'prepayment', value: e.target.value.replace(/[^\d.-]/g, ''), type: 'text' } })}
+                            className="form-input-lg num-input" placeholder="0" />
+                    </div>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" name="prepaymentPaid" checked={!!formData.prepaymentPaid} onChange={onChange} disabled={!editable} className="w-6 h-6 accent-blue-600" />
+                        <span className="font-bold text-blue-700 text-lg">訂金已付</span>
+                    </label>
+                    {formData.prepaymentPaid && (
+                        <div>
+                            <label className="form-label-lg">訂金日期</label>
+                            <input type="date" name="prepaymentDate" value={formData.prepaymentDate || ''} onChange={onChange} disabled={!editable} className="form-input-lg" />
+                        </div>
+                    )}
+                    <div className="flex justify-between items-center text-sm pt-2 border-t border-blue-100">
+                        <span className="text-gray-500">應付餘額（總額 − 訂金）</span>
+                        <span className="font-mono font-bold text-red-600 text-base">{sym}{format2(balance)}</span>
+                    </div>
+                </div>
+            );
+        };
 
         // V72.0: 修正日期處理，使用 UTC 避免時區問題
         const parseDate = (dateStr) => {
@@ -1068,9 +1219,279 @@
         };
 
         // 6. Main App
+        // V86.0: 多層比對未沖銷訂金（PI → 廠商+金額 → 廠商；一律只提示，由使用者確認）
+        const matchPendingDeposits = (records, supplier, piNumber, detectedAmount) => {
+            const pend = [];
+            (records || []).forEach(r => (r.items || []).forEach(it => {
+                if (it.status !== 'applied') pend.push({ recordId: r.id, currency: r.currency, remittanceDate: r.remittanceDate, item: it });
+            }));
+            const sup = (supplier || '').trim().toLowerCase();
+            const pi = (piNumber || '').trim().toLowerCase();
+            const amt = safeNum(detectedAmount);
+            const scored = pend.map(p => {
+                const itPi = (p.item.piNumber || '').trim().toLowerCase();
+                const itSup = (p.item.supplier || '').trim().toLowerCase();
+                const supHit = sup && itSup && (itSup === sup || itSup.includes(sup) || sup.includes(itSup));
+                let rank = 0, reason = '';
+                if (pi && itPi && pi === itPi) { rank = 3; reason = 'PI 號相符'; }
+                else if (supHit && amt > 0 && Math.abs(safeNum(p.item.amount) - amt) < 0.01) { rank = 2; reason = '廠商 + 金額相符'; }
+                else if (supHit) { rank = 1; reason = '同廠商'; }
+                return { ...p, rank, reason };
+            }).filter(p => p.rank > 0);
+            scored.sort((a, b) => b.rank - a.rank || safeNum(b.item.amount) - safeNum(a.item.amount));
+            return scored;
+        };
+
+        // 沖銷面板（貨櫃付款步驟用）
+        const ReconcilePanel = ({ records, supplier, piNumber, detectedAmount, links, onApply, onRemove }) => {
+            const linkedIds = new Set((links || []).map(l => l.itemId));
+            const matches = matchPendingDeposits(records, supplier, piNumber, detectedAmount).filter(m => !linkedIds.has(m.item.id));
+            const sym = (c) => c === 'TWD' ? 'NT$' : c === 'EUR' ? '€' : c === 'CNY' ? '¥' : '$';
+            const money = (n) => safeNum(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const rankBadge = (r) => r === 3 ? 'bg-green-100 text-green-700' : r === 2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600';
+            if (!supplier) return <div className="text-xs text-gray-400">填入廠商後，可在此比對未沖銷訂金</div>;
+            return (
+                <div className="space-y-2">
+                    {(links || []).length > 0 && (
+                        <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="text-xs font-bold text-green-700 mb-1">已選擇沖銷：</div>
+                            {links.map((l, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                                    <span className="text-gray-700">{l.supplier}　{l.piNumber ? 'PI ' + l.piNumber : ''}　{sym(l.currency)}{money(l.amount)}</span>
+                                    <button type="button" onClick={() => onRemove(l.itemId)} className="text-red-400">移除</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {matches.length === 0 ? <div className="text-xs text-gray-400">這家目前查無其他未沖銷訂金</div> :
+                        matches.map((m, i) => (
+                            <div key={i} className="flex items-center justify-between gap-2 p-2 bg-white border border-gray-200 rounded-lg">
+                                <div className="min-w-0">
+                                    <div className="text-sm font-medium text-gray-800">{m.item.supplier}　<span className="font-mono text-gray-600">{sym(m.currency)}{money(m.item.amount)}</span></div>
+                                    <div className="text-xs text-gray-500">{m.item.piNumber ? 'PI ' + m.item.piNumber + '　' : ''}匯款日 {m.remittanceDate || '-'}　<span className={`px-1.5 py-0.5 rounded ${rankBadge(m.rank)}`}>{m.reason}</span></div>
+                                </div>
+                                <button type="button" onClick={() => onApply(m)} className="shrink-0 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold">沖銷此筆</button>
+                            </div>
+                        ))}
+                </div>
+            );
+        };
+
+        // V85.0: 訂金 / 匯款台帳（付款當下就記，之後沖銷到貨櫃）
+        const DepositLedger = ({ db, storage, canCreate, canManage, canUpload, shipments, onReverse }) => {
+            const [records, setRecords] = useState([]);
+            const [showForm, setShowForm] = useState(false);
+            const [editingId, setEditingId] = useState(null);
+            const [saving, setSaving] = useState(false);
+            const [uploading, setUploading] = useState(false);
+            const [onlyPending, setOnlyPending] = useState(false);
+
+            const rid = () => 'it_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            const emptyItem = () => ({ id: rid(), supplier: '', amount: 0, piNumber: '', piAttachments: [], note: '', status: 'pending', appliedContainerId: '', appliedContainerNo: '', appliedDate: '' });
+            const emptyForm = () => ({ remittanceDate: new Date().toISOString().slice(0, 10), totalAmount: 0, currency: 'USD', slipAttachments: [], note: '', items: [emptyItem()] });
+            const [form, setForm] = useState(emptyForm());
+
+            useEffect(() => {
+                if (!db) return;
+                const unsub = db.collection('prepayments').onSnapshot(s => {
+                    const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    list.sort((a, b) => (b.remittanceDate || '').localeCompare(a.remittanceDate || ''));
+                    setRecords(list);
+                }, err => console.error('prepayments load error', err));
+                return () => unsub && unsub();
+            }, [db]);
+
+            const suppliers = useMemo(() => Array.from(new Set((shipments || []).map(s => s.supplier).filter(Boolean))).sort(), [shipments]);
+            const money = (n) => safeNum(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const symOf = (c) => c === 'TWD' ? 'NT$' : c === 'EUR' ? '€' : c === 'CNY' ? '¥' : '$';
+            const sumItems = (items) => (items || []).reduce((a, x) => a + safeNum(x.amount), 0);
+
+            const pendingSummary = useMemo(() => {
+                const m = {};
+                records.forEach(r => (r.items || []).forEach(it => { if (it.status !== 'applied') m[r.currency || 'USD'] = (m[r.currency || 'USD'] || 0) + safeNum(it.amount); }));
+                return m;
+            }, [records]);
+
+            const uploadFiles = async (files, folder) => {
+                const out = [];
+                for (const f of files) { const ref = storage.ref(folder + '/' + Date.now() + '_' + f.name); await ref.put(f); const url = await ref.getDownloadURL(); out.push({ name: f.name, url, path: ref.fullPath }); }
+                return out;
+            };
+
+            const openNew = () => { if (!canCreate) return alert('無新增權限'); setForm(emptyForm()); setEditingId(null); setShowForm(true); };
+            const openEdit = (r) => { setForm({ remittanceDate: r.remittanceDate || '', totalAmount: r.totalAmount || 0, currency: r.currency || 'USD', slipAttachments: r.slipAttachments || [], note: r.note || '', items: (r.items && r.items.length ? r.items.map(x => ({ ...x })) : [emptyItem()]) }); setEditingId(r.id); setShowForm(true); };
+
+            const addItem = () => setForm(prev => ({ ...prev, items: [...prev.items, emptyItem()] }));
+            const setItem = (idx, patch) => setForm(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, ...patch } : it) }));
+            const removeItem = (idx) => setForm(prev => ({ ...prev, items: prev.items.length > 1 ? prev.items.filter((_, i) => i !== idx) : prev.items }));
+
+            const onSlipUpload = async (e) => { const files = Array.from(e.target.files); if (!files.length) return; setUploading(true); try { const a = await uploadFiles(files, 'deposits/slip'); setForm(prev => ({ ...prev, slipAttachments: [...(prev.slipAttachments || []), ...a] })); } catch (err) { alert('上傳失敗: ' + err.message); } finally { setUploading(false); e.target.value = ''; } };
+            const onPiUpload = async (idx, e) => { const files = Array.from(e.target.files); if (!files.length) return; setUploading(true); try { const a = await uploadFiles(files, 'deposits/pi'); setForm(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, piAttachments: [...(it.piAttachments || []), ...a] } : it) })); } catch (err) { alert('上傳失敗: ' + err.message); } finally { setUploading(false); e.target.value = ''; } };
+            const removeSlip = (i) => setForm(prev => ({ ...prev, slipAttachments: prev.slipAttachments.filter((_, k) => k !== i) }));
+            const removePi = (idx, i) => setForm(prev => ({ ...prev, items: prev.items.map((it, k) => k === idx ? { ...it, piAttachments: it.piAttachments.filter((_, j) => j !== i) } : it) }));
+
+            const save = async () => {
+                if (!canCreate) return alert('無新增權限');
+                setSaving(true);
+                try {
+                    const payload = {
+                        remittanceDate: form.remittanceDate || '', totalAmount: safeNum(form.totalAmount), currency: form.currency, slipAttachments: form.slipAttachments || [], note: form.note || '',
+                        items: (form.items || []).map(it => ({ id: it.id || rid(), supplier: it.supplier || '', amount: safeNum(it.amount), piNumber: it.piNumber || '', piAttachments: it.piAttachments || [], note: it.note || '', status: it.status || 'pending', appliedContainerId: it.appliedContainerId || '', appliedContainerNo: it.appliedContainerNo || '', appliedDate: it.appliedDate || '' })),
+                        updatedAt: new Date().toISOString()
+                    };
+                    if (editingId) await db.collection('prepayments').doc(editingId).update(payload);
+                    else await db.collection('prepayments').add({ ...payload, createdAt: new Date().toISOString() });
+                    setShowForm(false);
+                } catch (err) { alert('儲存失敗: ' + err.message); } finally { setSaving(false); }
+            };
+            const del = async (r) => { if (!canManage) return alert('無刪除權限'); if (!confirm('確定刪除這筆匯款記錄？此動作無法復原。')) return; try { await db.collection('prepayments').doc(r.id).delete(); } catch (err) { alert(err.message); } };
+
+            const formSum = sumItems(form.items);
+            const formDiff = round2(safeNum(form.totalAmount) - formSum);
+            const shownRecords = onlyPending ? records.filter(r => (r.items || []).some(it => it.status !== 'applied')) : records;
+
+            return (
+                <div className="p-3 md:p-6 max-w-4xl mx-auto pb-20">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-800">訂金 / 匯款台帳</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">付款當下就記，發票到再沖銷到貨櫃</p>
+                        </div>
+                        {canCreate && <button onClick={openNew} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold shadow-sm flex items-center gap-1"><I.Plus /> 新增匯款</button>}
+                    </div>
+
+                    {/* 未沖銷彙總 */}
+                    <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                        <div className="text-sm font-bold text-amber-800 mb-2">未沖銷訂金（尚未對到貨櫃的預付款）</div>
+                        {Object.keys(pendingSummary).length === 0 ? <div className="text-sm text-amber-600">目前沒有未沖銷訂金 🎉</div> :
+                            <div className="flex flex-wrap gap-3">
+                                {Object.entries(pendingSummary).map(([cur, amt]) => (
+                                    <div key={cur} className="px-3 py-1.5 bg-white rounded-xl border border-amber-200">
+                                        <span className="text-xs text-gray-400 mr-1">{cur}</span>
+                                        <span className="font-mono font-bold text-amber-700">{symOf(cur)}{money(amt)}</span>
+                                    </div>
+                                ))}
+                            </div>}
+                    </div>
+
+                    <label className="flex items-center gap-2 mb-3 text-sm text-gray-600 cursor-pointer">
+                        <input type="checkbox" checked={onlyPending} onChange={e => setOnlyPending(e.target.checked)} className="w-4 h-4 accent-amber-600" /> 只看還有未沖銷的匯款
+                    </label>
+
+                    {/* 匯款記錄列表 */}
+                    <div className="space-y-3">
+                        {shownRecords.length === 0 && <div className="text-center text-gray-400 py-10">尚無匯款記錄</div>}
+                        {shownRecords.map(r => {
+                            const itemsSum = sumItems(r.items);
+                            const diff = round2(safeNum(r.totalAmount) - itemsSum);
+                            const pendingCount = (r.items || []).filter(it => it.status !== 'applied').length;
+                            return (
+                                <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                    <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+                                        <div>
+                                            <div className="font-bold text-gray-800">{symOf(r.currency)}{money(r.totalAmount)} <span className="text-xs font-normal text-gray-400">{r.currency}</span></div>
+                                            <div className="text-xs text-gray-500 mt-0.5">匯款日 {r.remittanceDate || '-'}　{(r.slipAttachments || []).length > 0 ? '📎 水單' : '（無水單）'}</div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {pendingCount > 0 ? <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-lg font-bold">未沖銷 {pendingCount}</span> : <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-lg font-bold">已全沖銷</span>}
+                                            {canCreate && <button onClick={() => openEdit(r)} className="p-1.5 text-gray-400 hover:text-blue-600"><I.Edit /></button>}
+                                            {canManage && <button onClick={() => del(r)} className="p-1.5 text-gray-400 hover:text-red-500"><I.Trash2 /></button>}
+                                        </div>
+                                    </div>
+                                    <div className="px-4 py-2 divide-y divide-gray-50">
+                                        {(r.items || []).map((it, i) => (
+                                            <div key={i} className="py-2 flex items-start justify-between gap-2 text-sm">
+                                                <div className="min-w-0">
+                                                    <div className="font-medium text-gray-800">{it.supplier || '（未填廠商）'}</div>
+                                                    <div className="text-xs text-gray-500">{it.piNumber ? 'PI ' + it.piNumber : '（無 PI 號）'}{(it.piAttachments || []).length > 0 ? ' 📎' : ''}{it.note ? '　' + it.note : ''}</div>
+                                                    {it.status === 'applied' && <div className="text-xs text-green-600 mt-0.5">✓ 已沖銷 → {it.appliedContainerNo || it.appliedContainerId}{it.appliedDate ? '（' + it.appliedDate + '）' : ''}{canManage && onReverse && <button onClick={() => onReverse(r.id, it.id)} className="ml-2 px-2 py-0.5 bg-red-50 text-red-500 rounded font-bold">反沖銷</button>}</div>}
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="font-mono font-bold text-gray-700">{symOf(r.currency)}{money(it.amount)}</div>
+                                                    {it.status !== 'applied' && <div className="text-[10px] text-amber-600 font-bold">未沖銷</div>}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {Math.abs(diff) > 0.01 && <div className="py-1 text-xs text-red-600">⚠ 訂金明細加總 {symOf(r.currency)}{money(itemsSum)} 與匯出總額差 {symOf(r.currency)}{money(diff)}</div>}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* 新增/編輯 表單 */}
+                    {showForm && (
+                        <div className="modal-overlay" onClick={() => {}}>
+                            <div className="modal-content" style={{ maxWidth: '640px', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-3">
+                                    <h3 className="font-bold text-xl text-gray-800">{editingId ? '編輯匯款' : '新增匯款'}</h3>
+                                    <button onClick={() => setShowForm(false)} className="text-gray-400"><I.X /></button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div><label className="form-label-lg">匯款日期</label><input type="date" value={form.remittanceDate} onChange={e => setForm(p => ({ ...p, remittanceDate: e.target.value }))} className="form-input-lg" /></div>
+                                    <div><label className="form-label-lg">幣別</label>
+                                        <select value={form.currency} onChange={e => setForm(p => ({ ...p, currency: e.target.value }))} className="form-input-lg">
+                                            {['USD', 'TWD', 'EUR', 'CNY'].map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                    <div><label className="form-label-lg">匯出總額</label><input type="text" inputMode="decimal" value={form.totalAmount} onFocus={e => { if (parseFloat(e.target.value) === 0) e.target.select(); }} onChange={e => setForm(p => ({ ...p, totalAmount: e.target.value.replace(/[^\d.-]/g, '') }))} className="form-input-lg num-input" placeholder="0" /></div>
+                                    <div><label className="form-label-lg">水單附件</label>
+                                        {canUpload ? <div className="relative"><input type="file" multiple onChange={onSlipUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><button type="button" className="w-full py-2.5 bg-white border border-dashed border-gray-300 rounded-lg text-gray-500 font-bold text-sm">{uploading ? '上傳中…' : '📎 上傳水單'}</button></div> : <div className="text-xs text-gray-400 pt-2">無上傳權限</div>}
+                                    </div>
+                                </div>
+                                {(form.slipAttachments || []).length > 0 && <div className="flex flex-wrap gap-2 mb-3">{form.slipAttachments.map((a, i) => <span key={i} className="text-xs bg-gray-100 rounded px-2 py-1 flex items-center gap-1"><a href={a.url} target="_blank" rel="noreferrer" className="text-blue-600 truncate max-w-[160px]">{a.name}</a><button onClick={() => removeSlip(i)} className="text-red-400">✕</button></span>)}</div>}
+
+                                <div><label className="form-label-lg">備註</label><input type="text" value={form.note} onChange={e => setForm(p => ({ ...p, note: e.target.value }))} className="form-input-lg" placeholder="選填" /></div>
+
+                                <div className="mt-4 mb-2 flex items-center justify-between">
+                                    <div className="font-bold text-gray-700">訂金明細（可多筆）</div>
+                                    <button onClick={addItem} className="text-sm px-3 py-1 bg-blue-50 text-blue-600 rounded-lg font-bold">+ 明細</button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {form.items.map((it, idx) => (
+                                        <div key={it.id || idx} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-bold text-gray-500">明細 #{idx + 1}{it.status === 'applied' && <span className="ml-2 text-green-600">✓ 已沖銷 {it.appliedContainerNo}</span>}</span>
+                                                {form.items.length > 1 && it.status !== 'applied' && <button onClick={() => removeItem(idx)} className="text-red-400 text-xs">刪除</button>}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div><label className="text-xs text-gray-400">廠商</label><input list="dep-suppliers" value={it.supplier} onChange={e => setItem(idx, { supplier: e.target.value })} className="form-input-lg" disabled={it.status === 'applied'} /></div>
+                                                <div><label className="text-xs text-gray-400">金額</label><input type="text" inputMode="decimal" value={it.amount} onFocus={e => { if (parseFloat(e.target.value) === 0) e.target.select(); }} onChange={e => setItem(idx, { amount: e.target.value.replace(/[^\d.-]/g, '') })} className="form-input-lg num-input" placeholder="0" disabled={it.status === 'applied'} /></div>
+                                                <div><label className="text-xs text-gray-400">PI 號碼</label><input value={it.piNumber} onChange={e => setItem(idx, { piNumber: e.target.value })} className="form-input-lg" placeholder="PI-xxxx" disabled={it.status === 'applied'} /></div>
+                                                <div><label className="text-xs text-gray-400">PI 附件</label>
+                                                    {canUpload ? <div className="relative"><input type="file" multiple onChange={e => onPiUpload(idx, e)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><button type="button" className="w-full py-2 bg-white border border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold">📎 PI</button></div> : <div className="text-xs text-gray-400">—</div>}
+                                                </div>
+                                            </div>
+                                            {(it.piAttachments || []).length > 0 && <div className="flex flex-wrap gap-1 mt-2">{it.piAttachments.map((a, i) => <span key={i} className="text-xs bg-white rounded px-2 py-0.5 border flex items-center gap-1"><a href={a.url} target="_blank" rel="noreferrer" className="text-blue-600 truncate max-w-[120px]">{a.name}</a><button onClick={() => removePi(idx, i)} className="text-red-400">✕</button></span>)}</div>}
+                                            <div className="mt-2"><input value={it.note} onChange={e => setItem(idx, { note: e.target.value })} className="form-input-lg" placeholder="備註（選填）" disabled={it.status === 'applied'} /></div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <datalist id="dep-suppliers">{suppliers.map(s => <option key={s} value={s} />)}</datalist>
+
+                                {/* 加總檢核 */}
+                                <div className={`mt-3 p-3 rounded-xl text-sm font-medium ${Math.abs(formDiff) < 0.01 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                    明細加總 {symOf(form.currency)}{money(formSum)} / 匯出總額 {symOf(form.currency)}{money(form.totalAmount)}
+                                    {Math.abs(formDiff) < 0.01 ? '　✓ 相符' : `　差 ${symOf(form.currency)}${money(formDiff)}`}
+                                </div>
+
+                                <div className="flex gap-3 mt-4 pt-4 border-t">
+                                    <button onClick={() => setShowForm(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button>
+                                    <button onClick={save} disabled={saving || uploading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg disabled:opacity-50">{saving ? '儲存中…' : '儲存'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         function ContainerApp() {
             const [user, setUser] = useState(null);
             const [shipments, setShipments] = useState([]);
+            const [prepaymentRecords, setPrepaymentRecords] = useState([]); // V85.0: 訂金台帳
             const [view, setView] = useState('list'); 
             const [displayMode, setDisplayMode] = useState('card');
             const [editingId, setEditingId] = useState(null);
@@ -1123,6 +1544,7 @@
             const [fieldSources, setFieldSources] = useState({}); // 各欄位的資料來源
             const [fieldConflicts, setFieldConflicts] = useState({}); // 欄位衝突
             const [duplicateContainer, setDuplicateContainer] = useState(null); // 重複的櫃號資訊
+            const [verificationReport, setVerificationReport] = useState(null); // V81.0: 文件核對報告
             
             // V79.0: Gemini API Key 設定
             const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -1132,10 +1554,10 @@
             });
             const [tempApiKey, setTempApiKey] = useState('');
             
-            // V79.1: 批號處理模式設定 ('merge' = 合併取最早效期, 'split' = 完全拆分)
+            // V79.1: 批號處理模式設定（V83: 預設改為 detail 彙總含明細）
             const [batchMergeMode, setBatchMergeMode] = useState(() => {
-                try { return localStorage.getItem('batch_merge_mode') || 'merge'; } 
-                catch { return 'merge'; }
+                try { return localStorage.getItem('batch_merge_mode') || 'detail'; } 
+                catch { return 'detail'; }
             });
             
             // V79.3: 多選匯出狀態
@@ -1280,11 +1702,18 @@
                     // 產品資料
                     let sumQty = 0, sumWeight = 0, sumAmount = 0;
                     products.forEach(p => {
+                        const _bs = getBatches(p); // V82.0: 批次明細多行呈現
+                        const batchCell = _bs.length
+                            ? _bs.map(b => (b.batchNumber || '') + ((b.quantity != null && b.quantity !== '') ? ' ·' + safeNum(b.quantity) + '件' : '')).join('\n')
+                            : (p.batchNumber || '');
+                        const expiryCell = _bs.length
+                            ? _bs.map(b => b.expiryDate || '').join('\n')
+                            : (p.expiryDate || '');
                         const row = [
                             p.name || '',
                             p.spec || '',
-                            p.batchNumber || '',
-                            p.expiryDate || '',
+                            batchCell,
+                            expiryCell,
                             safeNum(p.quantity),
                             safeNum(p.weight)
                         ];
@@ -1352,7 +1781,7 @@
                             
                             cell.s = {
                                 font: { name: '微軟正黑體', sz: 14 },
-                                alignment: { horizontal: align, vertical: 'center' },
+                                alignment: { horizontal: align, vertical: 'center', wrapText: (c === 2 || c === 3) },
                                 border: borderAll
                             };
                             
@@ -1803,6 +2232,22 @@
 輸出 2 筆產品：
   {"name":"熟白蝦 HOSO","spec":"41/50","quantity":100,"batchNumber":"BC11-TR2505","expiryDate":"2028-11-21"}
   {"name":"熟白蝦 HOSO","spec":"41/50","quantity":63,"batchNumber":"BC11-TR2506","expiryDate":"2028-11-30"}`
+                    : mergeMode === 'detail'
+                    ? `## 同品項多批號處理規則（重要）：
+採用「彙總含明細模式」：同品名 + 同規格 → 合併為一筆，但每個批號的明細保留在 batches 陣列
+- quantity：所有批號件數加總
+- weight：所有批號重量加總
+- unitPrice：單價（同品項單價應相同）
+- batchNumber：填「多批號」（若實際只有一個批號，就填該批號）
+- expiryDate：取最早的效期日期
+- batches：陣列，逐一列出每個批號，每筆含 batchNumber、expiryDate、quantity、weight（沒有的欄位就留空或省略）
+
+範例：
+原始資料：
+  熟白蝦 HOSO 41/50 | 100件 6200kg | BC11-TR2505 | 2028-11-21
+  熟白蝦 HOSO 41/50 |  63件 3900kg | BC11-TR2506 | 2028-11-30
+輸出一筆（含 batches）：
+  {"name":"熟白蝦 HOSO","spec":"41/50","quantity":163,"weight":10100,"batchNumber":"多批號","expiryDate":"2028-11-21","batches":[{"batchNumber":"BC11-TR2505","expiryDate":"2028-11-21","quantity":100,"weight":6200},{"batchNumber":"BC11-TR2506","expiryDate":"2028-11-30","quantity":63,"weight":3900}]}`
                     : `## 同品項多批號處理規則（重要）：
 採用「合併模式」：同品名 + 同規格 → 合併為一筆
 - quantity：件數加總
@@ -1830,6 +2275,10 @@
 - shippingLine: 船公司名稱（提單抬頭的公司，如 EVERGREEN、MSC、COSCO、MAERSK、HAPAG-LLOYD、ONE、YANG MING）
 - vesselVoyage: 船名航次（如 EVER APEX 1367-012E、MSC VICTORIA FA550R）
 - billOfLading: 提單號碼（B/L NO.）
+- invoiceNumber: 商業發票號碼（Invoice No. / Factura No.，如 IO-2534、25-0123；供核對用，文件未列則留空）
+- prepayment: 預付訂金金額（純數字）。若發票出現 DEPOSIT / ADVANCE PAYMENT / PREPAID / LESS DEPOSIT / 訂金 / 預付 等，帶出該金額；若只寫百分比（如「30% T/T IN ADVANCE」）則以 訂金 = 全部金額加總 × 百分比 計算；找不到就填 0
+- prepaymentNote: 訂金依據的簡短說明（如「DEPOSIT USD 30,000」或「30% T/T 訂金」）；沒有就留空
+- piNumber: 預付發票號碼（PI / Proforma Invoice No.，若商業發票有引用則帶出，供訂金沖銷比對用；沒有就留空）
 - products: 產品陣列（見下方格式）
 - totalQuantity: 總件數
 - totalWeight: 總重量
@@ -1891,6 +2340,7 @@ ${batchRuleSection}
 - quantity: 件數（純數字）
 - weight: 淨重kg（純數字）
 - unitPrice: 單價USD（純數字，歐洲格式 6,40 = 6.40）
+- amount: 該行金額USD（純數字，通常為 淨重×單價 或 件數×單價；供核對用，文件未列則留空）
 - batchNumber: 批號
 - expiryDate: 效期 YYYY-MM-DD
 
@@ -1908,8 +2358,243 @@ ${batchRuleSection}
 只輸出 JSON，不要輸出任何其他文字、說明或 markdown 標記。
 
 JSON 範例：
-{"containerNumber":"OTPU6492634","importCompany":"崇文冷凍","arrivalDate":"2025-01-15","supplier":"IOCEAN LLC","origin":"厄瓜多","shippingLine":"EVERGREEN","vesselVoyage":"EVER APEX 1367-012E","billOfLading":"EGLV123456789","devanningLocation":"","products":[{"originalText":"LIVE FROZEN HOSO WHITE SHRIMPS 20/30","name":"白蝦 HOSO","spec":"20/30 650G×12B","quantity":1435,"weight":11193,"unitPrice":6.40,"batchNumber":"BW08-W2535","expiryDate":"2027-12-09","pricingMode":"weight"}],"totalQuantity":2050,"totalWeight":15990}`;
+{"containerNumber":"OTPU6492634","importCompany":"崇文冷凍","arrivalDate":"2025-01-15","supplier":"IOCEAN LLC","origin":"厄瓜多","shippingLine":"EVERGREEN","vesselVoyage":"EVER APEX 1367-012E","billOfLading":"EGLV123456789","invoiceNumber":"IO-2534","prepayment":0,"prepaymentNote":"","piNumber":"","devanningLocation":"","products":[{"originalText":"LIVE FROZEN HOSO WHITE SHRIMPS 20/30","name":"白蝦 HOSO","spec":"20/30 650G×12B","quantity":1435,"weight":11193,"unitPrice":6.40,"amount":71635.20,"batchNumber":"BW08-W2535","expiryDate":"2027-12-09","pricingMode":"weight"}],"totalQuantity":2050,"totalWeight":15990}`;
             
+            // V81.0: 文件核對引擎（純 JS，零 token）
+            // 輸入：data = AI 合併後的結構化結果；documents = parsedDocuments（含每份文件原始文字與類型）
+            // 輸出：{ items:[{id,label,status,detail,conflicts?}], summary:{pass,fail,warn,skip} }
+            const runDocumentVerification = (data, documents) => {
+                const safeNum = (val) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
+                const round2 = (num) => Math.round(safeNum(num) * 100) / 100;
+                const items = [];
+                const products = Array.isArray(data.products) ? data.products : [];
+                const docs = Array.isArray(documents) ? documents : [];
+                const textDocs = docs.filter(d => d && d.text && d.text.length > 20);
+                const scannedDocs = docs.filter(d => d && d.isScanned);
+
+                // 正規化工具
+                const normText = (s) => String(s || '').toUpperCase().replace(/[×xX]/g, '*').replace(/\s+/g, '');
+                const normSpec = (s) => String(s || '')
+                    .toUpperCase()
+                    .replace(/[×xX]/g, '*')        // 統一乘號
+                    .replace(/[-–—]/g, '/')        // 統一區間分隔
+                    .replace(/KGS?\b/g, 'KG')
+                    .replace(/GRAMS?\b|GR\b/g, 'G')
+                    .replace(/\s+/g, '');          // 去空白
+                const scannedNote = scannedDocs.length
+                    ? `（另有 ${scannedDocs.length} 份掃描檔無法用文字比對，未納入）`
+                    : '';
+
+                // ---- A. 合計重量驗算 ----
+                if (products.length && data.totalWeight != null && String(data.totalWeight) !== '') {
+                    const sumW = round2(products.reduce((a, p) => a + safeNum(p.weight), 0));
+                    const decW = round2(data.totalWeight);
+                    const diff = round2(Math.abs(sumW - decW));
+                    const tol = Math.max(1, decW * 0.005); // 1kg 或 0.5%
+                    items.push({
+                        id: 'sumWeight', label: '合計重量驗算',
+                        status: diff <= tol ? 'pass' : 'fail',
+                        detail: `明細加總 ${sumW} kg，文件合計 ${decW} kg` + (diff <= tol ? '，相符' : `，差 ${diff} kg`)
+                    });
+                } else {
+                    items.push({ id: 'sumWeight', label: '合計重量驗算', status: 'skip', detail: '文件未提供合計重量' });
+                }
+
+                // ---- B. 合計件數驗算 ----
+                if (products.length && data.totalQuantity != null && String(data.totalQuantity) !== '') {
+                    const sumQ = products.reduce((a, p) => a + safeNum(p.quantity), 0);
+                    const decQ = safeNum(data.totalQuantity);
+                    const diff = Math.abs(sumQ - decQ);
+                    items.push({
+                        id: 'sumQty', label: '合計件數驗算',
+                        status: diff === 0 ? 'pass' : 'fail',
+                        detail: `明細加總 ${sumQ} 件，文件合計 ${decQ} 件` + (diff === 0 ? '，相符' : `，差 ${diff} 件`)
+                    });
+                } else {
+                    items.push({ id: 'sumQty', label: '合計件數驗算', status: 'skip', detail: '文件未提供合計件數' });
+                }
+
+                // ---- C. 行金額驗算（淨重/件數 × 單價 = 金額）----
+                const lineIssues = [];
+                let checkedLines = 0;
+                products.forEach((p, i) => {
+                    const amt = safeNum(p.amount);
+                    if (!amt) return; // 未抓到金額則略過該行
+                    checkedLines++;
+                    const base = (p.pricingMode === 'quantity') ? safeNum(p.quantity) : safeNum(p.weight);
+                    const expected = round2(base * safeNum(p.unitPrice));
+                    const diff = round2(Math.abs(expected - amt));
+                    const tol = Math.max(1, amt * 0.01);
+                    if (diff > tol) lineIssues.push(`第${i + 1}行 ${p.name || ''}：${base}×${p.unitPrice}=${expected}，文件 ${amt}`);
+                });
+                if (checkedLines === 0) {
+                    items.push({ id: 'lineAmount', label: '行金額驗算', status: 'skip', detail: '文件未提供各行金額' });
+                } else {
+                    items.push({
+                        id: 'lineAmount', label: '行金額驗算',
+                        status: lineIssues.length ? 'fail' : 'pass',
+                        detail: lineIssues.length ? '以下行金額對不上' : `${checkedLines} 行金額皆相符`,
+                        conflicts: lineIssues.length ? lineIssues.map(t => ({ label: '', value: t })) : null
+                    });
+                }
+
+                // ---- D. 櫃號一致性（跨文件 regex，ISO 6346）----
+                const cnRe = /[A-Z]{4}\d{7}/g;
+                const cnByDoc = [];
+                textDocs.forEach(d => {
+                    const found = Array.from(new Set(normText(d.text).match(cnRe) || []));
+                    if (found.length) cnByDoc.push({ label: d.label || d.name, values: found });
+                });
+                const allCN = new Set();
+                if (data.containerNumber) allCN.add(String(data.containerNumber).toUpperCase());
+                cnByDoc.forEach(x => x.values.forEach(v => allCN.add(v)));
+                if (allCN.size === 0) {
+                    items.push({ id: 'containerNo', label: '櫃號一致性', status: 'skip', detail: '各文件皆未偵測到櫃號' + scannedNote });
+                } else if (allCN.size === 1) {
+                    items.push({ id: 'containerNo', label: '櫃號一致性', status: 'pass', detail: `各文件櫃號一致：${Array.from(allCN)[0]}` + scannedNote });
+                } else {
+                    const rows = cnByDoc.map(x => ({ label: x.label, value: x.values.join(', ') }));
+                    if (data.containerNumber) rows.unshift({ label: '採用值', value: String(data.containerNumber).toUpperCase() });
+                    items.push({ id: 'containerNo', label: '櫃號一致性', status: 'fail', detail: '不同文件的櫃號不一致' + scannedNote, conflicts: rows });
+                }
+
+                // ---- E. 發票號一致性（跨文件 regex；含產地證明引用）----
+                const invRe = /(?:INVOICE\s*(?:NO|NUMBER|N[º°O])|FACTURA\s*(?:NO|N[º°O])?|COMMERCIAL\s*INVOICE)\s*[:.\-#]?\s*([A-Z0-9][A-Z0-9\/\-]{3,20})/gi;
+                const invByDoc = [];
+                textDocs.forEach(d => {
+                    const set = new Set();
+                    let m;
+                    const t = String(d.text || '');
+                    invRe.lastIndex = 0;
+                    while ((m = invRe.exec(t)) !== null) {
+                        const v = (m[1] || '').toUpperCase().replace(/[.,;]$/, '');
+                        if (v && v.length >= 4) set.add(v);
+                    }
+                    if (set.size) invByDoc.push({ label: d.label || d.name, values: Array.from(set) });
+                });
+                const allInv = new Set();
+                if (data.invoiceNumber) allInv.add(String(data.invoiceNumber).toUpperCase());
+                invByDoc.forEach(x => x.values.forEach(v => allInv.add(v)));
+                if (allInv.size === 0) {
+                    items.push({ id: 'invoiceNo', label: '發票號一致性', status: 'skip', detail: '各文件皆未偵測到發票號' + scannedNote });
+                } else if (allInv.size === 1) {
+                    items.push({ id: 'invoiceNo', label: '發票號一致性', status: 'pass', detail: `各文件發票號一致：${Array.from(allInv)[0]}` + scannedNote });
+                } else {
+                    const rows = invByDoc.map(x => ({ label: x.label, value: x.values.join(', ') }));
+                    if (data.invoiceNumber) rows.unshift({ label: '採用值', value: String(data.invoiceNumber).toUpperCase() });
+                    // 發票號 regex 較易誤判，標為警告並列出原始字串供人工判斷
+                    items.push({ id: 'invoiceNo', label: '發票號一致性', status: 'warn', detail: '偵測到多個發票號，請人工確認是否一致' + scannedNote, conflicts: rows });
+                }
+
+                // ---- F. 品名／規格一致性（跨文件 presence，正規化後比對）----
+                // F1. 同一批號不應對到不同品名/規格（合併錯誤偵測）
+                const batchMap = {};
+                const batchConflicts = [];
+                products.forEach(p => {
+                    const b = String(p.batchNumber || '').toUpperCase().trim();
+                    if (!b || b === '多批號') return;
+                    const key = `${String(p.name || '').trim()}|${normSpec(p.spec)}`;
+                    if (batchMap[b] && batchMap[b] !== key) {
+                        batchConflicts.push(`批號 ${b}：${batchMap[b].replace('|', ' / ')} vs ${key.replace('|', ' / ')}`);
+                    } else {
+                        batchMap[b] = key;
+                    }
+                });
+                // F2. 每個規格是否出現在「載有明細」的文字型文件中（正規化 presence）
+                // 只比對 invoice / packing / combined，提單與效期清單不列明細規格，避免誤報
+                const lineItemTypes = ['invoice', 'packing', 'combined'];
+                const specMisses = [];
+                const lineDocs = textDocs.filter(d => lineItemTypes.includes(d.type));
+                if (lineDocs.length >= 2) {
+                    const blobs = lineDocs.map(d => ({ label: d.label || d.name, blob: normText(d.text) }));
+                    const seenSpecs = new Set();
+                    products.forEach(p => {
+                        const ns = normSpec(p.spec);
+                        if (!ns || seenSpecs.has(ns)) return;
+                        seenSpecs.add(ns);
+                        // 抽出規格中的區間 token（如 20/30、41/50）作為關鍵比對點
+                        const range = (String(p.spec || '').match(/\d{1,3}\/\d{1,3}/) || [])[0];
+                        const probe = range ? normText(range) : ns;
+                        const missIn = blobs.filter(b => b.blob.indexOf(probe) === -1).map(b => b.label);
+                        if (range && missIn.length && missIn.length < blobs.length) {
+                            specMisses.push(`規格 ${p.spec}：未出現於 ${missIn.join('、')}`);
+                        }
+                    });
+                }
+                if (batchConflicts.length) {
+                    items.push({ id: 'nameSpec', label: '品名／規格一致性', status: 'fail', detail: '同批號對到不同品名或規格', conflicts: batchConflicts.map(t => ({ label: '', value: t })) });
+                } else if (specMisses.length) {
+                    items.push({ id: 'nameSpec', label: '品名／規格一致性', status: 'warn', detail: '部分規格未在所有文件中出現（可能為寫法差異，請人工確認）', conflicts: specMisses.map(t => ({ label: '', value: t })) });
+                } else if (products.length) {
+                    items.push({ id: 'nameSpec', label: '品名／規格一致性', status: 'pass', detail: '品名與規格在各文件間一致' });
+                } else {
+                    items.push({ id: 'nameSpec', label: '品名／規格一致性', status: 'skip', detail: '無產品明細可比對' });
+                }
+
+                // ---- G. 批號格式檢查 ----
+                const batchFmt = /^[A-Z]{2,4}\d{0,2}-?[A-Z]{0,2}\d{2,6}$/;
+                const badBatch = [];
+                products.forEach((p, i) => {
+                    const b = String(p.batchNumber || '').toUpperCase().trim();
+                    if (!b || b === '多批號') return;
+                    if (!batchFmt.test(b)) badBatch.push(`第${i + 1}行 ${p.name || ''}：${b}`);
+                });
+                if (!products.some(p => p.batchNumber && p.batchNumber !== '多批號')) {
+                    items.push({ id: 'batchFmt', label: '批號格式檢查', status: 'skip', detail: '無批號可檢查' });
+                } else {
+                    items.push({
+                        id: 'batchFmt', label: '批號格式檢查',
+                        status: badBatch.length ? 'warn' : 'pass',
+                        detail: badBatch.length ? '以下批號格式不尋常，請確認' : '批號格式正常',
+                        conflicts: badBatch.length ? badBatch.map(t => ({ label: '', value: t })) : null
+                    });
+                }
+
+                // ---- H. 效期合理性（效期需晚於到港日）----
+                if (data.arrivalDate && /^\d{4}-\d{2}-\d{2}$/.test(data.arrivalDate)) {
+                    const arr = new Date(data.arrivalDate);
+                    const expIssues = [];
+                    products.forEach((p, i) => {
+                        if (!p.expiryDate || !/^\d{4}-\d{2}-\d{2}$/.test(p.expiryDate)) return;
+                        if (new Date(p.expiryDate) <= arr) expIssues.push(`第${i + 1}行 ${p.name || ''}：效期 ${p.expiryDate} ≤ 到港 ${data.arrivalDate}`);
+                    });
+                    items.push({
+                        id: 'expiry', label: '效期合理性',
+                        status: expIssues.length ? 'warn' : 'pass',
+                        detail: expIssues.length ? '以下效期早於或等於到港日' : '效期皆晚於到港日',
+                        conflicts: expIssues.length ? expIssues.map(t => ({ label: '', value: t })) : null
+                    });
+                } else {
+                    items.push({ id: 'expiry', label: '效期合理性', status: 'skip', detail: '無到港日或效期可比對' });
+                }
+
+                // ---- I. 批次明細加總（彙總含明細模式）----
+            const batchProds = products.filter(p => Array.isArray(p.batches) && p.batches.length > 0);
+            if (batchProds.length) {
+                const batchIssues = [];
+                batchProds.forEach((p, i) => {
+                    const bs = p.batches.filter(b => b && b.quantity != null && String(b.quantity) !== '');
+                    if (!bs.length) return; // 批次沒填數量就不比
+                    const sumB = bs.reduce((a, b) => a + safeNum(b.quantity), 0);
+                    const itemQ = safeNum(p.quantity);
+                    if (Math.abs(sumB - itemQ) !== 0) {
+                        batchIssues.push(`${p.name || ('第' + (i + 1) + '項')}：批次加總 ${sumB} 件，品項數量 ${itemQ} 件`);
+                    }
+                });
+                items.push({
+                    id: 'batchSum', label: '批次明細加總',
+                    status: batchIssues.length ? 'fail' : 'pass',
+                    detail: batchIssues.length ? '批次數量加總與品項數量不符' : '各品項批次加總皆相符',
+                    conflicts: batchIssues.length ? batchIssues.map(t => ({ label: '', value: t })) : null
+                });
+            }
+
+            const summary = { pass: 0, fail: 0, warn: 0, skip: 0 };
+                items.forEach(it => { summary[it.status] = (summary[it.status] || 0) + 1; });
+                return { items, summary };
+            };
+
+
             // V79.0: AI 解析 - 直接呼叫 Gemini API（含重試機制）
             const processWithAI = async (documents) => {
                 const MAX_RETRIES = 2; // 最多重試 2 次
@@ -2068,6 +2753,13 @@ JSON 範例：
                 console.log('📊 processAiResult 開始處理...');
                 console.log('📊 收到的資料:', JSON.stringify(data, null, 2).substring(0, 500));
                 
+                // V83.0: 彙總含明細模式 — AI 回來後再跑一次確定性彙總（規格正規化、單價不同不併、單批折回）
+                if (batchMergeMode === 'detail' && Array.isArray(data.products)) {
+                    const before = data.products.length;
+                    data.products = aggregateProductsToBatches(data.products);
+                    console.log(`🧮 彙總安全網：${before} → ${data.products.length} 筆`);
+                }
+                
                 // 處理新欄位映射：shippingLine + vesselVoyage → shippingCompany
                 if (data.shippingLine || data.vesselVoyage) {
                     const parts = [];
@@ -2142,6 +2834,14 @@ JSON 範例：
                 setFieldConflicts(conflicts);
                 setDuplicateContainer(null); // 重置重複檢查
                 
+                // V81.0: 執行文件核對（純 JS，零 token）
+                try {
+                    setVerificationReport(runDocumentVerification(data, documents));
+                } catch (vErr) {
+                    console.error('文件核對失敗:', vErr);
+                    setVerificationReport(null);
+                }
+                
                 // 檢查櫃號是否已存在
                 console.log(`🔍 開始檢查櫃號重複...`);
                 console.log(`🔍 解析出的櫃號: "${data.containerNumber}"`);
@@ -2208,6 +2908,15 @@ JSON 範例：
                     }
                 });
                 
+                // V84.1: 帶入 AI 從發票偵測到的預付訂金（金額只帶入，是否已付/日期仍由使用者確認）
+                if (aiExtractedData && safeNum(aiExtractedData.prepayment) > 0) {
+                    newFormData.prepayment = safeNum(aiExtractedData.prepayment);
+                }
+                // V86.0: 帶入 AI 偵測到的 PI 號碼（供訂金沖銷比對）
+                if (aiExtractedData && aiExtractedData.piNumber) {
+                    newFormData.piNumber = aiExtractedData.piNumber;
+                }
+                
                 // 填入產品明細（使用選擇的 ERP 品名）
                 if (productsData.length > 0) {
                     newFormData.products = productsData.map((p, idx) => {
@@ -2224,6 +2933,7 @@ JSON 範例：
                             unitPrice: p.unitPrice || 0,
                             batchNumber: p.batchNumber || '',
                             expiryDate: p.expiryDate || '',
+                            batches: Array.isArray(p.batches) ? p.batches : [], // V82.0: 保留批次明細
                             pricingMode: p.pricingMode || 'weight',
                             amount: (p.pricingMode === 'quantity' ? p.quantity : p.weight) * (p.unitPrice || 0)
                         };
@@ -2262,6 +2972,7 @@ JSON 範例：
                 setAiExtractedData(null);
                 setFieldSources({});
                 setFieldConflicts({});
+                setVerificationReport(null);
                 setFormStep(1);
                 setView('form');
             };
@@ -2756,7 +3467,7 @@ JSON 範例：
                     ...initialFormState, ...item, attachments: atts,
                     currency: item.currency || (item.customsBroker === DOMESTIC_FLAG ? 'TWD' : 'USD'),
                     paymentTerm: item.paymentTerm || (item.customsBroker === DOMESTIC_FLAG ? PAYMENT_TERMS_DOMESTIC[0] : '到港前付款'),
-                    prepayment: item.prepayment || 0, flightFee: item.flightFee || 0, flightFeePaid: item.flightFeePaid || false,
+                    prepayment: item.prepayment || 0, prepaymentPaid: item.prepaymentPaid || false, prepaymentDate: item.prepaymentDate || '', prepaymentLinks: item.prepaymentLinks || [], piNumber: item.piNumber || '', flightFee: item.flightFee || 0, flightFeePaid: item.flightFeePaid || false,
                     customsDeclarationNo: item.customsDeclarationNo || '', importPermitNo: item.importPermitNo || '',
                     shippingCompany: item.shippingCompany || ''
                 }); 
@@ -2767,7 +3478,7 @@ JSON 範例：
                 if(!canCreate()) return alert(TEXT.PERMISSION_DENIED);
                 const {id, ...d} = s; const merged = { ...initialFormState, ...d };
                 const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()})); 
-                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, flightFee: 0, flightFeePaid: false}); 
+                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, prepaymentPaid: false, prepaymentDate: '', prepaymentLinks: [], piNumber: '', flightFee: 0, flightFeePaid: false}); 
                 setEditingId(null); setFormStep(1); setView('form'); 
             };
 
@@ -2794,6 +3505,69 @@ JSON 範例：
                 setValidationMessage(message);
                 setShowValidationToast(true);
                 setTimeout(() => setShowValidationToast(false), 3000);
+            };
+
+            // V86.0: 沖銷訂金到目前貨櫃（只更新表單，寫回台帳在存檔時進行）
+            const applyDepositLink = (m) => {
+                setFormData(prev => {
+                    const links = prev.prepaymentLinks || [];
+                    if (links.some(l => l.itemId === m.item.id)) return prev;
+                    const newLinks = [...links, { recordId: m.recordId, itemId: m.item.id, amount: safeNum(m.item.amount), supplier: m.item.supplier, piNumber: m.item.piNumber, currency: m.currency }];
+                    const newPrepay = newLinks.reduce((a, l) => a + safeNum(l.amount), 0);
+                    return { ...prev, prepaymentLinks: newLinks, prepayment: newPrepay, prepaymentPaid: true, prepaymentDate: prev.prepaymentDate || m.remittanceDate || '' };
+                });
+            };
+            const removeDepositLink = (itemId) => {
+                const link = (formData.prepaymentLinks || []).find(l => l.itemId === itemId);
+                const rec = link && prepaymentRecords.find(r => r.id === link.recordId);
+                const item = rec && (rec.items || []).find(it => it.id === itemId);
+                if (item && item.status === 'applied') { reverseDepositLink(link.recordId, itemId); return; }
+                setFormData(prev => {
+                    const newLinks = (prev.prepaymentLinks || []).filter(l => l.itemId !== itemId);
+                    return { ...prev, prepaymentLinks: newLinks, prepayment: round2(newLinks.reduce((a, l) => a + safeNum(l.amount), 0)) };
+                });
+            };
+            // V86.1: 反沖銷（經理限定）— 台帳退回未沖銷 + 貨櫃扣除訂金
+            const reverseDepositLink = async (recordId, itemId) => {
+                if (!canManage()) return alert('反沖銷需經理權限');
+                const rec = prepaymentRecords.find(r => r.id === recordId);
+                const item = rec && (rec.items || []).find(it => it.id === itemId);
+                if (!rec || !item) return alert('找不到該訂金明細');
+                if (!confirm(`確定反沖銷？\n\n${item.supplier || ''}　${item.piNumber ? 'PI ' + item.piNumber : ''}　金額 ${safeNum(item.amount)}\n原沖銷對象：${item.appliedContainerNo || '-'}\n\n將把此訂金退回「未沖銷」，並從該貨櫃扣掉此訂金金額。`)) return;
+                const targetId = item.appliedContainerId;
+                try {
+                    const newItems = (rec.items || []).map(it => it.id === itemId ? { ...it, status: 'pending', appliedContainerId: '', appliedContainerNo: '', appliedDate: '' } : it);
+                    await db.collection('prepayments').doc(recordId).update({ items: newItems, updatedAt: new Date().toISOString() });
+                    if (editingId && editingId === targetId) {
+                        setFormData(prev => {
+                            const links = (prev.prepaymentLinks || []).filter(l => l.itemId !== itemId);
+                            return { ...prev, prepaymentLinks: links, prepayment: round2(links.reduce((a, l) => a + safeNum(l.amount), 0)) };
+                        });
+                    } else if (targetId) {
+                        const ship = shipments.find(s => s.id === targetId);
+                        if (ship) {
+                            const links = (ship.prepaymentLinks || []).filter(l => l.itemId !== itemId);
+                            await db.collection('shipments').doc(targetId).update({ prepaymentLinks: links, prepayment: round2(links.reduce((a, l) => a + safeNum(l.amount), 0)), updatedAt: new Date().toISOString() });
+                        }
+                    }
+                    if (typeof showToast === 'function') showToast('已反沖銷'); else alert('已反沖銷');
+                } catch (e) { alert('反沖銷失敗: ' + e.message); }
+            };
+            // 存檔後把已選訂金標記為已沖銷（寫回台帳，失敗不影響貨櫃存檔）
+            const writeBackDepositLinks = async (links, containerId, containerNo) => {
+                if (!links || !links.length) return;
+                const byRecord = {};
+                links.forEach(l => { (byRecord[l.recordId] = byRecord[l.recordId] || []).push(l.itemId); });
+                const today = new Date().toISOString().slice(0, 10);
+                for (const recordId of Object.keys(byRecord)) {
+                    try {
+                        const rec = prepaymentRecords.find(r => r.id === recordId);
+                        if (!rec) continue;
+                        const ids = new Set(byRecord[recordId]);
+                        const newItems = (rec.items || []).map(it => ids.has(it.id) ? { ...it, status: 'applied', appliedContainerId: containerId || '', appliedContainerNo: containerNo || '', appliedDate: today } : it);
+                        await db.collection('prepayments').doc(recordId).update({ items: newItems, updatedAt: new Date().toISOString() });
+                    } catch (e) { console.error('訂金沖銷寫回失敗:', recordId, e); }
+                }
             };
 
             const handleSubmit = async (e) => {
@@ -2844,8 +3618,10 @@ JSON 範例：
                         } 
                         
                         await db.collection('shipments').doc(editingId).update(dataToSend);
+                        await writeBackDepositLinks(formData.prepaymentLinks, editingId, formData.containerNumber);
                     } else {
-                        await db.collection('shipments').add({...d, createdAt: new Date().toISOString()});
+                        const ref = await db.collection('shipments').add({...d, createdAt: new Date().toISOString()});
+                        await writeBackDepositLinks(formData.prepaymentLinks, ref.id, formData.containerNumber);
                     }
                     setValidationErrors({});
                     setEditingId(null); setView('list');
@@ -3006,6 +3782,13 @@ JSON 範例：
                     setLoading(false);
                 });
                 
+                // V85.0: 訂金台帳資料（供沖銷比對與台帳頁共用）
+                const unsubPrepay = db.collection('prepayments').onSnapshot(s => {
+                    const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    list.sort((a, b) => (b.remittanceDate || '').localeCompare(a.remittanceDate || ''));
+                    setPrepaymentRecords(list);
+                }, err => console.error('prepayments load error', err));
+                
                 // V73.0: 完全從 Firestore 讀取角色設定，不再使用硬編碼的 ADMIN_EMAILS
                 db.collection('settings').doc('config').get().then(doc => {
                     if(doc.exists) {
@@ -3031,7 +3814,7 @@ JSON 範例：
                     // 發生錯誤時保持 GUEST 角色
                 });
                 
-                return () => unsub();
+                return () => { unsub(); if (typeof unsubPrepay === 'function') unsubPrepay(); };
             }, [user]);
 
             // V77.0: 產品主檔監聽 + 自動初始化
@@ -3518,6 +4301,67 @@ JSON 範例：
                                     ))}
                                 </div>
                                 
+                                {/* V81.0: 文件核對報告 */}
+                                {verificationReport && (() => {
+                                    const rep = verificationReport;
+                                    const s = rep.summary || {};
+                                    const hasFail = (s.fail || 0) > 0;
+                                    const hasWarn = (s.warn || 0) > 0;
+                                    const bannerCls = hasFail ? 'bg-red-50 border-red-300 text-red-700'
+                                        : hasWarn ? 'bg-yellow-50 border-yellow-200 text-yellow-700'
+                                        : 'bg-green-50 border-green-200 text-green-700';
+                                    const bannerText = hasFail ? `發現 ${s.fail} 項不符${hasWarn ? `、${s.warn} 項待確認` : ''}`
+                                        : hasWarn ? `${s.warn} 項待人工確認，其餘通過`
+                                        : '全部核對通過';
+                                    const styleFor = (st) => st === 'fail' ? { icon: '✕', box: 'bg-red-50 border-red-200', txt: 'text-red-700' }
+                                        : st === 'warn' ? { icon: '!', box: 'bg-yellow-50 border-yellow-200', txt: 'text-yellow-700' }
+                                        : st === 'pass' ? { icon: '✓', box: 'bg-green-50 border-green-100', txt: 'text-green-700' }
+                                        : { icon: '–', box: 'bg-gray-50 border-gray-200', txt: 'text-gray-400' };
+                                    return (
+                                        <div className={`mb-4 p-3 border rounded-xl ${bannerCls}`}>
+                                            <div className="flex items-center gap-2 font-bold text-sm mb-2">
+                                                <I.AlertCircle /> 文件核對：{bannerText}
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                {rep.items.map(it => {
+                                                    const st = styleFor(it.status);
+                                                    return (
+                                                        <div key={it.id} className={`p-2 rounded-lg border ${st.box}`}>
+                                                            <div className="flex items-start gap-2 text-sm">
+                                                                <span className={`font-bold w-4 text-center flex-shrink-0 ${st.txt}`}>{st.icon}</span>
+                                                                <span className={`font-medium flex-shrink-0 ${st.txt}`}>{it.label}</span>
+                                                                <span className="text-gray-500 text-xs mt-0.5">{it.detail}</span>
+                                                            </div>
+                                                            {it.conflicts && it.conflicts.length > 0 && (
+                                                                <div className="mt-1.5 ml-6 space-y-1">
+                                                                    {it.conflicts.map((c, ci) => (
+                                                                        <div key={ci} className="text-xs bg-white/70 rounded px-2 py-1 border border-gray-200 text-gray-700">
+                                                                            {c.label ? <span className="text-gray-400 mr-1">{c.label}:</span> : null}
+                                                                            <span className="font-medium">{c.value}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <div className="text-xs text-gray-400 mt-2">此為輔助核對，請人工確認後再匯入。</div>
+                                        </div>
+                                    );
+                                })()}
+                                
+                                {/* V84.1: 訂金偵測（發票階段就看到） */}
+                                {aiExtractedData && (safeNum(aiExtractedData.prepayment) > 0 ? (
+                                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                                        <div className="flex items-center gap-2 text-blue-800 font-bold text-sm">💰 偵測到預付訂金：${format2(aiExtractedData.prepayment)}</div>
+                                        {aiExtractedData.prepaymentNote && <div className="text-xs text-blue-600 mt-1">依據：{aiExtractedData.prepaymentNote}</div>}
+                                        <div className="text-xs text-gray-500 mt-1">確認後會自動帶入「訂金」欄；請於付款資訊勾選「訂金已付」並補上日期。</div>
+                                    </div>
+                                ) : (
+                                    <div className="mb-3 text-xs text-gray-400">💰 未在發票偵測到預付訂金</div>
+                                ))}
+                                
                                 {/* 衝突提示 */}
                                 {Object.keys(fieldConflicts).length > 0 && (
                                     <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
@@ -3656,9 +4500,17 @@ JSON 範例：
                                                             <span className="text-blue-600 font-bold">件數: {p.quantity?.toLocaleString()}</span>
                                                             <span className="text-orange-500 font-bold">重量: {p.weight?.toLocaleString()} kg</span>
                                                             {p.unitPrice > 0 && <span className="text-green-600 font-bold">單價: ${p.unitPrice}</span>}
-                                                            {p.batchNumber && <span className="text-purple-600">批號: {p.batchNumber}</span>}
-                                                            {p.expiryDate && <span className="text-red-500">效期: {p.expiryDate}</span>}
+                                                            {getBatches(p).length === 0 && p.batchNumber && <span className="text-purple-600">批號: {p.batchNumber}</span>}
+                                                            {getBatches(p).length === 0 && p.expiryDate && <span className="text-red-500">效期: {p.expiryDate}</span>}
                                                         </div>
+                                                        {getBatches(p).length > 0 && (
+                                                            <details className="mt-2 group">
+                                                                <summary className="cursor-pointer list-none text-xs text-purple-600 font-medium">
+                                                                    批次明細：{batchSummary(p)} <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>
+                                                                </summary>
+                                                                <BatchList p={p} />
+                                                            </details>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -3765,8 +4617,8 @@ JSON 範例：
                                                 className="mt-1"
                                             />
                                             <div>
-                                                <div className="font-medium text-gray-800">合併模式（建議）</div>
-                                                <div className="text-xs text-gray-500">同品名+同規格合併，取最早效期</div>
+                                                <div className="font-medium text-gray-800">合併模式</div>
+                                                <div className="text-xs text-gray-500">同品名+同規格合併，取最早效期（不留明細）</div>
                                             </div>
                                         </label>
                                         <label className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer">
@@ -3780,6 +4632,19 @@ JSON 範例：
                                             <div>
                                                 <div className="font-medium text-gray-800">拆分模式</div>
                                                 <div className="text-xs text-gray-500">每個批號獨立一筆記錄</div>
+                                            </div>
+                                        </label>
+                                        <label className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer">
+                                            <input 
+                                                type="radio" 
+                                                name="batchMode" 
+                                                checked={batchMergeMode === 'detail'} 
+                                                onChange={() => saveBatchMergeMode('detail')}
+                                                className="mt-1"
+                                            />
+                                            <div>
+                                                <div className="font-medium text-gray-800">彙總含明細模式（建議）</div>
+                                                <div className="text-xs text-gray-500">同品名+同規格合併為一列，效期明細可展開（適合多效期）</div>
                                             </div>
                                         </label>
                                     </div>
@@ -4219,7 +5084,7 @@ JSON 範例：
                         </>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V79.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V79.0</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`sidebar-link w-full ${view==='deposits'?'active':''}`}><div className="w-8 text-center"><I.Dollar /></div> 訂金台帳</button>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className={geminiApiKey ? "text-green-500" : "text-gray-400"}><I.Wand /></button>{canCreate()&&view==='list'&&<button onClick={handleStartNewContainer} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
@@ -4289,7 +5154,11 @@ JSON 範例：
                                                         <td className="col-product" title={uniqueNames}>{uniqueNames}</td>
                                                         <td className="col-right font-bold text-blue-600">{totalQty.toLocaleString()}</td>
                                                         <td className="col-right text-orange-500">{format2(totalWt)}</td>
-                                                        {canSeePrice()&&<td className="col-right"><span className={item.isPaid?"amt-paid":"amt-unpaid"}>{format2(totalAmt)}</span></td>}
+                                                        {canSeePrice()&&(()=>{ const dep=safeNum(item.prepayment); const bal=Math.max(0,round2(totalAmt-dep)); return (
+                                                            <td className="col-right">
+                                                                <span className={item.isPaid?"amt-paid":"amt-unpaid"}>{format2(item.isPaid?totalAmt:bal)}</span>
+                                                                {dep>0 && !item.isPaid && <div className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap">總{format2(totalAmt)}·訂{format2(dep)}</div>}
+                                                            </td>); })()}
                                                         {canEditFlightFee()&&<td className="col-right">{showFlightFee?<span className={item.flightFeePaid?"amt-paid":"amt-unpaid"}>{format2(safeNum(item.flightFee))}</span>:'-'}</td>}
                                                         {canEdit()&&<td className="col-center"><button onClick={()=>handleEdit(item)} title="編輯" className="text-gray-400 hover:text-blue-600 p-1"><I.Edit /></button></td>}
                                                     </tr>
@@ -4397,7 +5266,14 @@ JSON 範例：
                                                                     {canSeePrice() && <td className="py-2 text-right font-mono text-base text-orange-600">{format2(safeNum(p.weight))}kg</td>}
                                                                     {canSeePrice() && <td className="py-2 text-right font-mono text-base">${format2(safeNum(p.unitPrice))}</td>}
                                                                     {canSeePrice() && <td className="py-2 text-right font-mono text-base text-emerald-600">${format2(safeNum(p.amount))}</td>}
-                                                                    <td className="py-2 text-gray-500 pl-4">{(p.batchNumber || p.expiryDate) ? <>{p.batchNumber && <span className="mr-2">{p.batchNumber}</span>}{p.expiryDate && <span>{p.expiryDate}</span>}</> : '-'}</td>
+                                                                    <td className="py-2 text-gray-500 pl-4">{getBatches(p).length > 0 ? (
+                                                                        <details className="group">
+                                                                            <summary className="cursor-pointer list-none text-gray-600 hover:text-blue-600">
+                                                                                {batchSummary(p)} <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>
+                                                                            </summary>
+                                                                            <BatchList p={p} />
+                                                                        </details>
+                                                                    ) : ((p.batchNumber || p.expiryDate) ? <>{p.batchNumber && <span className="mr-2">{p.batchNumber}</span>}{p.expiryDate && <span>{p.expiryDate}</span>}</> : '-')}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>
@@ -4419,6 +5295,7 @@ JSON 範例：
                                                             {canSeePrice() && (
                                                                 <>
                                                                     <span className={`text-sm font-medium ${item.isPaid ? 'text-green-600' : 'text-red-500'}`}>{item.isPaid ? '✓ 貨款已付' : '✗ 貨款未付'}</span>
+                                                                    {safeNum(item.prepayment) > 0 && <span className="text-sm font-medium text-gray-600">訂金 {curSym(item)}{format2(item.prepayment)}{item.prepaymentPaid ? '✓' : ''}{!item.isPaid && <>｜應付 <span className="text-red-600 font-bold">{curSym(item)}{format2(containerBalance(item))}</span></>}</span>}
                                                                     {item.flightFee > 0 && <span className={`text-sm font-medium ${item.flightFeePaid ? 'text-green-600' : 'text-red-500'}`}>{item.flightFeePaid ? '✓ 旅費已付' : '✗ 旅費未付'}</span>}
                                                                 </>
                                                             )}
@@ -4521,9 +5398,15 @@ JSON 範例：
                                                                         {canSeePrice() && <div className="flex justify-between"><span className="text-gray-400">重量</span><span className="font-mono text-orange-600">{format2(safeNum(p.weight))}kg</span></div>}
                                                                         {canSeePrice() && <div className="flex justify-between"><span className="text-gray-400">單價</span><span className="font-mono">${format2(safeNum(p.unitPrice))}</span></div>}
                                                                         {canSeePrice() && <div className="flex justify-between"><span className="text-gray-400">金額</span><span className="font-mono font-bold text-emerald-600">${format2(safeNum(p.amount))}</span></div>}
-                                                                        {p.batchNumber && <div className="flex justify-between"><span className="text-gray-400">批號</span><span className="text-gray-700">{p.batchNumber}</span></div>}
-                                                                        {p.expiryDate && <div className="flex justify-between"><span className="text-gray-400">效期</span><span className="text-gray-700">{p.expiryDate}</span></div>}
+                                                                        {getBatches(p).length === 0 && p.batchNumber && <div className="flex justify-between"><span className="text-gray-400">批號</span><span className="text-gray-700">{p.batchNumber}</span></div>}
+                                                                        {getBatches(p).length === 0 && p.expiryDate && <div className="flex justify-between"><span className="text-gray-400">效期</span><span className="text-gray-700">{p.expiryDate}</span></div>}
                                                                     </div>
+                                                                    {getBatches(p).length > 0 && (
+                                                                        <div className="mt-2">
+                                                                            <div className="text-gray-400 text-xs mb-1">批次明細（{batchSummary(p)}）</div>
+                                                                            <BatchList p={p} />
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </details>
                                                         ))}
@@ -4549,6 +5432,7 @@ JSON 範例：
                                                                 {canSeePrice() && (
                                                                     <>
                                                                         <span className={`text-xs font-medium ${item.isPaid ? 'text-green-600' : 'text-red-500'}`}>{item.isPaid ? '✓貨款已付' : '✗未付款'}</span>
+                                                                        {safeNum(item.prepayment) > 0 && <span className="text-xs font-medium text-gray-600">訂{curSym(item)}{format2(item.prepayment)}{item.prepaymentPaid ? '✓' : ''}{!item.isPaid && <>｜應付<span className="text-red-600 font-bold">{curSym(item)}{format2(containerBalance(item))}</span></>}</span>}
                                                                         {item.flightFee > 0 && <span className={`text-xs font-medium ${item.flightFeePaid ? 'text-green-600' : 'text-red-500'}`}>{item.flightFeePaid ? '✓旅費已付' : '✗旅費未付'}</span>}
                                                                     </>
                                                                 )}
@@ -4568,6 +5452,7 @@ JSON 範例：
                         )}
                         
                         {view === 'stats' && <Dashboard shipments={shipments} canSeePrice={canSeePrice} />}
+                        {view === 'deposits' && canSeePrice() && <DepositLedger db={db} storage={storage} canCreate={canCreate()} canManage={canManage()} canUpload={canUpload()} shipments={shipments} onReverse={reverseDepositLink} />}
 
                         {/* V80.0: 員工管理頁面 */}
                         {view === 'users' && canManage() && (
@@ -4953,6 +5838,13 @@ JSON 範例：
                                                         {canSeePrice() ? (<>
                                                             <div><label className="form-label-lg">付款條件</label><input value={formData.paymentTerm} disabled className="form-input-lg" /></div>
                                                             {isForeign(formData) && (<div><label className="form-label-lg">旅費</label><input type="text" inputMode="decimal" name="flightFee" value={formData.flightFee} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleInputChange({target:{name:'flightFee',value:e.target.value.replace(/[^\d.-]/g,''),type:'text'}})} className="form-input-lg num-input" placeholder="0" /></div>)}
+                                                            {isForeign(formData) && <DepositBlock formData={formData} onChange={handleInputChange} editable={true} />}
+                                                            {isForeign(formData) && (
+                                                                <div className="bg-white p-3 rounded-xl border border-gray-200">
+                                                                    <div className="font-bold text-gray-700 text-sm mb-2">從訂金台帳沖銷</div>
+                                                                    <ReconcilePanel records={prepaymentRecords} supplier={formData.supplier} piNumber={formData.piNumber} detectedAmount={aiExtractedData && aiExtractedData.prepayment} links={formData.prepaymentLinks} onApply={applyDepositLink} onRemove={removeDepositLink} />
+                                                                </div>
+                                                            )}
                                                             <div className="bg-gray-50 p-4 rounded-xl space-y-4">
                                                                 <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} className="w-6 h-6 accent-green-600"/><span className="font-bold text-green-700 text-lg">貨款已付</span></label>
                                                                 {isForeign(formData) && (<label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-6 h-6 accent-red-600"/><span className="font-bold text-red-700 text-lg">旅費已付</span></label>)}
@@ -5010,6 +5902,15 @@ JSON 範例：
                                                                             {formData.products.length > 1 && <button type="button" onClick={()=>removeProductRow(idx)} className="p-2 bg-red-50 rounded-lg text-red-500"><I.Trash2 /></button>}
                                                                         </div>
                                                                     </div>
+                                                                    
+                                                                    {getBatches(p).length > 0 && (
+                                                                        <details className="group mb-4 bg-purple-50 rounded-lg border border-purple-100 px-2 py-1.5">
+                                                                            <summary className="cursor-pointer list-none text-xs text-purple-700 font-medium">
+                                                                                含批次明細：{batchSummary(p)}（唯讀，如需修改改用拆分模式重新解析） <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>
+                                                                            </summary>
+                                                                            <BatchList p={p} />
+                                                                        </details>
+                                                                    )}
                                                                     
                                                                     {/* 品名 */}
                                                                     <div className="mb-4">
@@ -5199,6 +6100,13 @@ JSON 範例：
                                                             <div className="space-y-3">
                                                                 <div><label className="form-label-lg">付款條件</label><input value={formData.paymentTerm} disabled className="form-input-lg" /></div>
                                                                 {canEditFlightFee() && isForeign(formData) && (<div><label className="form-label-lg">旅費</label><input type="text" inputMode="decimal" name="flightFee" value={formData.flightFee} onFocus={e=>{if(parseFloat(e.target.value)===0)e.target.select()}} onChange={e=>handleInputChange({target:{name:'flightFee',value:e.target.value.replace(/[^\d.-]/g,''),type:'text'}})} className="form-input-lg num-input" placeholder="0" /></div>)}
+                                                                {isForeign(formData) && <DepositBlock formData={formData} onChange={handleInputChange} editable={canEditForeignFinance()} />}
+                                                                {isForeign(formData) && canEditForeignFinance() && (
+                                                                    <div className="bg-white p-3 rounded-xl border border-gray-200">
+                                                                        <div className="font-bold text-gray-700 text-sm mb-2">從訂金台帳沖銷</div>
+                                                                        <ReconcilePanel records={prepaymentRecords} supplier={formData.supplier} piNumber={formData.piNumber} detectedAmount={aiExtractedData && aiExtractedData.prepayment} links={formData.prepaymentLinks} onApply={applyDepositLink} onRemove={removeDepositLink} />
+                                                                    </div>
+                                                                )}
                                                                 <div className="bg-gray-50 p-4 rounded-xl space-y-3">
                                                                     <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="isPaid" checked={formData.isPaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-6 h-6 accent-green-600"/><span className="font-bold text-green-700 text-lg">貨款已付</span></label>
                                                                     {canEditFlightFee() && isForeign(formData) && <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} disabled={!canEditForeignFinance()} className="w-6 h-6 accent-red-600"/><span className="font-bold text-red-700 text-lg">旅費已付</span></label>}
@@ -5402,7 +6310,7 @@ JSON 範例：
                         </div>
                     )}
                     {/* 原底部導航（多選模式時隱藏） */}
-                    {!selectMode && <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex z-40 pb-safe h-14"><button onClick={()=>setView('list')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='list'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.List /></div><span className="text-xs font-bold">列表</span></button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='products'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Package /></div><span className="text-xs font-bold">產品</span></button><button onClick={()=>setView('stats')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='stats'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Chart /></div><span className="text-xs font-bold">統計</span></button></>}</div>}
+                    {!selectMode && <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex z-40 pb-safe h-14"><button onClick={()=>setView('list')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='list'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.List /></div><span className="text-xs font-bold">列表</span></button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='products'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Package /></div><span className="text-xs font-bold">產品</span></button><button onClick={()=>setView('stats')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='stats'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Chart /></div><span className="text-xs font-bold">統計</span></button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`flex-1 flex flex-row items-center justify-center gap-2 ${view==='deposits'?'text-blue-600':'text-gray-400'}`}><div className="w-6"><I.Dollar /></div><span className="text-xs font-bold">訂金</span></button>}</div>}
                 </div>
                 </ErrorBoundary>
             );
