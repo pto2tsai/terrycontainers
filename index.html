@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V86.1</title>
+    <title>貨櫃管理系統 V86.2</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -850,7 +850,8 @@
             prepaymentLinks: [],
             piNumber: '',
             flightFee: 0,         
-            flightFeePaid: false 
+            flightFeePaid: false,
+            notes: ''
         };
 
         const firebaseConfig = {
@@ -3478,7 +3479,7 @@ JSON 範例：
                 if(!canCreate()) return alert(TEXT.PERMISSION_DENIED);
                 const {id, ...d} = s; const merged = { ...initialFormState, ...d };
                 const np = (merged.products || []).map(p=>({...p,id:Date.now()+Math.random()})); 
-                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, prepaymentPaid: false, prepaymentDate: '', prepaymentLinks: [], piNumber: '', flightFee: 0, flightFeePaid: false}); 
+                setFormData({...merged, containerNumber:'', products:np, attachments:[], isPaid: false, prepayment: 0, prepaymentPaid: false, prepaymentDate: '', prepaymentLinks: [], piNumber: '', flightFee: 0, flightFeePaid: false, notes: ''}); 
                 setEditingId(null); setFormStep(1); setView('form'); 
             };
 
@@ -5198,6 +5199,7 @@ JSON 範例：
                                                             )}
                                                             <span className={`company-tag ${getCompanyColor(item.importCompany)} text-xs`}>{item.importCompany}</span>
                                                             <span className="text-xl font-black text-gray-900 tracking-tight">{item.containerNumber}</span>
+                                                            {item.notes && <span title="有備註" className="text-base">📝</span>}
                                                             {/* V80.0: 貨櫃追蹤按鈕 */}
                                                             {item.containerNumber && getCarrier(item) && (
                                                                 <button onClick={(e) => openContainerTracking(item, e)} title={`查詢 ${getCarrier(item).name} 貨櫃動態`} className="text-xs px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-lg font-bold hover:bg-cyan-100 flex items-center gap-1">
@@ -5242,6 +5244,7 @@ JSON 範例：
                                                                 {item.devanningDate && <span className="flex items-center gap-1"><span className="text-gray-400">拆櫃日:</span><span className="font-bold text-blue-600">{item.devanningDate}</span></span>}
                                                             </div>
                                                         )}
+                                                        {item.notes && <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 whitespace-pre-wrap">📝 {item.notes}</div>}
                                                     </div>
                                                     
                                                     {/* 產品明細：表格式 */}
@@ -5337,6 +5340,7 @@ JSON 範例：
                                                         <div className="flex justify-between items-center mb-3">
                                                             <div className="flex items-center gap-2">
                                                                 <div className="text-xl font-black text-gray-900 tracking-tight">{item.containerNumber}</div>
+                                                                {item.notes && <span title="有備註" className="text-base">📝</span>}
                                                                 {/* V80.0: 貨櫃追蹤按鈕 */}
                                                                 {item.containerNumber && getCarrier(item) && (
                                                                     <button onClick={(e) => openContainerTracking(item, e)} className="text-xs px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-lg font-bold flex items-center gap-1">
@@ -5374,6 +5378,7 @@ JSON 範例：
                                                             )}
                                                         </div>
                                                     </div>
+                                                    {item.notes && <div className="mx-3 mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 whitespace-pre-wrap">📝 {item.notes}</div>}
                                                     
                                                     {/* 產品明細：精簡折疊式 */}
                                                     <div className="border-t border-gray-100 px-3 py-2 space-y-1">
@@ -5850,6 +5855,10 @@ JSON 範例：
                                                                 {isForeign(formData) && (<label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="flightFeePaid" checked={formData.flightFeePaid} onChange={handleInputChange} className="w-6 h-6 accent-red-600"/><span className="font-bold text-red-700 text-lg">旅費已付</span></label>)}
                                                             </div>
                                                         </>) : (<div className="text-center text-gray-400 py-8">無權限查看付款資訊</div>)}
+                                                        <div className="mt-4">
+                                                            <label className="form-label-lg">備註（狀況記錄）</label>
+                                                            <textarea name="notes" value={formData.notes || ''} onChange={handleInputChange} rows={3} className="form-input-lg" placeholder="例如：文件數量與實際不符、有洗櫃費 NT$XXX、櫃況異常…有問題時可回來查看" />
+                                                        </div>
                                                         <button type="button" onClick={() => setFormStep(4)} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg mt-4">下一步：產品明細 →</button>
                                                     </div>
                                                 )}
@@ -6115,6 +6124,14 @@ JSON 範例：
                                                         </div>
                                                     </div>
                                                 )}
+                                                
+                                                {/* 備註 */}
+                                                <div className="accordion-section active">
+                                                    <div className="p-4">
+                                                        <label className="form-label-lg">備註（狀況記錄）</label>
+                                                        <textarea name="notes" value={formData.notes || ''} onChange={handleInputChange} rows={3} className="form-input-lg" placeholder="例如：文件數量與實際不符、有洗櫃費 NT$XXX、櫃況異常…有問題時可回來查看" />
+                                                    </div>
+                                                </div>
                                                 
                                                 {/* 產品明細區塊 */}
                                                 <div className={`accordion-section ${openSections.includes('products') ? 'active' : ''} ${validationErrors.products ? 'has-error' : ''}`}>
