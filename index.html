@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V86.7</title>
+    <title>貨櫃管理系統 V86.9</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1287,7 +1287,7 @@
 
             const rid = () => 'it_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
             const emptyItem = () => ({ id: rid(), supplier: '', amount: 0, piNumber: '', piAttachments: [], note: '', status: 'pending', appliedContainerId: '', appliedContainerNo: '', appliedDate: '' });
-            const emptyForm = () => ({ remittanceDate: new Date().toISOString().slice(0, 10), totalAmount: 0, currency: 'USD', slipAttachments: [], note: '', items: [emptyItem()] });
+            const emptyForm = () => ({ remittanceDate: new Date().toISOString().slice(0, 10), totalAmount: 0, slipAmount: '', currency: 'USD', slipAttachments: [], note: '', items: [emptyItem()] });
             const [form, setForm] = useState(emptyForm());
 
             useEffect(() => {
@@ -1318,7 +1318,7 @@
             };
 
             const openNew = () => { if (!canCreate) return alert('無新增權限'); setForm(emptyForm()); setEditingId(null); setShowForm(true); };
-            const openEdit = (r) => { setForm({ remittanceDate: r.remittanceDate || '', totalAmount: r.totalAmount || 0, currency: r.currency || 'USD', slipAttachments: r.slipAttachments || [], note: r.note || '', items: (r.items && r.items.length ? r.items.map(x => ({ ...x })) : [emptyItem()]) }); setEditingId(r.id); setShowForm(true); };
+            const openEdit = (r) => { setForm({ remittanceDate: r.remittanceDate || '', totalAmount: r.totalAmount || 0, slipAmount: (r.slipAmount != null ? r.slipAmount : ''), currency: r.currency || 'USD', slipAttachments: r.slipAttachments || [], note: r.note || '', items: (r.items && r.items.length ? r.items.map(x => ({ ...x })) : [emptyItem()]) }); setEditingId(r.id); setShowForm(true); };
 
             const addItem = () => setForm(prev => ({ ...prev, items: [...prev.items, emptyItem()] }));
             const setItem = (idx, patch) => setForm(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, ...patch } : it) }));
@@ -1334,7 +1334,7 @@
                 setSaving(true);
                 try {
                     const payload = {
-                        remittanceDate: form.remittanceDate || '', totalAmount: safeNum(form.totalAmount), currency: form.currency, slipAttachments: form.slipAttachments || [], note: form.note || '',
+                        remittanceDate: form.remittanceDate || '', totalAmount: sumItems(form.items), slipAmount: (form.slipAmount === '' || form.slipAmount == null ? null : safeNum(form.slipAmount)), currency: form.currency, slipAttachments: form.slipAttachments || [], note: form.note || '',
                         items: (form.items || []).map(it => ({ id: it.id || rid(), supplier: it.supplier || '', amount: safeNum(it.amount), piNumber: it.piNumber || '', piAttachments: it.piAttachments || [], note: it.note || '', status: it.status || 'pending', appliedContainerId: it.appliedContainerId || '', appliedContainerNo: it.appliedContainerNo || '', appliedDate: it.appliedDate || '' })),
                         updatedAt: new Date().toISOString()
                     };
@@ -1346,7 +1346,8 @@
             const del = async (r) => { if (!canManage) return alert('無刪除權限'); if (!confirm('確定刪除這筆匯款記錄？此動作無法復原。')) return; try { await db.collection('prepayments').doc(r.id).delete(); } catch (err) { alert(err.message); } };
 
             const formSum = sumItems(form.items);
-            const formDiff = round2(safeNum(form.totalAmount) - formSum);
+            const hasSlip = form.slipAmount !== '' && form.slipAmount != null;
+            const formDiff = round2(safeNum(form.slipAmount) - formSum);
             const shownRecords = onlyPending ? records.filter(r => (r.items || []).some(it => it.status !== 'applied')) : records;
 
             return (
@@ -1382,7 +1383,8 @@
                         {shownRecords.length === 0 && <div className="text-center text-gray-400 py-10">尚無匯款記錄</div>}
                         {shownRecords.map(r => {
                             const itemsSum = sumItems(r.items);
-                            const diff = round2(safeNum(r.totalAmount) - itemsSum);
+                            const hasSlip = r.slipAmount != null && r.slipAmount !== '';
+                            const diff = hasSlip ? round2(safeNum(r.slipAmount) - itemsSum) : 0;
                             const pendingCount = (r.items || []).filter(it => it.status !== 'applied').length;
                             return (
                                 <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1411,7 +1413,7 @@
                                                 </div>
                                             </div>
                                         ))}
-                                        {Math.abs(diff) > 0.01 && <div className="py-1 text-xs text-red-600">⚠ 訂金明細加總 {symOf(r.currency)}{money(itemsSum)} 與匯出總額差 {symOf(r.currency)}{money(diff)}</div>}
+                                        {hasSlip && Math.abs(diff) > 0.01 && <div className="py-1 text-xs text-red-600">⚠ 訂金明細加總 {symOf(r.currency)}{money(itemsSum)} 與水單金額 {symOf(r.currency)}{money(r.slipAmount)} 差 {symOf(r.currency)}{money(diff)}</div>}
                                     </div>
                                 </div>
                             );
@@ -1434,7 +1436,8 @@
                                             {['USD', 'TWD', 'EUR', 'CNY'].map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
-                                    <div><label className="form-label-lg">匯出總額</label><input type="text" inputMode="decimal" value={form.totalAmount} onFocus={e => { if (parseFloat(e.target.value) === 0) e.target.select(); }} onChange={e => setForm(p => ({ ...p, totalAmount: e.target.value.replace(/[^\d.-]/g, '') }))} className="form-input-lg num-input" placeholder="0" /></div>
+                                    <div><label className="form-label-lg">匯出總額（自動加總）</label><div className="form-input-lg num-input bg-gray-50 text-gray-800 font-bold flex items-center justify-end">{symOf(form.currency)}{money(formSum)}</div></div>
+                                    <div><label className="form-label-lg">水單金額（選填·核對用）</label><input type="text" inputMode="decimal" value={form.slipAmount} onFocus={e => { if (parseFloat(e.target.value) === 0) e.target.select(); }} onChange={e => setForm(p => ({ ...p, slipAmount: e.target.value.replace(/[^\d.-]/g, '') }))} className="form-input-lg num-input" placeholder="留白不核對" /></div>
                                     <div><label className="form-label-lg">水單附件</label>
                                         {canUpload ? <div className="relative"><input type="file" multiple onChange={onSlipUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /><button type="button" className="w-full py-2.5 bg-white border border-dashed border-gray-300 rounded-lg text-gray-500 font-bold text-sm">{uploading ? '上傳中…' : '📎 上傳水單'}</button></div> : <div className="text-xs text-gray-400 pt-2">無上傳權限</div>}
                                     </div>
@@ -1470,11 +1473,17 @@
                                 </div>
                                 <datalist id="dep-suppliers">{suppliers.map(s => <option key={s} value={s} />)}</datalist>
 
-                                {/* 加總檢核 */}
-                                <div className={`mt-3 p-3 rounded-xl text-sm font-medium ${Math.abs(formDiff) < 0.01 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                    明細加總 {symOf(form.currency)}{money(formSum)} / 匯出總額 {symOf(form.currency)}{money(form.totalAmount)}
-                                    {Math.abs(formDiff) < 0.01 ? '　✓ 相符' : `　差 ${symOf(form.currency)}${money(formDiff)}`}
-                                </div>
+                                {/* 核對（僅在有填水單金額時） */}
+                                {hasSlip ? (
+                                    <div className={`mt-3 p-3 rounded-xl text-sm font-medium ${Math.abs(formDiff) < 0.01 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                        明細加總 {symOf(form.currency)}{money(formSum)} / 水單金額 {symOf(form.currency)}{money(form.slipAmount)}
+                                        {Math.abs(formDiff) < 0.01 ? '　✓ 相符' : `　差 ${symOf(form.currency)}${money(formDiff)}`}
+                                    </div>
+                                ) : (
+                                    <div className="mt-3 p-3 rounded-xl text-sm font-medium bg-gray-50 text-gray-500">
+                                        匯出總額 = 明細加總 {symOf(form.currency)}{money(formSum)}（未填水單金額，不做核對）
+                                    </div>
+                                )}
 
                                 <div className="flex gap-3 mt-4 pt-4 border-t">
                                     <button onClick={() => setShowForm(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button>
@@ -5145,7 +5154,7 @@ JSON 範例：
                         </>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V86.7</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`sidebar-link w-full ${view==='deposits'?'active':''}`}><div className="w-8 text-center"><I.Dollar /></div> 訂金台帳</button>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V86.9</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`sidebar-link w-full ${view==='deposits'?'active':''}`}><div className="w-8 text-center"><I.Dollar /></div> 訂金台帳</button>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className={geminiApiKey ? "text-green-500" : "text-gray-400"}><I.Wand /></button>{canCreate()&&view==='list'&&<button onClick={handleStartNewContainer} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
@@ -5311,7 +5320,7 @@ JSON 範例：
                                                     <table className="w-full text-sm">
                                                         <thead>
                                                             <tr className="text-gray-500 border-b border-gray-200">
-                                                                <th className="text-left py-2 font-medium">品名</th>
+                                                                <th className="text-left py-2 font-medium" style={{width:'6.5em', minWidth:'6.5em'}}>品名</th>
                                                                 <th className="text-left py-2 font-medium">規格</th>
                                                                 <th className="text-right py-2 font-medium w-20">件數</th>
                                                                 {canSeePrice() && <th className="text-right py-2 font-medium w-28">重量</th>}
@@ -5323,7 +5332,7 @@ JSON 範例：
                                                         <tbody>
                                                             {(item.products || []).map((p,i)=>(
                                                                 <tr key={i} className="border-b border-gray-50 last:border-0">
-                                                                    <td className="py-2 font-bold text-gray-900">{p.name}</td>
+                                                                    <td className="py-2 font-bold text-gray-900 break-words" style={{width:'6.5em', minWidth:'6.5em'}}>{p.name}</td>
                                                                     <td className="py-2 text-gray-600">{p.spec || '-'}</td>
                                                                     <td className="py-2 text-right font-mono text-base text-blue-600">{safeNum(p.quantity).toLocaleString()}</td>
                                                                     {canSeePrice() && <td className="py-2 text-right font-mono text-base text-orange-600">{format2(safeNum(p.weight))}kg</td>}
