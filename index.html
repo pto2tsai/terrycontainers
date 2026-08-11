@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V88.9</title>
+    <title>貨櫃管理系統 V89.1</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -2463,23 +2463,44 @@ JSON 範例：
                 }
 
                 // ---- D. 櫃號一致性（跨文件 regex，ISO 6346）----
+                // V89.0: 第4碼須為 U/J/Z，且通過 ISO 6346 檢查碼，避免把提單號等「4英文+7數字」誤認為櫃號
                 const cnRe = /[A-Z]{4}\d{7}/g;
+                const iso6346Valid = (s) => {
+                    if (!/^[A-Z]{4}\d{7}$/.test(s)) return false;
+                    if (!'UJZ'.includes(s[3])) return false;
+                    const letterVal = { A:10,B:12,C:13,D:14,E:15,F:16,G:17,H:18,I:19,J:20,K:21,L:23,M:24,N:25,O:26,P:27,Q:28,R:29,S:30,T:31,U:32,V:34,W:35,X:36,Y:37,Z:38 };
+                    let sum = 0;
+                    for (let i = 0; i < 10; i++) {
+                        const ch = s[i];
+                        const v = i < 4 ? letterVal[ch] : Number(ch);
+                        sum += v * Math.pow(2, i);
+                    }
+                    return (sum % 11) % 10 === Number(s[10]);
+                };
                 const cnByDoc = [];
+                const cnLoose = (s) => /^[A-Z]{4}\d{7}$/.test(s) && 'UJZ'.includes(s[3]);
+                let anyCheckDigitWarn = false;
                 textDocs.forEach(d => {
-                    const found = Array.from(new Set(normText(d.text).match(cnRe) || []));
+                    const raw = Array.from(new Set(normText(d.text).match(cnRe) || []));
+                    // 先取通過檢查碼者；若該文件沒有任何通過的，退回「第4碼 U/J/Z」的候選（容忍 OCR 誤判一碼）
+                    const strict = raw.filter(iso6346Valid);
+                    const loose = raw.filter(cnLoose);
+                    const found = strict.length ? strict : loose;
+                    if (!strict.length && loose.length) anyCheckDigitWarn = true;
                     if (found.length) cnByDoc.push({ label: d.label || d.name, values: found });
                 });
                 const allCN = new Set();
                 if (data.containerNumber) allCN.add(String(data.containerNumber).toUpperCase());
                 cnByDoc.forEach(x => x.values.forEach(v => allCN.add(v)));
+                const cdNote = anyCheckDigitWarn ? '（部分櫃號未通過 ISO 6346 檢查碼，可能是文件辨識誤差，已列入比對）' : '';
                 if (allCN.size === 0) {
                     items.push({ id: 'containerNo', label: '櫃號一致性', status: 'skip', detail: '各文件皆未偵測到櫃號' + scannedNote });
                 } else if (allCN.size === 1) {
-                    items.push({ id: 'containerNo', label: '櫃號一致性', status: 'pass', detail: `各文件櫃號一致：${Array.from(allCN)[0]}` + scannedNote });
+                    items.push({ id: 'containerNo', label: '櫃號一致性', status: 'pass', detail: `各文件櫃號一致：${Array.from(allCN)[0]}` + cdNote + scannedNote });
                 } else {
                     const rows = cnByDoc.map(x => ({ label: x.label, value: x.values.join(', ') }));
                     if (data.containerNumber) rows.unshift({ label: '採用值', value: String(data.containerNumber).toUpperCase() });
-                    items.push({ id: 'containerNo', label: '櫃號一致性', status: 'fail', detail: '不同文件的櫃號不一致' + scannedNote, conflicts: rows });
+                    items.push({ id: 'containerNo', label: '櫃號一致性', status: 'fail', detail: '不同文件的櫃號不一致' + cdNote + scannedNote, conflicts: rows });
                 }
 
                 // ---- E. 發票號一致性（跨文件 regex；含產地證明引用）----
@@ -5294,7 +5315,7 @@ JSON 範例：
                         </>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V88.9</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`sidebar-link w-full ${view==='deposits'?'active':''}`}><div className="w-8 text-center"><I.Dollar /></div> 訂金台帳</button>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V89.1</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`sidebar-link w-full ${view==='deposits'?'active':''}`}><div className="w-8 text-center"><I.Dollar /></div> 訂金台帳</button>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className={geminiApiKey ? "text-green-500" : "text-gray-400"}><I.Wand /></button>{canCreate()&&view==='list'&&<button onClick={handleStartNewContainer} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
@@ -5461,10 +5482,10 @@ JSON 範例：
                                                             <tr className="text-gray-500 border-b border-gray-200">
                                                                 <th className="text-left py-2 font-medium whitespace-nowrap" style={{width:'7em', minWidth:'7em'}}>品名</th>
                                                                 <th className="text-left py-2 font-medium whitespace-nowrap" style={{width:'16em', minWidth:'16em'}}>規格</th>
-                                                                <th className="text-right py-2 font-medium w-20 pl-8">件數</th>
-                                                                {canSeePrice() && <th className="text-right py-2 font-medium w-28">重量</th>}
-                                                                {canSeePrice() && <th className="text-right py-2 font-medium w-20">單價</th>}
-                                                                {canSeePrice() && <th className="text-right py-2 font-medium w-28">金額</th>}
+                                                                <th className="text-right py-2 font-medium whitespace-nowrap pl-6" style={{width:'5rem'}}>件數</th>
+                                                                {canSeePrice() && <th className="text-right py-2 font-medium whitespace-nowrap pl-6 pr-3" style={{width:'7rem'}}>重量</th>}
+                                                                {canSeePrice() && <th className="text-right py-2 font-medium whitespace-nowrap pr-3" style={{width:'5rem'}}>單價</th>}
+                                                                {canSeePrice() && <th className="text-right py-2 font-medium whitespace-nowrap" style={{width:'7rem'}}>金額</th>}
                                                                 <th className="text-left py-2 font-medium pl-4 w-full">批號/效期</th>
                                                             </tr>
                                                         </thead>
@@ -5473,18 +5494,18 @@ JSON 範例：
                                                                 <tr key={i} className="border-b border-gray-50 last:border-0">
                                                                     <td className="py-2 font-bold text-gray-900 whitespace-nowrap" style={{width:'7em', minWidth:'7em'}}>{p.name}</td>
                                                                     <td className="py-2 text-gray-600 whitespace-nowrap" style={{width:'16em', minWidth:'16em'}}>{p.spec || '-'}</td>
-                                                                    <td className="py-2 pl-8 text-right font-mono text-base text-blue-600">{safeNum(p.quantity).toLocaleString()}</td>
-                                                                    {canSeePrice() && <td className="py-2 text-right font-mono text-base text-orange-600">{format2(safeNum(p.weight))}kg</td>}
-                                                                    {canSeePrice() && <td className="py-2 text-right font-mono text-base">${format2(safeNum(p.unitPrice))}</td>}
-                                                                    {canSeePrice() && <td className="py-2 text-right font-mono text-base text-emerald-600">${format2(safeNum(p.amount))}</td>}
+                                                                    <td className="py-2 pl-6 text-right font-mono text-base text-blue-600 whitespace-nowrap">{safeNum(p.quantity).toLocaleString()}</td>
+                                                                    {canSeePrice() && <td className="py-2 pl-6 pr-3 text-right font-mono text-base text-orange-600 whitespace-nowrap">{format2(safeNum(p.weight))}kg</td>}
+                                                                    {canSeePrice() && <td className="py-2 pr-3 text-right font-mono text-base whitespace-nowrap">${format2(safeNum(p.unitPrice))}</td>}
+                                                                    {canSeePrice() && <td className="py-2 text-right font-mono text-base text-emerald-600 whitespace-nowrap">${format2(safeNum(p.amount))}</td>}
                                                                     <td className="py-2 text-gray-500 pl-4 w-full">{getBatches(p).length > 0 ? (()=>{ const bs=getBatches(p); const wd=bs.filter(b=>/^\d{4}-\d{2}-\d{2}$/.test(b.expiryDate)); const first=wd.length?wd.slice().sort((a,b)=>a.expiryDate.localeCompare(b.expiryDate))[0]:bs[0]; return (
                                                                         <details className="group">
                                                                             <summary className="cursor-pointer list-none text-gray-600 hover:text-blue-600">
-                                                                                {first.batchNumber && <span className="mr-2">{first.batchNumber}</span>}{first.expiryDate && <span>{first.expiryDate}</span>}{bs.length>1 && <span className="text-gray-400 ml-2">· {bs.length}批</span>} <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>
+                                                                                {first.batchNumber && <span className="mr-2">{first.batchNumber}</span>}{first.expiryDate && <span>{first.expiryDate}</span>}{bs.length>1 && <span className="text-gray-400 ml-2">· {bs.length}批</span>} <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>{canCreate() && <span onClick={(e)=>{e.preventDefault(); e.stopPropagation(); openBatchEditor(item,i);}} title="編輯批次" className="ml-2 text-blue-600 cursor-pointer">✏️</span>}
                                                                             </summary>
                                                                             <BatchList p={p} />
                                                                         </details>); })()
-                                                                    : ((p.batchNumber || p.expiryDate) ? <>{p.batchNumber && <span className="mr-2">{p.batchNumber}</span>}{p.expiryDate && <span>{p.expiryDate}</span>}</> : '-')}{canCreate() && <button onClick={()=>openBatchEditor(item,i)} className="ml-2 text-blue-600 text-xs font-bold whitespace-nowrap">✏️ 編輯批次</button>}</td>
+                                                                    : ((p.batchNumber || p.expiryDate) ? <>{p.batchNumber && <span className="mr-2">{p.batchNumber}</span>}{p.expiryDate && <span>{p.expiryDate}</span>}{canCreate() && <span onClick={()=>openBatchEditor(item,i)} title="編輯批次" className="ml-2 text-blue-600 cursor-pointer">✏️</span>}</> : (canCreate() ? <span onClick={()=>openBatchEditor(item,i)} title="新增批次" className="text-blue-600 cursor-pointer">✏️</span> : '-'))}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>
