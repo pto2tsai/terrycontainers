@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V89.7</title>
+    <title>貨櫃管理系統 V90.4</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -872,7 +872,7 @@
         const { useState, useEffect, useMemo, useCallback } = React;
 
         // V89.3: 版本資訊單一來源（標題、側欄、更新偵測皆取用此處，避免不同步）
-        const APP_VERSION = 'V89.7';
+        const APP_VERSION = 'V90.4';
         const APP_BUILD_DATE = '2026-08-21';
 
         // V89.3: 自動偵測新版本（先用輕量 HEAD 比對 ETag/Last-Modified，有變才抓檔讀版本號）
@@ -1732,11 +1732,96 @@
             };
             
             // V79.3: 執行批次匯出 Excel（一櫃一工作表，大字體+邊框格式）
+            // V90.1: 匯出給會計系統（一列一品項的平表，供會計系統直接匯入）
+            const exportForAccounting = () => {
+                if (selectedIds.size === 0) return alert('請先選擇要匯出的貨櫃');
+                const selectedList = filteredList.filter(s => selectedIds.has(s.id));
+                const normKey = (s) => String(s || '').toLowerCase().replace(/[\s]/g, '').replace(/[×xX]/g, '*');
+                const legalMap = {};
+                (products || []).forEach(m => {
+                    if (m.legalName) legalMap[normKey(m.name) + '|' + normKey(m.spec)] = { legalName: m.legalName, legalSpec: m.legalSpec || '' };
+                });
+                const rows = [['中文品名', '規格', '批號', '效期', '數量', '單位', '單價', '金額', '報關單號']];
+                let usedInternal = 0;
+                selectedList.forEach(c => {
+                    (c.products || []).forEach(p => {
+                        const lg = legalMap[normKey(p.name) + '|' + normKey(p.spec)];
+                        if (!lg) usedInternal++;
+                        const outName = lg ? lg.legalName : (p.name || '');
+                        const outSpec = lg ? (lg.legalSpec || p.spec || '') : (p.spec || '');
+                        const byWeight = (p.pricingMode || 'weight') === 'weight';
+                        const unit = byWeight ? 'KG' : '件';
+                        const price = safeNum(p.unitPrice);
+                        const bs = getBatches(p);
+                        // V90.3: 效期不同分列（批次可追溯）；數量與計價基準一致，確保 數量×單價=金額
+                        if (bs.length > 1) {
+                            const totQ = bs.reduce((s, b) => s + safeNum(b.quantity), 0);
+                            const totW = bs.reduce((s, b) => s + safeNum(b.weight), 0);
+                            bs.forEach(b => {
+                                let qty;
+                                if (byWeight) {
+                                    qty = safeNum(b.weight);
+                                    // 批次沒填重量時，依件數比例分攤品項總重
+                                    if (!qty && totQ > 0) qty = round2(safeNum(p.weight) * safeNum(b.quantity) / totQ);
+                                } else {
+                                    qty = safeNum(b.quantity);
+                                }
+                                rows.push([outName, outSpec, b.batchNumber || '', b.expiryDate || '',
+                                    round2(qty), unit, price, round2(qty * price), c.customsDeclarationNo || '']);
+                            });
+                        } else {
+                            const single = bs.length === 1 ? bs[0] : null;
+                            const qty = byWeight ? safeNum(p.weight) : safeNum(p.quantity);
+                            rows.push([outName, outSpec,
+                                (single ? single.batchNumber : p.batchNumber) || '',
+                                (single ? single.expiryDate : p.expiryDate) || '',
+                                round2(qty), unit, price, round2(safeNum(p.amount) || qty * price), c.customsDeclarationNo || '']);
+                        }
+                    });
+                });
+                if (rows.length === 1) return alert('所選貨櫃沒有產品明細');
+                const ws = XLSX.utils.aoa_to_sheet(rows);
+                ws['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 7 }, { wch: 9 }, { wch: 13 }, { wch: 18 }];
+                const bd = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+                const NC = 9;  // 品名 規格 批號 效期 數量 單位 單價 金額 報關單號
+                for (let c = 0; c < NC; c++) {
+                    const ref = XLSX.utils.encode_cell({ r: 0, c });
+                    if (ws[ref]) ws[ref].s = { font: { name: '微軟正黑體', sz: 12, bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'E8EEF7' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: bd };
+                }
+                for (let r = 1; r < rows.length; r++) {
+                    for (let c = 0; c < NC; c++) {
+                        const ref = XLSX.utils.encode_cell({ r, c });
+                        if (!ws[ref]) continue;
+                        const alignC = (c <= 1) ? 'left' : ((c === 2 || c === 3 || c === 5 || c === 8) ? 'center' : 'right');
+                        ws[ref].s = { font: { name: '微軟正黑體', sz: 11 }, alignment: { horizontal: alignC, vertical: 'center' }, border: bd };
+                        if (c === 4 || c === 6 || c === 7) ws[ref].z = '#,##0.00';  // 數量、單價、金額
+                    }
+                }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, '會計匯入');
+                XLSX.writeFile(wb, '會計匯入_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.xlsx');
+                cancelSelectMode();
+                alert('已匯出 ' + (rows.length - 1) + ' 筆品項（' + selectedList.length + ' 個貨櫃）' +
+                    (usedInternal ? '\n\n註：其中 ' + usedInternal + ' 筆尚未設定法定品名，已用內部品名頂替。可到「產品主檔」補設定。' : ''));
+            };
+
             const executeExport = () => {
                 if (selectedIds.size === 0) return alert('請先選擇要匯出的貨櫃');
                 
                 const showPrice = canSeePrice();
                 const selectedList = filteredList.filter(s => selectedIds.has(s.id));
+                
+                // V90.0: 產品主檔查表 → 帶出法定品名（供會計系統參照）
+                const normKey = (s) => String(s || '').toLowerCase().replace(/[\s]/g, '').replace(/[×xX]/g, '*');
+                const legalByNameSpec = {};
+                (products || []).forEach(m => {
+                    if (!m.legalName) return;
+                    legalByNameSpec[normKey(m.name) + '|' + normKey(m.spec)] = { legalName: m.legalName, legalSpec: m.legalSpec || '' };
+                });
+                // 只接受「品名+規格」精準比對：法定品名常多個規格共用同一名稱，
+                // 若僅靠品名退而求其次會帶到錯誤的 SIZE，導致會計系統對錯品項。
+                const lookupLegal = (p) => legalByNameSpec[normKey(p.name) + '|' + normKey(p.spec)] || null;
+                const missingLegal = [];
                 
                 console.log('匯出貨櫃數量:', selectedList.length);
                 
@@ -1753,7 +1838,7 @@
                     const info = container;
                     const products = container.products || [];
                     // 欄位：品名、規格、批號、效期、數量、重量、單價、金額（移除箱容）
-                    const colCount = showPrice ? 8 : 6;
+                    const colCount = showPrice ? 9 : 7;  // 品名 法定品名 規格 數量 重量 [單價 金額] 批號 效期
                     
                     console.log(`處理第 ${idx + 1} 個: ${info.containerNumber}, 產品數: ${products.length}`);
                     
@@ -1775,7 +1860,7 @@
                     // Row 5: 空行
                     aoa.push([]);
                     // Row 6: 表頭（品名、規格、數量、重量、[單價、金額]、批號、效期）
-                    const headers = ['品名', '規格', '數量', '重量(kg)'];
+                    const headers = ['品名', '法定品名', '規格', '數量', '重量(kg)'];
                     if (showPrice) headers.push('單價', '金額');
                     headers.push('批號', '效期');
                     aoa.push(headers);
@@ -1790,8 +1875,11 @@
                         const expiryCell = _bs.length
                             ? _bs.map(b => b.expiryDate || '').join('\n')
                             : (p.expiryDate || '');
+                        const _lg = lookupLegal(p);
+                        if (!_lg) missingLegal.push(`${info.containerNumber || ''}：${p.name || ''} ${p.spec || ''}`);
                         const row = [
                             p.name || '',
+                            _lg ? (_lg.legalName + (_lg.legalSpec ? ' ' + _lg.legalSpec : '')) : '',
                             p.spec || '',
                             safeNum(p.quantity),
                             safeNum(p.weight)
@@ -1808,7 +1896,7 @@
                     });
                     
                     // 合計列
-                    const totalRow = ['合　計', '', sumQty, round2(sumWeight)];
+                    const totalRow = ['合　計', '', '', sumQty, round2(sumWeight)];
                     if (showPrice) totalRow.push('', round2(sumAmount));
                     totalRow.push('', '');
                     aoa.push(totalRow);
@@ -1855,10 +1943,10 @@
                             const cell = ws[cellRef];
                             
                             // 對齊：品名規格靠左、數字靠右、批號效期置中
-                            const cBatch = showPrice ? 6 : 4;   // 批號欄索引
+                            const cBatch = showPrice ? 7 : 5;   // 批號欄索引
                             const cExp = cBatch + 1;            // 效期欄索引
                             let align = 'right';
-                            if (c === 0 || c === 1) align = 'left';        // 品名、規格
+                            if (c <= 2) align = 'left';                   // 品名、法定品名、規格
                             if (c === cBatch || c === cExp) align = 'center'; // 批號、效期
                             
                             cell.s = {
@@ -1868,10 +1956,10 @@
                             };
                             
                             // 數字格式
-                            if (c === 2) cell.z = '#,##0';                // 數量（整數）
-                            if (c === 3) cell.z = '#,##0.00';             // 重量（兩位小數，避免失真）
-                            if (showPrice && c === 4) cell.z = '#,##0.00'; // 單價
-                            if (showPrice && c === 5) cell.z = '#,##0.00'; // 金額
+                            if (c === 3) cell.z = '#,##0';                // 數量（整數）
+                            if (c === 4) cell.z = '#,##0.00';             // 重量（兩位小數，避免失真）
+                            if (showPrice && c === 5) cell.z = '#,##0.00'; // 單價
+                            if (showPrice && c === 6) cell.z = '#,##0.00'; // 金額
                         }
                     }
                     
@@ -1887,9 +1975,9 @@
                             border: borderThick
                         };
                         
-                        if (c === 2) cell.z = '#,##0';        // 數量
-                        if (c === 3) cell.z = '#,##0.00';     // 重量（兩位小數）
-                        if (showPrice && c === 5) cell.z = '#,##0.00';  // 合計金額兩位小數
+                        if (c === 3) cell.z = '#,##0';        // 數量
+                        if (c === 4) cell.z = '#,##0.00';     // 重量（兩位小數）
+                        if (showPrice && c === 6) cell.z = '#,##0.00';  // 合計金額兩位小數
                     }
                     
                     // 標題樣式
@@ -1904,13 +1992,14 @@
                     ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } }];
                     // 資訊三列：欄0 獨立、欄1 併到金額欄前、欄2(廠商等) 併到最後，避免長字串被截斷
                     for (let r = 2; r <= 4; r++) {
-                        ws['!merges'].push({ s: { r, c: 1 }, e: { r, c: showPrice ? 4 : 3 } });
-                        ws['!merges'].push({ s: { r, c: showPrice ? 5 : 4 }, e: { r, c: colCount - 1 } });
+                        ws['!merges'].push({ s: { r, c: 1 }, e: { r, c: showPrice ? 5 : 4 } });
+                        ws['!merges'].push({ s: { r, c: showPrice ? 6 : 5 }, e: { r, c: colCount - 1 } });
                     }
                     
                     // 欄寬（調整）
                     ws['!cols'] = [
                         { wch: 22 },  // 品名（資訊列「到港日：YYYY-MM-DD」也在此欄，需容納）
+                        { wch: 28 },  // 法定品名（輸入許可證，含 SIZE）
                         { wch: 34 },  // 規格
                         { wch: 11 },  // 數量
                         { wch: 14 },  // 重量(kg)（兩位小數＋千分位，合計為粗體需留寬）
@@ -1949,7 +2038,12 @@
                 XLSX.writeFile(wb, fileName);
                 
                 cancelSelectMode();
-                alert(`已匯出 ${selectedList.length} 個貨櫃！\n列印時請選擇「整本活頁簿」`);
+                if (missingLegal.length) {
+                    const uniq = Array.from(new Set(missingLegal));
+                    alert('已匯出 ' + selectedList.length + ' 個貨櫃！\n列印時請選擇「整本活頁簿」\n\n⚠ 有 ' + uniq.length + ' 個品項尚未設定「法定品名」，該欄為空白：\n' + uniq.slice(0, 10).join('\n') + (uniq.length > 10 ? '\n…等共 ' + uniq.length + ' 項' : '') + '\n\n請到「產品主檔」補上法定品名（依輸入許可證），會計系統才對得上。');
+                } else {
+                    alert('已匯出 ' + selectedList.length + ' 個貨櫃！\n列印時請選擇「整本活頁簿」');
+                }
             };
 
             // V79.0: PDF 解析功能 - 支援多檔案
@@ -3457,6 +3551,140 @@ JSON 範例：
                 }
             };
 
+            // V90.4: 解析輸入許可證 → 用批號比對 → 自動帶入法定品名到產品主檔
+            const [showPermitModal, setShowPermitModal] = useState(false);
+            const [permitParsing, setPermitParsing] = useState(false);
+            const [permitRows, setPermitRows] = useState([]);   // 比對結果（供確認）
+            const [permitSaving, setPermitSaving] = useState(false);
+            const [permitRaw, setPermitRaw] = useState([]);     // AI 原始擷取
+
+            const fileToBase64 = (file) => new Promise((res, rej) => {
+                const r = new FileReader();
+                r.onload = () => res(String(r.result).split(',')[1]);
+                r.onerror = rej;
+                r.readAsDataURL(file);
+            });
+
+            // 用批號在所有貨櫃裡找出對應的內部品名/規格
+            const findProductsByLot = (lot) => {
+                const key = String(lot || '').trim().toUpperCase();
+                if (!key) return [];
+                const hits = [];
+                (shipments || []).forEach(s => {
+                    (s.products || []).forEach(p => {
+                        const lots = [p.batchNumber, ...(getBatches(p).map(b => b.batchNumber))]
+                            .filter(Boolean).map(x => String(x).trim().toUpperCase());
+                        if (lots.includes(key)) hits.push({ name: p.name || '', spec: p.spec || '', container: s.containerNumber || '' });
+                    });
+                });
+                return hits;
+            };
+
+            const handlePermitUpload = async (e) => {
+                const files = Array.from(e.target.files || []);
+                e.target.value = '';
+                if (!files.length) return;
+                if (!geminiApiKey) return alert('請先在「AI 設定」填入 Gemini API Key');
+                setPermitParsing(true);
+                setPermitRows([]);
+                try {
+                    const parts = [{
+                        text: `你是台灣食品進口報關文件的解析助手。以下是「食品及相關產品輸入許可通知」PDF（含附表清單）。
+請擷取「附表清單」中每一個報單項次的資料，回傳純 JSON（不要 markdown、不要說明文字）：
+{"declarationNo":"報單號碼，如 BE 15437H1551","permitNo":"申請書號碼，如 IFT15CF0361905","items":[
+ {"itemNo":報單項次數字,"legalName":"中文品名（照文件原文，如 冷凍熟白蝦(B級)）","size":"SIZE 區間，如 100/120，沒有就空字串","spec":"規格，如 5KGS/CTN","lots":["製造批號，可能多個"],"netWeight":淨重數字}
+]}
+注意：
+- 一張許可證常有多個項次，且不同項次可能共用相同中文品名，僅 SIZE 不同，務必逐項擷取。
+- 同一項次若附表列出多個製造批號，請全部放進 lots 陣列。
+- SIZE 通常寫在英文品名的 (SIZE:xx/yy) 內，請抽出 xx/yy。
+- 只回傳 JSON。`
+                    }];
+                    for (const f of files) {
+                        parts.push({ inlineData: { mimeType: f.type || 'application/pdf', data: await fileToBase64(f) } });
+                    }
+                    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.1, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } } })
+                    });
+                    if (!resp.ok) {
+                        const ed = await resp.json().catch(() => ({}));
+                        throw new Error(ed.error?.message || `API 錯誤 (${resp.status})`);
+                    }
+                    const result = await resp.json();
+                    const txt = (result.candidates?.[0]?.content?.parts || []).filter(p => p.text && !p.thought).map(p => p.text).join('\n');
+                    const jsonStr = txt.replace(/```json|```/g, '').trim();
+                    const data = JSON.parse(jsonStr.slice(jsonStr.indexOf('{'), jsonStr.lastIndexOf('}') + 1));
+                    setPermitRaw(data.items || []);
+
+                    // 逐項用批號比對貨櫃 → 找出內部品名/規格 → 再對到主檔
+                    const norm = (s) => String(s || '').toLowerCase().replace(/\s/g, '').replace(/[×xX]/g, '*');
+                    const out = [];
+                    (data.items || []).forEach(it => {
+                        const matched = {};
+                        (it.lots || []).forEach(lot => findProductsByLot(lot).forEach(h => {
+                            matched[norm(h.name) + '|' + norm(h.spec)] = h;
+                        }));
+                        let hits = Object.values(matched);
+                        // 同一批號可能橫跨多個項次（僅 SIZE 不同）→ 先用 SIZE 縮小範圍，避免寫錯品項
+                        let ambiguous = false;
+                        if (hits.length > 1 && it.size) {
+                            const sz = String(it.size).replace(/\s/g, '');
+                            const bySize = hits.filter(h => String(h.spec || '').replace(/\s/g, '').includes(sz));
+                            if (bySize.length === 1) hits = bySize;
+                            else if (bySize.length > 1) { hits = bySize; ambiguous = true; }
+                            else ambiguous = true;   // SIZE 對不上內部規格，維持全部候選但標為待確認
+                        } else if (hits.length > 1) {
+                            ambiguous = true;
+                        }
+                        if (!hits.length) {
+                            out.push({ ...it, declarationNo: data.declarationNo || '', status: 'nolot', internalName: '', internalSpec: '' });
+                        } else {
+                            hits.forEach(h => {
+                                const master = (products || []).find(m => norm(m.name) === norm(h.name) && norm(m.spec) === norm(h.spec));
+                                out.push({
+                                    ...it, declarationNo: data.declarationNo || '',
+                                    internalName: h.name, internalSpec: h.spec, container: h.container,
+                                    masterId: master ? `${master.productId}_${master.spec || ''}`.replace(/[\/\\*?"<>|]/g, '_') : '',
+                                    masterExisting: master ? (master.legalName || '') : null,
+                                    ambiguous,
+                                    status: master ? 'ok' : 'nomaster',
+                                    apply: !!master && !ambiguous   // 有疑慮者預設不勾，需人工確認
+                                });
+                            });
+                        }
+                    });
+                    setPermitRows(out);
+                    if (!out.length) alert('未擷取到任何項次，請確認 PDF 是否為輸入許可通知（含附表清單）');
+                } catch (err) {
+                    alert('解析失敗：' + err.message);
+                } finally {
+                    setPermitParsing(false);
+                }
+            };
+
+            const savePermitMapping = async () => {
+                const list = permitRows.filter(r => r.apply && r.masterId);
+                if (!list.length) return alert('沒有可套用的項目');
+                setPermitSaving(true);
+                try {
+                    for (const r of list) {
+                        await db.collection('products').doc(r.masterId).set({
+                            legalName: r.legalName || '',
+                            legalSpec: r.size || '',
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                    }
+                    setShowPermitModal(false);
+                    setPermitRows([]);
+                    showToast(`已更新 ${list.length} 個品項的法定品名`);
+                } catch (err) {
+                    alert('寫入失敗：' + err.message);
+                } finally {
+                    setPermitSaving(false);
+                }
+            };
+
             const handleSaveProduct = async () => {
                 if (!editingProduct) return;
                 if (!canCreate()) return alert(TEXT.PERMISSION_DENIED);
@@ -4789,6 +5017,59 @@ JSON 範例：
                     )}
                     
                     {/* V79.0: Gemini API Key 設定 Modal */}
+                    {showPermitModal && (
+                        <div className="modal-overlay" onClick={() => !permitParsing && setShowPermitModal(false)}>
+                            <div className="modal-content" style={{ maxWidth: '760px', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-3 border-b pb-2">
+                                    <h3 className="font-bold text-lg text-gray-800">從輸入許可證帶入法定品名</h3>
+                                    <button onClick={() => setShowPermitModal(false)} className="text-gray-400"><I.X /></button>
+                                </div>
+
+                                {permitRows.length === 0 ? (
+                                    <div>
+                                        <div className="text-sm text-gray-600 mb-3">上傳「食品及相關產品輸入許可通知」PDF（可多份）。系統會擷取每個報單項次的<b>法定品名 / SIZE / 製造批號</b>，再用<b>批號</b>比對貨櫃裡的產品，找出對應的內部品名。</div>
+                                        <label className="block relative">
+                                            <input type="file" accept=".pdf" multiple onChange={handlePermitUpload} disabled={permitParsing} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                            <div className="py-10 border-2 border-dashed border-amber-300 rounded-2xl text-center bg-amber-50">
+                                                <div className="text-3xl mb-2">📋</div>
+                                                <div className="font-bold text-amber-700">{permitParsing ? '解析中…請稍候' : '點此選擇輸入許可證 PDF'}</div>
+                                                <div className="text-xs text-amber-600 mt-1">可一次選多份</div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <div className="text-sm text-gray-600 mb-2">共擷取 {permitRaw.length} 個項次，比對結果如下。勾選要寫入產品主檔的項目：</div>
+                                        <div className="space-y-2">
+                                            {permitRows.map((r, i) => (
+                                                <div key={i} className={`p-3 rounded-xl border ${r.status === 'ok' ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200'}`}>
+                                                    <div className="flex items-start gap-3">
+                                                        <input type="checkbox" checked={!!r.apply} disabled={r.status !== 'ok'}
+                                                            onChange={e => setPermitRows(prev => prev.map((x, j) => j === i ? { ...x, apply: e.target.checked } : x))}
+                                                            className="w-5 h-5 accent-amber-600 mt-0.5 shrink-0" />
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="font-bold text-gray-800">{r.legalName} {r.size && <span className="text-amber-700">{r.size}</span>}</div>
+                                                            <div className="text-xs text-gray-500 mt-0.5">項次 {r.itemNo}　批號 {(r.lots || []).join(', ') || '—'}</div>
+                                                            {r.status === 'ok' && <div className="text-sm text-blue-700 mt-1">→ 對應內部品項：<b>{r.internalName}</b> <span className="text-gray-500">{r.internalSpec}</span>{r.masterExisting ? <span className="text-orange-600 ml-2">（原為「{r.masterExisting}」，將被覆蓋）</span> : ''}</div>}
+                                                            {r.ambiguous && r.status === 'ok' && <div className="text-xs text-red-600 mt-1 font-bold">⚠ 此批號同時對到多個品項（SIZE 無法唯一判定），請自行確認後再勾選</div>}
+                                                            {r.status === 'nolot' && <div className="text-sm text-gray-500 mt-1">⚠ 批號在現有貨櫃中找不到，無法自動對應（可能該櫃尚未建檔）</div>}
+                                                            {r.status === 'nomaster' && <div className="text-sm text-gray-500 mt-1">⚠ 找到貨櫃品項「{r.internalName} {r.internalSpec}」，但產品主檔沒有這筆，請先建立主檔</div>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-3 mt-4 pt-3 border-t">
+                                            <button onClick={() => setPermitRows([])} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">重新上傳</button>
+                                            <button onClick={savePermitMapping} disabled={permitSaving} className="flex-1 py-3 bg-amber-600 text-white rounded-xl font-bold shadow-lg disabled:opacity-50">
+                                                {permitSaving ? '寫入中…' : `套用 ${permitRows.filter(r => r.apply && r.masterId).length} 筆`}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                     {depositEdit && (
                         <div className="modal-overlay" onClick={() => setDepositEdit(null)}>
                             <div className="modal-content" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
@@ -5175,6 +5456,32 @@ JSON 範例：
                                             className="w-full border rounded-lg p-2.5"
                                             placeholder="36/40S*420G*20包(IQ10%)"
                                         />
+                                    </div>
+                                    
+                                    {/* V90.0: 法定品名（輸入許可證用，供會計系統參照） */}
+                                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+                                        <div className="text-sm font-bold text-amber-800">輸入許可證資料（給會計系統對照）</div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-1">法定品名</label>
+                                            <input 
+                                                type="text"
+                                                value={editingProduct.legalName || ''}
+                                                onChange={e => setEditingProduct(p => ({...p, legalName: e.target.value}))}
+                                                className="w-full border rounded-lg p-2.5"
+                                                placeholder="如：冷凍熟白蝦(B級)"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-1">法定規格 / SIZE</label>
+                                            <input 
+                                                type="text"
+                                                value={editingProduct.legalSpec || ''}
+                                                onChange={e => setEditingProduct(p => ({...p, legalSpec: e.target.value}))}
+                                                className="w-full border rounded-lg p-2.5"
+                                                placeholder="如：100/120（法定品名常重複，需靠規格區分）"
+                                            />
+                                        </div>
+                                        <div className="text-[11px] text-amber-700">同一張許可證常有多個項次共用同一個法定品名（僅 SIZE 不同），故兩欄並存才能對應正確。</div>
                                     </div>
                                     
                                     <div className="grid grid-cols-2 gap-3">
@@ -5882,6 +6189,12 @@ JSON 範例：
                                                 <I.Upload />{TEXT.PRODUCTS_IMPORT}
                                                 <input type="file" accept=".xlsx,.xls" onChange={handleProductExcelImport} className="hidden" />
                                             </label>
+                                            <button 
+                                                onClick={() => { setPermitRows([]); setShowPermitModal(true); }}
+                                                className="flex-1 md:flex-none px-4 py-3 bg-amber-600 text-white rounded-xl font-bold text-sm hover:bg-amber-700 transition-colors flex items-center justify-center gap-1"
+                                            >
+                                                📋 輸入許可證
+                                            </button>
                                             <button 
                                                 onClick={() => { setEditingProduct({...initialProductState}); setShowProductModal(true); }}
                                                 className="flex-1 md:flex-none px-4 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
@@ -6664,6 +6977,7 @@ JSON 範例：
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={cancelSelectMode} className="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-600">取消</button>
+                                    {canSeePrice() && <button onClick={exportForAccounting} disabled={selectedIds.size === 0} className={`px-4 py-2 rounded-lg font-bold text-white ${selectedIds.size > 0 ? 'bg-emerald-600' : 'bg-gray-300'}`}>匯出給會計</button>}
                                     <button onClick={executeExport} disabled={selectedIds.size === 0} className={`px-4 py-2 rounded-lg font-bold text-white ${selectedIds.size > 0 ? 'bg-blue-600' : 'bg-gray-300'}`}>
                                         匯出 Excel
                                     </button>
