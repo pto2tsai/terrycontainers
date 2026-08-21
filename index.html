@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V89.4</title>
+    <title>貨櫃管理系統 V89.7</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -872,7 +872,7 @@
         const { useState, useEffect, useMemo, useCallback } = React;
 
         // V89.3: 版本資訊單一來源（標題、側欄、更新偵測皆取用此處，避免不同步）
-        const APP_VERSION = 'V89.4';
+        const APP_VERSION = 'V89.7';
         const APP_BUILD_DATE = '2026-08-21';
 
         // V89.3: 自動偵測新版本（先用輕量 HEAD 比對 ETag/Last-Modified，有變才抓檔讀版本號）
@@ -1808,8 +1808,8 @@
                     });
                     
                     // 合計列
-                    const totalRow = ['合　計', '', sumQty, sumWeight];
-                    if (showPrice) totalRow.push('', sumAmount);
+                    const totalRow = ['合　計', '', sumQty, round2(sumWeight)];
+                    if (showPrice) totalRow.push('', round2(sumAmount));
                     totalRow.push('', '');
                     aoa.push(totalRow);
                     
@@ -1819,7 +1819,7 @@
                     // 套用樣式
                     const headerRowIdx = 6;
                     const dataStartIdx = 7;
-                    const dataEndIdx = 5 + products.length;
+                    const dataEndIdx = 6 + products.length;
                     const totalRowIdx = dataEndIdx + 1;
                     
                     // 資訊區樣式（14pt 粗體）- Row 2 和 Row 3
@@ -1828,7 +1828,7 @@
                             const cellRef = XLSX.utils.encode_cell({ r, c });
                             if (ws[cellRef]) {
                                 ws[cellRef].s = {
-                                    font: { name: '微軟正黑體', sz: 14, bold: true },
+                                    font: { name: '微軟正黑體', sz: 12, bold: true },
                                     alignment: { vertical: 'center' }
                                 };
                             }
@@ -1868,7 +1868,8 @@
                             };
                             
                             // 數字格式
-                            if (c === 2 || c === 3) cell.z = '#,##0';      // 數量、重量
+                            if (c === 2) cell.z = '#,##0';                // 數量（整數）
+                            if (c === 3) cell.z = '#,##0.00';             // 重量（兩位小數，避免失真）
                             if (showPrice && c === 4) cell.z = '#,##0.00'; // 單價
                             if (showPrice && c === 5) cell.z = '#,##0.00'; // 金額
                         }
@@ -1886,7 +1887,8 @@
                             border: borderThick
                         };
                         
-                        if (c === 2 || c === 3) cell.z = '#,##0';  // 數量、重量
+                        if (c === 2) cell.z = '#,##0';        // 數量
+                        if (c === 3) cell.z = '#,##0.00';     // 重量（兩位小數）
                         if (showPrice && c === 5) cell.z = '#,##0.00';  // 合計金額兩位小數
                     }
                     
@@ -1900,15 +1902,20 @@
                     
                     // 合併標題
                     ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } }];
+                    // 資訊三列：欄0 獨立、欄1 併到金額欄前、欄2(廠商等) 併到最後，避免長字串被截斷
+                    for (let r = 2; r <= 4; r++) {
+                        ws['!merges'].push({ s: { r, c: 1 }, e: { r, c: showPrice ? 4 : 3 } });
+                        ws['!merges'].push({ s: { r, c: showPrice ? 5 : 4 }, e: { r, c: colCount - 1 } });
+                    }
                     
                     // 欄寬（調整）
                     ws['!cols'] = [
-                        { wch: 14 },  // 品名
-                        { wch: 34 },  // 規格（同時容納「輸入許可證：...」）
-                        { wch: 10 },  // 數量
-                        { wch: 11 },  // 重量(kg)
+                        { wch: 22 },  // 品名（資訊列「到港日：YYYY-MM-DD」也在此欄，需容納）
+                        { wch: 34 },  // 規格
+                        { wch: 11 },  // 數量
+                        { wch: 14 },  // 重量(kg)（兩位小數＋千分位，合計為粗體需留寬）
                         ...(showPrice ? [{ wch: 8 }, { wch: 13 }] : []),  // 單價、金額
-                        { wch: 16 },  // 批號
+                        { wch: 18 },  // 批號（含「·NN件」）
                         { wch: 12 }   // 效期
                     ];
                     
@@ -1918,8 +1925,18 @@
                         { hpt: 18 }, { hpt: 28 }
                     ];
                     for (let i = 7; i <= totalRowIdx; i++) {
-                        ws['!rows'][i] = { hpt: 26 };
+                        const p = products[i - 7];
+                        let lines = 1;
+                        if (p) {
+                            const nb = getBatches(p).length;
+                            if (nb > 1) lines = nb;
+                        }
+                        ws['!rows'][i] = { hpt: lines > 1 ? (lines * 19 + 8) : 26 };
                     }
+                    
+                    // 列印：橫向、縮放至一頁寬（避免右側批號/效期被裁掉）
+                    ws['!pageSetup'] = { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0, scale: 100 };
+                    ws['!margins'] = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 };
                     
                     XLSX.utils.book_append_sheet(wb, ws, sheetName);
                     console.log(`工作表 ${sheetName} 已加入`);
