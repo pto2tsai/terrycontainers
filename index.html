@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V90.7</title>
+    <title>貨櫃管理系統 V90.8</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -872,7 +872,7 @@
         const { useState, useEffect, useMemo, useCallback } = React;
 
         // V89.3: 版本資訊單一來源（標題、側欄、更新偵測皆取用此處，避免不同步）
-        const APP_VERSION = 'V90.7';
+        const APP_VERSION = 'V90.8';
         const APP_BUILD_DATE = '2026-08-21';
 
         // V89.3: 自動偵測新版本（先用輕量 HEAD 比對 ETag/Last-Modified，有變才抓檔讀版本號）
@@ -1732,70 +1732,6 @@
             };
             
             // V79.3: 執行批次匯出 Excel（一櫃一工作表，大字體+邊框格式）
-            // V90.1: 匯出給會計系統（一列一品項的平表，供會計系統直接匯入）
-            const exportForAccounting = () => {
-                if (selectedIds.size === 0) return alert('請先選擇要匯出的貨櫃');
-                const selectedList = filteredList.filter(s => selectedIds.has(s.id));
-                const normKey = (s) => String(s || '').toLowerCase().replace(/[\s]/g, '').replace(/[×xX]/g, '*');
-                const legalMap = {};
-                (products || []).forEach(m => {
-                    if (m.legalName) legalMap[normKey(m.name) + '|' + normKey(m.spec)] = { legalName: m.legalName, legalSpec: m.legalSpec || '' };
-                });
-                const rows = [['中文品名', '規格', '數量', '單位', '單價', '金額', '報關單號']];
-                let usedInternal = 0;
-                selectedList.forEach(c => {
-                    // V90.7: 同品名+規格視為同一料號（不同效期/批號一律合併），單價不同才分列
-                    const groups = [];
-                    const gmap = {};
-                    (c.products || []).forEach(p => {
-                        const lg = legalMap[normKey(p.name) + '|' + normKey(p.spec)];
-                        if (!lg) usedInternal++;
-                        const outName = lg ? lg.legalName : (p.name || '');
-                        const outSpec = lg ? (lg.legalSpec || p.spec || '') : (p.spec || '');
-                        const byWeight = (p.pricingMode || 'weight') === 'weight';
-                        const unit = byWeight ? 'KG' : '件';
-                        const price = safeNum(p.unitPrice);
-                        const qty = byWeight ? safeNum(p.weight) : safeNum(p.quantity);
-                        const key = normKey(outName) + '|' + normKey(outSpec) + '|' + unit + '|' + price;
-                        if (gmap[key] === undefined) {
-                            gmap[key] = groups.length;   // 保留 invoice 首次出現的順序
-                            groups.push({ name: outName, spec: outSpec, unit, price, qty: 0, amount: 0 });
-                        }
-                        const g = groups[gmap[key]];
-                        g.qty += qty;
-                        g.amount += safeNum(p.amount) || (qty * price);
-                    });
-                    groups.forEach(g => {
-                        rows.push([g.name, g.spec, round2(g.qty), g.unit, round2(g.price), round2(g.amount), c.customsDeclarationNo || '']);
-                    });
-                });
-                if (rows.length === 1) return alert('所選貨櫃沒有產品明細');
-                const ws = XLSX.utils.aoa_to_sheet(rows);
-                ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 13 }, { wch: 7 }, { wch: 9 }, { wch: 14 }, { wch: 18 }];
-                const bd = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-                const NC = 7;  // 品名 規格 數量 單位 單價 金額 報關單號
-                for (let c = 0; c < NC; c++) {
-                    const ref = XLSX.utils.encode_cell({ r: 0, c });
-                    if (ws[ref]) ws[ref].s = { font: { name: '微軟正黑體', sz: 12, bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'E8EEF7' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: bd };
-                }
-                for (let r = 1; r < rows.length; r++) {
-                    for (let c = 0; c < NC; c++) {
-                        const ref = XLSX.utils.encode_cell({ r, c });
-                        if (!ws[ref]) continue;
-                        const alignC = (c <= 1) ? 'left' : ((c === 3 || c === 6) ? 'center' : 'right');
-                        ws[ref].s = { font: { name: '微軟正黑體', sz: 11 }, alignment: { horizontal: alignC, vertical: 'center' }, border: bd };
-                        if (c === 2 || c === 4 || c === 5) ws[ref].z = '#,##0.00';  // 數量、單價、金額
-                    }
-                }
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, '會計匯入');
-                XLSX.writeFile(wb, '會計匯入_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '.xlsx');
-                cancelSelectMode();
-                let msg = '已匯出 ' + (rows.length - 1) + ' 筆品項（' + selectedList.length + ' 個貨櫃）';
-                if (usedInternal) msg += '\n\n註：其中 ' + usedInternal + ' 筆尚未設定法定品名，已用內部品名頂替。可到「產品主檔」補設定。';
-                alert(msg);
-            };
-
             const executeExport = () => {
                 if (selectedIds.size === 0) return alert('請先選擇要匯出的貨櫃');
                 
@@ -6982,7 +6918,6 @@ JSON 範例：
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={cancelSelectMode} className="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-600">取消</button>
-                                    {canSeePrice() && <button onClick={exportForAccounting} disabled={selectedIds.size === 0} className={`px-4 py-2 rounded-lg font-bold text-white ${selectedIds.size > 0 ? 'bg-emerald-600' : 'bg-gray-300'}`}>匯出給會計</button>}
                                     <button onClick={executeExport} disabled={selectedIds.size === 0} className={`px-4 py-2 rounded-lg font-bold text-white ${selectedIds.size > 0 ? 'bg-blue-600' : 'bg-gray-300'}`}>
                                         匯出 Excel
                                     </button>
