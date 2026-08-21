@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V89.2</title>
+    <title>貨櫃管理系統 V89.4</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -871,6 +871,66 @@
 
         const { useState, useEffect, useMemo, useCallback } = React;
 
+        // V89.3: 版本資訊單一來源（標題、側欄、更新偵測皆取用此處，避免不同步）
+        const APP_VERSION = 'V89.4';
+        const APP_BUILD_DATE = '2026-08-21';
+
+        // V89.3: 自動偵測新版本（先用輕量 HEAD 比對 ETag/Last-Modified，有變才抓檔讀版本號）
+        const useVersionCheck = () => {
+            const [newVer, setNewVer] = useState(null);
+            useEffect(() => {
+                const url = location.href.split('#')[0].split('?')[0];
+                let baseTag = null;
+                let stopped = false;
+                const tagOf = async () => {
+                    const r = await fetch(url + '?vc=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+                    return r.headers.get('etag') || r.headers.get('last-modified') || null;
+                };
+                const check = async () => {
+                    if (stopped) return;
+                    try {
+                        const tag = await tagOf();
+                        if (baseTag === null) { baseTag = tag; return; }
+                        if (!tag || tag === baseTag) return;
+                        baseTag = tag; // 已知這個版本，避免重複提示
+                        let v = '';
+                        try {
+                            const txt = await (await fetch(url + '?vf=' + Date.now(), { cache: 'no-store' })).text();
+                            const m = txt.match(/const APP_VERSION\s*=\s*'([^']+)'/);
+                            if (m) v = m[1];
+                        } catch (e) { /* 讀不到版本號仍提示 */ }
+                        if (!v || v !== APP_VERSION) setNewVer(v || '新版本');
+                    } catch (e) { /* 離線或請求失敗，靜默略過 */ }
+                };
+                check();
+                const iv = setInterval(check, 10 * 60 * 1000);
+                const onVis = () => { if (document.visibilityState === 'visible') check(); };
+                document.addEventListener('visibilitychange', onVis);
+                return () => { stopped = true; clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
+            }, []);
+            return newVer;
+        };
+
+        const UpdateBanner = ({ version }) => {
+            const [busy, setBusy] = useState(false);
+            const doUpdate = async () => {
+                setBusy(true);
+                try { if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } } catch (e) {}
+                location.reload();
+            };
+            if (!version) return null;
+            return (
+                <div className="fixed bottom-0 inset-x-0 z-50 md:bottom-4 md:left-1/2 md:-translate-x-1/2 md:inset-x-auto md:rounded-2xl bg-blue-600 text-white shadow-2xl px-4 py-3 flex items-center gap-3">
+                    <span className="text-xl">🔄</span>
+                    <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm">有新版本 {version}</div>
+                        <div className="text-xs opacity-80">目前 {APP_VERSION}．更新後才會有最新功能</div>
+                    </div>
+                    <button onClick={doUpdate} disabled={busy} className="shrink-0 px-4 py-2 bg-white text-blue-700 rounded-xl font-bold text-sm disabled:opacity-60">{busy ? '更新中…' : '立即更新'}</button>
+                </div>
+            );
+        };
+
         // --- 2. Helpers ---
         const safeNum = (val) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
         const round2 = (num) => Math.round(safeNum(num) * 100) / 100;
@@ -1510,6 +1570,9 @@
 
         function ContainerApp() {
             const [user, setUser] = useState(null);
+            // V89.3: 標題與版本同步 + 新版本自動偵測
+            const newVersionAvailable = useVersionCheck();
+            useEffect(() => { document.title = `貨櫃管理系統 ${APP_VERSION}`; }, []);
             const [shipments, setShipments] = useState([]);
             const [prepaymentRecords, setPrepaymentRecords] = useState([]); // V85.0: 訂金台帳
             const [view, setView] = useState('list'); 
@@ -1704,19 +1767,17 @@
                     aoa.push(['貨櫃明細表']);
                     // Row 1: 空行
                     aoa.push([]);
-                    // Row 2: 資訊第一列（進口、序號、廠商、產地）
-                    const infoRow1 = [`進口：${info.importCompany || ''}`, `序號：${info.vendorSeqNo || ''}`, `廠商：${info.supplier || ''}`, `產地：${info.origin || ''}`];
-                    while (infoRow1.length < colCount) infoRow1.push('');
-                    aoa.push(infoRow1);
-                    // Row 3: 資訊第二列（櫃號、到港日、報關、報關單號、輸入許可證）
-                    const infoRow2 = [`櫃號：${info.containerNumber || ''}`, `到港日：${info.arrivalDate || ''}`, `報關：${info.customsBroker || ''}`, `報關單號：${info.customsDeclarationNo || ''}`, `輸入許可證：${info.importPermitNo || ''}`];
-                    while (infoRow2.length < colCount) infoRow2.push('');
-                    aoa.push(infoRow2);
-                    // Row 4: 空行
+                    // Row 2-4: 資訊三列（欄0：進口/序號/到港日；欄1：櫃號/報關單號/輸入許可證；欄2：廠商/產地/報關）
+                    const mkInfo = (a, b, c) => { const r = [a, b, c]; while (r.length < colCount) r.push(''); return r; };
+                    aoa.push(mkInfo(`進口：${info.importCompany || ''}`, `櫃號：${info.containerNumber || ''}`, `廠商：${info.supplier || ''}`));
+                    aoa.push(mkInfo(`序號：${info.vendorSeqNo || ''}`, `報關單號：${info.customsDeclarationNo || ''}`, `產地：${info.origin || ''}`));
+                    aoa.push(mkInfo(`到港日：${info.arrivalDate || ''}`, `輸入許可證：${info.importPermitNo || ''}`, `報關：${info.customsBroker || ''}`));
+                    // Row 5: 空行
                     aoa.push([]);
-                    // Row 5: 表頭（品名、規格、批號、效期、數量、重量、單價、金額）
-                    const headers = ['品名', '規格', '批號', '效期', '數量', '重量(kg)'];
+                    // Row 6: 表頭（品名、規格、數量、重量、[單價、金額]、批號、效期）
+                    const headers = ['品名', '規格', '數量', '重量(kg)'];
                     if (showPrice) headers.push('單價', '金額');
+                    headers.push('批號', '效期');
                     aoa.push(headers);
                     
                     // 產品資料
@@ -1732,8 +1793,6 @@
                         const row = [
                             p.name || '',
                             p.spec || '',
-                            batchCell,
-                            expiryCell,
                             safeNum(p.quantity),
                             safeNum(p.weight)
                         ];
@@ -1741,6 +1800,7 @@
                             row.push(safeNum(p.unitPrice));
                             row.push(safeNum(p.amount));
                         }
+                        row.push(batchCell, expiryCell);
                         aoa.push(row);
                         sumQty += safeNum(p.quantity);
                         sumWeight += safeNum(p.weight);
@@ -1748,21 +1808,22 @@
                     });
                     
                     // 合計列
-                    const totalRow = ['合　計', '', '', '', sumQty, sumWeight];
+                    const totalRow = ['合　計', '', sumQty, sumWeight];
                     if (showPrice) totalRow.push('', sumAmount);
+                    totalRow.push('', '');
                     aoa.push(totalRow);
                     
                     // 建立工作表
                     const ws = XLSX.utils.aoa_to_sheet(aoa);
                     
                     // 套用樣式
-                    const headerRowIdx = 5;
-                    const dataStartIdx = 6;
+                    const headerRowIdx = 6;
+                    const dataStartIdx = 7;
                     const dataEndIdx = 5 + products.length;
                     const totalRowIdx = dataEndIdx + 1;
                     
                     // 資訊區樣式（14pt 粗體）- Row 2 和 Row 3
-                    for (let r = 2; r <= 3; r++) {
+                    for (let r = 2; r <= 4; r++) {
                         for (let c = 0; c < colCount; c++) {
                             const cellRef = XLSX.utils.encode_cell({ r, c });
                             if (ws[cellRef]) {
@@ -1793,22 +1854,23 @@
                             if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
                             const cell = ws[cellRef];
                             
-                            // 對齊：品名規格靠左、批號效期置中、數字靠右
-                            let align = 'left';
-                            if (c === 0 || c === 1) align = 'left';  // 品名、規格
-                            if (c === 2 || c === 3) align = 'center';  // 批號、效期
-                            if (c >= 4) align = 'right';  // 數量、重量、單價、金額
+                            // 對齊：品名規格靠左、數字靠右、批號效期置中
+                            const cBatch = showPrice ? 6 : 4;   // 批號欄索引
+                            const cExp = cBatch + 1;            // 效期欄索引
+                            let align = 'right';
+                            if (c === 0 || c === 1) align = 'left';        // 品名、規格
+                            if (c === cBatch || c === cExp) align = 'center'; // 批號、效期
                             
                             cell.s = {
                                 font: { name: '微軟正黑體', sz: 14 },
-                                alignment: { horizontal: align, vertical: 'center', wrapText: (c === 2 || c === 3) },
+                                alignment: { horizontal: align, vertical: 'center', wrapText: (c === cBatch || c === cExp) },
                                 border: borderAll
                             };
                             
                             // 數字格式
-                            if (c === 4 || c === 5) cell.z = '#,##0';  // 數量、重量
-                            if (c === 6 && showPrice) cell.z = '#,##0.00';  // 單價兩位小數
-                            if (c === 7 && showPrice) cell.z = '#,##0.00';  // 金額兩位小數
+                            if (c === 2 || c === 3) cell.z = '#,##0';      // 數量、重量
+                            if (showPrice && c === 4) cell.z = '#,##0.00'; // 單價
+                            if (showPrice && c === 5) cell.z = '#,##0.00'; // 金額
                         }
                     }
                     
@@ -1824,8 +1886,8 @@
                             border: borderThick
                         };
                         
-                        if (c === 4 || c === 5) cell.z = '#,##0';  // 數量、重量
-                        if (c === 7 && showPrice) cell.z = '#,##0.00';  // 合計金額兩位小數
+                        if (c === 2 || c === 3) cell.z = '#,##0';  // 數量、重量
+                        if (showPrice && c === 5) cell.z = '#,##0.00';  // 合計金額兩位小數
                     }
                     
                     // 標題樣式
@@ -1841,21 +1903,21 @@
                     
                     // 欄寬（調整）
                     ws['!cols'] = [
-                        { wch: 16 },  // 品名
-                        { wch: 24 },  // 規格
-                        { wch: 14 },  // 批號
-                        { wch: 12 },  // 效期
+                        { wch: 14 },  // 品名
+                        { wch: 34 },  // 規格（同時容納「輸入許可證：...」）
                         { wch: 10 },  // 數量
-                        { wch: 12 },  // 重量
-                        ...(showPrice ? [{ wch: 10 }, { wch: 14 }] : [])  // 單價、金額
+                        { wch: 11 },  // 重量(kg)
+                        ...(showPrice ? [{ wch: 8 }, { wch: 13 }] : []),  // 單價、金額
+                        { wch: 16 },  // 批號
+                        { wch: 12 }   // 效期
                     ];
                     
                     // 列高
                     ws['!rows'] = [
-                        { hpt: 32 }, { hpt: 18 }, { hpt: 26 }, { hpt: 26 },
+                        { hpt: 32 }, { hpt: 18 }, { hpt: 26 }, { hpt: 26 }, { hpt: 26 },
                         { hpt: 18 }, { hpt: 28 }
                     ];
-                    for (let i = 6; i <= totalRowIdx; i++) {
+                    for (let i = 7; i <= totalRowIdx; i++) {
                         ws['!rows'][i] = { hpt: 26 };
                     }
                     
@@ -5315,7 +5377,9 @@ JSON 範例：
                         </>
                     )}
 
-                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 V89.2</div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`sidebar-link w-full ${view==='deposits'?'active':''}`}><div className="w-8 text-center"><I.Dollar /></div> 訂金台帳</button>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+                    <aside className="hidden md:flex flex-col w-64 bg-white border-r fixed inset-y-0 left-0 z-20"><div className="p-6 flex items-center gap-3 font-bold text-xl text-gray-800"><span className="text-blue-600"><I.Ship /></span>貨櫃管理 {APP_VERSION}<div className="text-[10px] font-normal text-gray-400">{APP_BUILD_DATE}</div></div><nav className="flex-1 px-4 space-y-2"><button onClick={()=>setView('list')} className={`sidebar-link w-full ${view==='list'?'active':''}`}><div className="w-8 text-center"><I.List /></div> {TEXT.LIST_TITLE}</button>{userRole !== 'GUEST' && <><button onClick={()=>setView('products')} className={`sidebar-link w-full ${view==='products'?'active':''}`}><div className="w-8 text-center"><I.Package /></div> {TEXT.PRODUCTS_TITLE}</button><button onClick={()=>setView('stats')} className={`sidebar-link w-full ${view==='stats'?'active':''}`}><div className="w-8 text-center"><I.Chart /></div> {TEXT.STATS_TITLE}</button></>}{canSeePrice() && <button onClick={()=>setView('deposits')} className={`sidebar-link w-full ${view==='deposits'?'active':''}`}><div className="w-8 text-center"><I.Dollar /></div> 訂金台帳</button>}{canManage() && <button onClick={()=>setView('users')} className={`sidebar-link w-full ${view==='users'?'active':''}`}><div className="w-8 text-center"><I.User /></div> {TEXT.USERS_TITLE}</button>}</nav><div className="p-4 border-t space-y-2"><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className="w-full py-2 text-xs text-gray-500 hover:text-blue-600 flex items-center justify-center gap-1 bg-gray-50 rounded-lg"><I.Wand /> AI 設定 {geminiApiKey ? '✓' : ''}</button><button onClick={handleLogout} className="w-full py-2 text-xs text-gray-400 hover:text-red-500 flex items-center justify-center gap-1"><I.LogOut /> {TEXT.LOGOUT}</button></div></aside>
+
+                    <UpdateBanner version={newVersionAvailable} />
 
                     <div className="md:hidden sticky top-0 z-30 bg-white border-b px-4 h-14 flex items-center justify-between shadow-sm"><div className="flex items-center gap-2 font-bold text-gray-900"><span className="text-blue-600"><I.Ship /></span> {view==='list'?TEXT.LIST_TITLE:(view==='products'?TEXT.PRODUCTS_TITLE:TEXT.STATS_TITLE)}</div><div className="flex gap-3 items-center"><div className="relative" onClick={()=>setShowNotifications(true)}><span className="text-gray-500"><I.Bell /></span>{urgentCount>0&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><button onClick={handleExport} className="text-gray-500"><I.Download /></button><button onClick={()=>{setTempApiKey(geminiApiKey);setShowApiKeyModal(true)}} className={geminiApiKey ? "text-green-500" : "text-gray-400"}><I.Wand /></button>{canCreate()&&view==='list'&&<button onClick={handleStartNewContainer} className="text-blue-600"><I.Plus /></button>}<button onClick={handleLogout} className="text-red-400"><I.LogOut /></button></div></div>
 
