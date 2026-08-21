@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>貨櫃管理系統 V90.8</title>
+    <title>貨櫃管理系統 V91.0</title>
     
     <!-- V79.0: PDF.js for PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -872,7 +872,7 @@
         const { useState, useEffect, useMemo, useCallback } = React;
 
         // V89.3: 版本資訊單一來源（標題、側欄、更新偵測皆取用此處，避免不同步）
-        const APP_VERSION = 'V90.8';
+        const APP_VERSION = 'V91.0';
         const APP_BUILD_DATE = '2026-08-21';
 
         // V89.3: 自動偵測新版本（先用輕量 HEAD 比對 ETag/Last-Modified，有變才抓檔讀版本號）
@@ -1575,6 +1575,7 @@
             useEffect(() => { document.title = `貨櫃管理系統 ${APP_VERSION}`; }, []);
             const [shipments, setShipments] = useState([]);
             const [prepaymentRecords, setPrepaymentRecords] = useState([]); // V85.0: 訂金台帳
+            const [legalNameMap, setLegalNameMap] = useState({});           // V91.0: 內部品名 → 法定品名
             const [view, setView] = useState('list'); 
             const [displayMode, setDisplayMode] = useState('card');
             const [editingId, setEditingId] = useState(null);
@@ -1738,16 +1739,19 @@
                 const showPrice = canSeePrice();
                 const selectedList = filteredList.filter(s => selectedIds.has(s.id));
                 
-                // V90.0: 產品主檔查表 → 帶出法定品名（供會計系統參照）
+                // V91.0: 兩層對照 —— 法定品名來自「品名對照」，SIZE 來自各品項的法定規格
                 const normKey = (s) => String(s || '').toLowerCase().replace(/[\s]/g, '').replace(/[×xX]/g, '*');
-                const legalByNameSpec = {};
+                const specMap = {};
                 (products || []).forEach(m => {
-                    if (!m.legalName) return;
-                    legalByNameSpec[normKey(m.name) + '|' + normKey(m.spec)] = { legalName: m.legalName, legalSpec: m.legalSpec || '' };
+                    if (m.legalSpec) specMap[normKey(m.name) + '|' + normKey(m.spec)] = m.legalSpec;
                 });
-                // 只接受「品名+規格」精準比對：法定品名常多個規格共用同一名稱，
-                // 若僅靠品名退而求其次會帶到錯誤的 SIZE，導致會計系統對錯品項。
-                const lookupLegal = (p) => legalByNameSpec[normKey(p.name) + '|' + normKey(p.spec)] || null;
+                const nameMapNorm = {};
+                Object.entries(legalNameMap || {}).forEach(([k, v]) => { nameMapNorm[normKey(k)] = v; });
+                const lookupLegal = (p) => {
+                    const ln = nameMapNorm[normKey(p.name)];
+                    if (!ln) return null;
+                    return { legalName: ln, legalSpec: specMap[normKey(p.name) + '|' + normKey(p.spec)] || '' };
+                };
                 const missingLegal = [];
                 
                 console.log('匯出貨櫃數量:', selectedList.length);
@@ -3622,6 +3626,35 @@ JSON 範例：
                 return Array.from(new Set([...used, ...LEGAL_NAME_PRESETS])).sort();
             }, [products]);
 
+            // V91.0: 品名對照編輯（內部品名 → 法定品名，一次建完少數幾筆即可涵蓋全部規格）
+            const [showNameMapModal, setShowNameMapModal] = useState(false);
+            const [nameMapDraft, setNameMapDraft] = useState({});
+            const [nameMapSaving, setNameMapSaving] = useState(false);
+            const internalNames = useMemo(() => {
+                const set = new Set();
+                (products || []).forEach(p => { if (p.name) set.add(String(p.name).trim()); });
+                (shipments || []).forEach(s => (s.products || []).forEach(p => { if (p.name) set.add(String(p.name).trim()); }));
+                return Array.from(set).sort();
+            }, [products, shipments]);
+            const openNameMap = () => {
+                const d = {};
+                internalNames.forEach(n => { d[n] = legalNameMap[n] || ''; });
+                setNameMapDraft(d);
+                setShowNameMapModal(true);
+            };
+            const saveNameMap = async () => {
+                setNameMapSaving(true);
+                try {
+                    const clean = {};
+                    Object.entries(nameMapDraft).forEach(([k, v]) => { if (v && String(v).trim()) clean[k] = String(v).trim(); });
+                    await db.collection('settings').doc('legalNames').set({ map: clean, updatedAt: new Date().toISOString() }, { merge: true });
+                    setShowNameMapModal(false);
+                    showToast(`已儲存 ${Object.keys(clean).length} 筆品名對照`);
+                } catch (e) {
+                    alert('儲存失敗：' + e.message + '\n（此設定需經理權限）');
+                } finally { setNameMapSaving(false); }
+            };
+
             const handleSaveProduct = async () => {
                 if (!editingProduct) return;
                 if (!canCreate()) return alert(TEXT.PERMISSION_DENIED);
@@ -4167,6 +4200,11 @@ JSON 範例：
                     setPrepaymentRecords(list);
                 }, err => console.error('prepayments load error', err));
                 
+                // V91.0: 品名對照表（內部品名 → 法定品名）
+                const unsubLegal = db.collection('settings').doc('legalNames').onSnapshot(doc => {
+                    setLegalNameMap((doc.exists && doc.data().map) ? doc.data().map : {});
+                }, err => console.warn('品名對照載入失敗:', err));
+                
                 // V73.0: 完全從 Firestore 讀取角色設定，不再使用硬編碼的 ADMIN_EMAILS
                 db.collection('settings').doc('config').get().then(doc => {
                     if(doc.exists) {
@@ -4192,7 +4230,7 @@ JSON 範例：
                     // 發生錯誤時保持 GUEST 角色
                 });
                 
-                return () => { unsub(); if (typeof unsubPrepay === 'function') unsubPrepay(); };
+                return () => { unsub(); if (typeof unsubPrepay === 'function') unsubPrepay(); if (typeof unsubLegal === 'function') unsubLegal(); };
             }, [user]);
 
             // V77.0: 產品主檔監聽 + 自動初始化
@@ -4954,6 +4992,36 @@ JSON 範例：
                     )}
                     
                     {/* V79.0: Gemini API Key 設定 Modal */}
+                    {showNameMapModal && (
+                        <div className="modal-overlay" onClick={() => !nameMapSaving && setShowNameMapModal(false)}>
+                            <div className="modal-content" style={{ maxWidth: '640px', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-2 border-b pb-2">
+                                    <h3 className="font-bold text-lg text-gray-800">品名對照</h3>
+                                    <button onClick={() => setShowNameMapModal(false)} className="text-gray-400"><I.X /></button>
+                                </div>
+                                <div className="text-sm text-gray-600 mb-3">設定「內部品名 → 法定品名（輸入許可證用字）」。同一個內部品名不論幾種規格都共用同一個法定品名，因此只需建立少數幾筆。規格的 SIZE 請在各品項中設定。</div>
+                                <div className="space-y-2">
+                                    {internalNames.length === 0 && <div className="text-center text-gray-400 py-6">尚無品名資料</div>}
+                                    {internalNames.map(n => (
+                                        <div key={n} className="flex items-center gap-2">
+                                            <div className="w-2/5 shrink-0 font-bold text-gray-700 truncate" title={n}>{n}</div>
+                                            <span className="text-gray-300">→</span>
+                                            <input list="legal-name-options" value={nameMapDraft[n] || ''}
+                                                onChange={e => setNameMapDraft(d => ({ ...d, [n]: e.target.value }))}
+                                                className="flex-1 border rounded-lg p-2" placeholder="法定品名，如：冷凍熟鳳尾蝦仁" />
+                                        </div>
+                                    ))}
+                                </div>
+                                <datalist id="legal-name-options">
+                                    {legalNameOptions.map(n => <option key={n} value={n} />)}
+                                </datalist>
+                                <div className="flex gap-3 mt-4 pt-3 border-t">
+                                    <button onClick={() => setShowNameMapModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button>
+                                    <button onClick={saveNameMap} disabled={nameMapSaving} className="flex-1 py-3 bg-amber-600 text-white rounded-xl font-bold shadow-lg disabled:opacity-50">{nameMapSaving ? '儲存中…' : '儲存對照'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {showPermitModal && (
                         <div className="modal-overlay" onClick={() => !permitParsing && setShowPermitModal(false)}>
                             <div className="modal-content" style={{ maxWidth: '760px', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -5395,22 +5463,14 @@ JSON 範例：
                                         />
                                     </div>
                                     
-                                    {/* V90.0: 法定品名（輸入許可證用，供會計系統參照） */}
+                                    {/* V91.0: 法定品名由「品名對照」統一設定，此處只需填 SIZE */}
                                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
-                                        <div className="text-sm font-bold text-amber-800">輸入許可證資料（給會計系統對照）</div>
+                                        <div className="text-sm font-bold text-amber-800">輸入許可證資料</div>
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-600 mb-1">法定品名</label>
-                                            <input 
-                                                list="legal-name-options"
-                                                type="text"
-                                                value={editingProduct.legalName || ''}
-                                                onChange={e => setEditingProduct(p => ({...p, legalName: e.target.value}))}
-                                                className="w-full border rounded-lg p-2.5"
-                                                placeholder="點選或直接輸入，如：冷凍熟白蝦(B級)"
-                                            />
-                                            <datalist id="legal-name-options">
-                                                {legalNameOptions.map(n => <option key={n} value={n} />)}
-                                            </datalist>
+                                            <label className="block text-xs font-bold text-gray-600 mb-1">法定品名（依品名對照自動帶）</label>
+                                            <div className="w-full border border-gray-200 rounded-lg p-2.5 bg-gray-50 text-gray-700">
+                                                {legalNameMap[String(editingProduct.name || '').trim()] || <span className="text-gray-400">尚未設定 —— 請至「品名對照」建立</span>}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-600 mb-1">法定規格 / SIZE</label>
@@ -5419,10 +5479,10 @@ JSON 範例：
                                                 value={editingProduct.legalSpec || ''}
                                                 onChange={e => setEditingProduct(p => ({...p, legalSpec: e.target.value}))}
                                                 className="w-full border rounded-lg p-2.5"
-                                                placeholder="如：100/120（法定品名常重複，需靠規格區分）"
+                                                placeholder="如：51/60（此規格專屬，需逐一設定）"
                                             />
+                                            <div className="text-[11px] text-amber-700 mt-1">蝦規格慣例前段常 +1（50/60→51/60），但非一律如此（100/120 就不變），故需依許可證逐筆填寫。</div>
                                         </div>
-                                        <div className="text-[11px] text-amber-700">同一張許可證常有多個項次共用同一個法定品名（僅 SIZE 不同），故兩欄並存才能對應正確。</div>
                                     </div>
                                     
                                     <div className="grid grid-cols-2 gap-3">
@@ -6131,10 +6191,10 @@ JSON 範例：
                                                 <input type="file" accept=".xlsx,.xls" onChange={handleProductExcelImport} className="hidden" />
                                             </label>
                                             <button 
-                                                onClick={() => { setPermitRows([]); setShowPermitModal(true); }}
+                                                onClick={openNameMap}
                                                 className="flex-1 md:flex-none px-4 py-3 bg-amber-600 text-white rounded-xl font-bold text-sm hover:bg-amber-700 transition-colors flex items-center justify-center gap-1"
                                             >
-                                                📋 輸入許可證
+                                                🔗 品名對照
                                             </button>
                                             <button 
                                                 onClick={() => { setEditingProduct({...initialProductState}); setShowProductModal(true); }}
